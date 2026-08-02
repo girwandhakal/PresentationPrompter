@@ -6,10 +6,8 @@ import {
   ChevronRight,
   Clock3,
   Eye,
-  Maximize2,
   Menu,
   MessageSquareText,
-  MoreHorizontal,
   PenLine,
   Play,
   Sparkles,
@@ -17,24 +15,45 @@ import {
   WandSparkles,
 } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { SlideVisual } from "./SlideVisual";
 import type { Presentation } from "./types";
 
 type Props = {
   presentation: Presentation;
+  isEditingTitle: boolean;
+  onStartTitleEdit: () => void;
+  onCommitTitle: (title: string) => void;
+  onCancelTitleEdit: () => void;
   onEdit: () => void;
-  onMenu: () => void;
   onOpenSidebar: () => void;
 };
 
-export function PresentationWorkspace({ presentation, onEdit, onMenu, onOpenSidebar }: Props) {
+export function PresentationWorkspace({ presentation, isEditingTitle, onStartTitleEdit, onCommitTitle, onCancelTitleEdit, onEdit, onOpenSidebar }: Props) {
   const [activeIndex, setActiveIndex] = useState(0);
+  const [titleDraft, setTitleDraft] = useState(presentation.title);
+  const titleEditWasCancelled = useRef(false);
   const slide = presentation.slides[activeIndex] ?? presentation.slides[0];
   const totalSeconds = presentation.slides.reduce((total, item) => {
     const [minutes, seconds] = item.duration.split(":").map(Number);
     return total + minutes * 60 + seconds;
   }, 0);
+
+  function commitTitle() {
+    if (titleEditWasCancelled.current) return;
+    onCommitTitle(titleDraft);
+  }
+
+  function beginTitleEdit() {
+    titleEditWasCancelled.current = false;
+    setTitleDraft(presentation.title);
+    onStartTitleEdit();
+  }
+
+  function cancelTitleEdit() {
+    titleEditWasCancelled.current = true;
+    onCancelTitleEdit();
+  }
 
   if (!slide) return null;
 
@@ -42,8 +61,32 @@ export function PresentationWorkspace({ presentation, onEdit, onMenu, onOpenSide
     <main className="project-workspace">
       <header className="project-header">
         <button className="icon-button mobile-menu" onClick={onOpenSidebar} aria-label="Open presentation sidebar"><Menu /></button>
-        <div className="project-heading">
-          <div><h1>{presentation.title}</h1><button className="icon-button" onClick={onMenu} aria-label="Presentation actions"><MoreHorizontal /></button></div>
+        <div className={`project-heading ${isEditingTitle ? "is-editing" : ""}`}>
+          <div>
+            {isEditingTitle ? (
+              <input
+                autoFocus
+                aria-label="Presentation title"
+                className="project-title-input"
+                size={Math.max(12, titleDraft.length + 1)}
+                value={titleDraft}
+                onBlur={commitTitle}
+                onFocus={(event) => event.currentTarget.select()}
+                onChange={(event) => setTitleDraft(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") event.currentTarget.blur();
+                  if (event.key === "Escape") cancelTitleEdit();
+                }}
+              />
+            ) : (
+              <h1 className="project-title" role="button" tabIndex={0} title="Double-click to rename" onDoubleClick={beginTitleEdit} onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  beginTitleEdit();
+                }
+              }}>{presentation.title}</h1>
+            )}
+          </div>
         </div>
         <div className="header-actions">
           <button className="header-icon" onClick={onEdit} aria-label="Edit script" title="Edit script"><PenLine size={17} /></button>
@@ -66,10 +109,6 @@ export function PresentationWorkspace({ presentation, onEdit, onMenu, onOpenSide
         </section>
 
         <section className="preview-stage">
-          <div className="preview-toolbar">
-            <div><span className="live-dot" /><span className="sr-only">Slide preview</span></div>
-            <button className="icon-button" aria-label="Expand preview"><Maximize2 /></button>
-          </div>
           <div className="preview-frame glass-panel glass-panel--deep">
             <SlideVisual slide={slide} />
           </div>

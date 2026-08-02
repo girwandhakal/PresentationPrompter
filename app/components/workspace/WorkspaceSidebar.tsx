@@ -3,7 +3,6 @@
 import {
   ChevronLeft,
   Copy,
-  FilePenLine,
   MoreHorizontal,
   PanelLeftClose,
   PanelLeftOpen,
@@ -25,7 +24,6 @@ type Props = {
   onToggleCollapse: () => void;
   onSelect: (id: string) => void;
   onAdd: () => void;
-  onRename: (id: string) => void;
   onDuplicate: (id: string) => void;
   onDelete: (id: string) => void;
   onAccount: () => void;
@@ -40,7 +38,6 @@ export function WorkspaceSidebar({
   onToggleCollapse,
   onSelect,
   onAdd,
-  onRename,
   onDuplicate,
   onDelete,
   onAccount,
@@ -114,7 +111,6 @@ export function WorkspaceSidebar({
               </button>
               {menuId === presentation.id && (
                 <div className="project-menu glass-popover" ref={menuRef}>
-                  <button onClick={() => { onRename(presentation.id); setMenuId(null); }}><FilePenLine /> Rename</button>
                   <button onClick={() => { onDuplicate(presentation.id); setMenuId(null); }}><Copy /> Duplicate</button>
                   <button onClick={onAdd}><Upload /> Replace slides</button>
                   <button className="is-danger" onClick={() => { onDelete(presentation.id); setMenuId(null); }}><Trash2 /> Delete</button>

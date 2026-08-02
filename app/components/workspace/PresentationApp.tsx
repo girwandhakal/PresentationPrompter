@@ -17,8 +17,7 @@ export function PresentationApp({ initialView }: { initialView: AppView }) {
   const [view, setView] = useState<AppView>(initialView);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [renameId, setRenameId] = useState<string | null>(null);
-  const [renameValue, setRenameValue] = useState("");
+  const [editingTitleId, setEditingTitleId] = useState<string | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [accountOpen, setAccountOpen] = useState(false);
 
@@ -45,26 +44,25 @@ export function PresentationApp({ initialView }: { initialView: AppView }) {
 
   function select(id: string) {
     setActiveId(id);
+    setEditingTitleId(null);
     setView("project");
   }
 
   function addGenerated(presentation: Presentation) {
     setPresentations((current) => [presentation, ...current]);
     setActiveId(presentation.id);
+    setEditingTitleId(null);
     setView("project");
   }
 
-  function openRename(id: string) {
-    const presentation = presentations.find((item) => item.id === id);
-    if (!presentation) return;
-    setRenameId(id);
-    setRenameValue(presentation.title);
-  }
-
-  function commitRename() {
-    if (!renameId || !renameValue.trim()) return;
-    setPresentations((current) => current.map((item) => item.id === renameId ? { ...item, title: renameValue.trim(), updated: "Just now" } : item));
-    setRenameId(null);
+  function rename(id: string, title: string) {
+    const nextTitle = title.trim();
+    if (!nextTitle) {
+      setEditingTitleId(null);
+      return;
+    }
+    setPresentations((current) => current.map((item) => item.id === id ? { ...item, title: nextTitle, updated: "Just now" } : item));
+    setEditingTitleId(null);
   }
 
   function duplicate(id: string) {
@@ -99,7 +97,6 @@ export function PresentationApp({ initialView }: { initialView: AppView }) {
         onToggleCollapse={() => setSidebarCollapsed((current) => !current)}
         onSelect={select}
         onAdd={() => setView("new")}
-        onRename={openRename}
         onDuplicate={duplicate}
         onDelete={setDeleteId}
         onAccount={() => setAccountOpen(true)}
@@ -107,20 +104,9 @@ export function PresentationApp({ initialView }: { initialView: AppView }) {
       <div className="app-main">
         <button className="floating-mobile-menu" onClick={() => setMobileOpen(true)} aria-label="Open presentation sidebar"><Menu /></button>
         {view === "new" && <NewPresentationFlow onGenerated={addGenerated} />}
-        {view === "project" && active && <PresentationWorkspace presentation={active} onEdit={() => setView("editor")} onMenu={() => openRename(active.id)} onOpenSidebar={() => setMobileOpen(true)} />}
+        {view === "project" && active && <PresentationWorkspace presentation={active} isEditingTitle={editingTitleId === active.id} onStartTitleEdit={() => setEditingTitleId(active.id)} onCommitTitle={(title) => rename(active.id, title)} onCancelTitleEdit={() => setEditingTitleId(null)} onEdit={() => setView("editor")} onOpenSidebar={() => setMobileOpen(true)} />}
         {view === "editor" && active && <ScriptEditor key={active.id} presentation={active} onBack={() => setView("project")} onSave={saveSlides} onOpenSidebar={() => setMobileOpen(true)} />}
       </div>
-
-      {renameId && (
-        <div className="modal-backdrop" role="presentation" onMouseDown={() => setRenameId(null)}>
-          <div className="modal glass-panel" role="dialog" aria-modal="true" aria-labelledby="rename-title" onMouseDown={(event) => event.stopPropagation()}>
-            <button className="icon-button modal-close" onClick={() => setRenameId(null)} aria-label="Close"><X /></button>
-            <span className="eyebrow">Presentation details</span><h2 id="rename-title">Rename presentation</h2>
-            <label className="field"><span>Title</span><input autoFocus value={renameValue} onChange={(event) => setRenameValue(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") commitRename(); }} /></label>
-            <div className="modal-actions"><button className="secondary-button" onClick={() => setRenameId(null)}>Cancel</button><button className="start-button" onClick={commitRename}>Save changes</button></div>
-          </div>
-        </div>
-      )}
 
       {deleteId && (
         <div className="modal-backdrop" role="presentation" onMouseDown={() => setDeleteId(null)}>

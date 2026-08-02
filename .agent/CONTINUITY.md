@@ -29,3 +29,14 @@
 - 2026-08-01T00:00Z [USER] [FIX] Removed residual flex gaps from hidden collapsed sidebar branding and fixed the expand button's flex basis so it is physically centered.
 - 2026-08-01T00:00Z [USER] [FIX] Centered each collapsed presentation button by removing hidden-title width, centering the button content, and auto-centering each fixed-size presentation row within the icon rail.
 - 2026-08-01T00:00Z [USER] [CODE] Restored the editor-page preview toolbar with a blue status dot and a working full-screen presentation-preview control.
+- 2026-08-01T00:00Z [USER] [FIX] Removed the preview dot and full-screen control from the presentation overview; those controls now appear only on the editor page.
+- 2026-08-01T00:00Z [USER] [CODE] Replaced directional center-workspace shadows with subtle zero-offset shadows on shared glass panels, deep preview surfaces, and slide visuals for uniform edges.
+- 2026-08-01T00:00Z [USER] [FIX] Removed the shared panel gradients, visible borders, and outer shadows that created seams between center components. Panels now separate through a subtle fill difference only.
+- 2026-08-01T00:00Z [USER] [CODE] Increased the panel fill contrast substantially while preserving borderless, shadowless separation: standard panels are now 68% white over Powder Petal and deep panels 78% white.
+- 2026-08-01T00:00Z [USER] [CODE] Replaced the modal rename workflow with inline presentation-title editing: double-clicking the workspace title opens a title-styled editor; blur or Enter saves it and Escape cancels it. Removed rename actions from the overflow menu.
+- 2026-08-01T00:00Z [USER] [FIX] Removed the blue inline-title edit outline. The editing title is visually identical to the heading, with a normal text caret and temporary text selection only; Escape explicitly takes precedence over save-on-blur.
+- 2026-08-01T00:00Z [USER] [CODE] Made the inline rename state explicit without a field border: it centers in the desktop header and adds a compact Renaming label; mobile retains the natural document flow.
+- 2026-08-01T00:00Z [USER] [FIX] Kept the rename state in the title component's original header position; only the text is centered inside that local component rather than being centered across the page.
+- 2026-08-01T00:00Z [USER] [FIX] Removed the temporary Renaming label and changed the inline title to regular-weight text, retaining only the caret and text selection as edit-state cues.
+- 2026-08-01T00:00Z [USER] [FIX] Reduced the inline rename control to its content length (with a small minimum and responsive maximum) instead of reserving a broad title-area width.
+- 2026-08-01T00:00Z [USER] [CODE] Replaced the prior Syne/Azeret Mono pairing with a single Bricolage Grotesque family throughout the app. Weight, size, tracking, and casing now provide all hierarchy.

@@ -1,16 +1,10 @@
 import type { Metadata } from "next";
-import { Azeret_Mono, Syne } from "next/font/google";
+import { Bricolage_Grotesque } from "next/font/google";
 import { headers } from "next/headers";
 import "./globals.css";
 
-const syne = Syne({
-  variable: "--font-syne",
-  subsets: ["latin"],
-  display: "swap",
-});
-
-const azeretMono = Azeret_Mono({
-  variable: "--font-azeret",
+const bricolage = Bricolage_Grotesque({
+  variable: "--font-cueframe",
   subsets: ["latin"],
   display: "swap",
 });
@@ -34,7 +28,7 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" className={`${syne.variable} ${azeretMono.variable}`}>
+    <html lang="en" className={bricolage.variable}>
       <body>{children}</body>
     </html>
   );
