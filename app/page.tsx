@@ -1,5 +1,5 @@
-import { CueframeApp } from "./components/CueframeApp";
+import { PresentationApp } from "./components/workspace/PresentationApp";
 
 export default function Home() {
-  return <CueframeApp />;
+  return <PresentationApp initialView="project" />;
 }

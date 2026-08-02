@@ -1,63 +1,41 @@
 import type { Metadata } from "next";
+import { Azeret_Mono, Syne } from "next/font/google";
 import { headers } from "next/headers";
-import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const syne = Syne({
+  variable: "--font-syne",
   subsets: ["latin"],
+  display: "swap",
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
+const azeretMono = Azeret_Mono({
+  variable: "--font-azeret",
   subsets: ["latin"],
+  display: "swap",
 });
+
+const title = "Cueframe";
+const description = "Slide-aware teleprompter.";
 
 export async function generateMetadata(): Promise<Metadata> {
   const requestHeaders = await headers();
-  const host = requestHeaders.get("host") ?? "localhost:3000";
-  const protocol = host.includes("localhost") || host.startsWith("127.")
-    ? "http"
-    : "https";
-  const baseUrl = new URL(`${protocol}://${host}`);
-  const shareImage = new URL("/og.png", baseUrl).toString();
+  const host = requestHeaders.get("x-forwarded-host") ?? requestHeaders.get("host") ?? "localhost:3000";
+  const protocol = requestHeaders.get("x-forwarded-proto") ?? (host.startsWith("localhost") ? "http" : "https");
+  const imageUrl = `${protocol}://${host}/og.png`;
 
   return {
-    metadataBase: baseUrl,
-    title: "Cueframe — Present with clarity",
-    description:
-      "Turn any presentation into a natural, timed speaker script with private delivery cues.",
-    icons: {
-      icon: "/favicon.svg",
-      shortcut: "/favicon.svg",
-    },
-    openGraph: {
-      title: "Cueframe — Present with clarity",
-      description:
-        "AI-generated speaker scripts, delivery cues, and a private presenter view.",
-      type: "website",
-      images: [{ url: shareImage, width: 1733, height: 909, alt: "Cueframe presentation coach" }],
-    },
-    twitter: {
-      card: "summary_large_image",
-      title: "Cueframe — Present with clarity",
-      description:
-        "AI-generated speaker scripts, delivery cues, and a private presenter view.",
-      images: [shareImage],
-    },
+    title,
+    description,
+    openGraph: { title, description, type: "website", images: [{ url: imageUrl, width: 1680, height: 941, alt: "Cueframe" }] },
+    twitter: { card: "summary_large_image", title, description, images: [imageUrl] },
   };
 }
 
-export default function RootLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en">
-      <body className={`${geistSans.variable} ${geistMono.variable}`}>
-        {children}
-      </body>
+    <html lang="en" className={`${syne.variable} ${azeretMono.variable}`}>
+      <body>{children}</body>
     </html>
   );
 }

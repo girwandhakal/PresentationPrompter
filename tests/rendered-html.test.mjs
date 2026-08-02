@@ -1,91 +1,78 @@
 import assert from "node:assert/strict";
-import { access, readFile, readdir } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
 
-const developmentPreviewMeta =
-  /<meta(?=[^>]*\bname=["']codex-preview["'])(?=[^>]*\bcontent=["']development["'])[^>]*>/i;
-const templateRoot = new URL("../", import.meta.url);
-const previewRoot = new URL("../app/_sites-preview/", import.meta.url);
-
-async function render() {
+async function render(pathname = "/") {
   const workerUrl = new URL("../dist/server/index.js", import.meta.url);
-  workerUrl.searchParams.set("test", `${process.pid}-${Date.now()}`);
+  workerUrl.searchParams.set("test", `${process.pid}-${Date.now()}-${pathname}`);
   const { default: worker } = await import(workerUrl.href);
 
   return worker.fetch(
-    new Request("http://localhost/", {
-      headers: { accept: "text/html" },
-    }),
-    {
-      ASSETS: {
-        fetch: async () => new Response("Not found", { status: 404 }),
-      },
-    },
-    {
-      waitUntil() {},
-      passThroughOnException() {},
-    },
+    new Request(`http://localhost${pathname}`, { headers: { accept: "text/html" } }),
+    { ASSETS: { fetch: async () => new Response("Not found", { status: 404 }) } },
+    { waitUntil() {}, passThroughOnException() {} },
   );
 }
 
-test("server-renders the starter loading skeleton", async () => {
+test("server-renders the functional presentation workspace", async () => {
   const response = await render();
   assert.equal(response.status, 200);
   assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
 
   const html = await response.text();
-  assert.match(html, developmentPreviewMeta);
-  assert.match(html, /<title>Your site is taking shape<\/title>/i);
-  assert.match(html, /Building your site/);
-  assert.match(html, /Your site is taking shape/);
-  assert.match(
-    html,
-    /Your first version will appear here automatically when it’s ready\./,
-  );
-  assert.doesNotMatch(html, /Codex/);
-  assert.match(html, /react-loading-skeleton/);
-  assert.match(html, /role="status"/);
+  assert.match(html, /<title>Cueframe<\/title>/i);
+  assert.match(html, /Add presentation/i);
+  assert.match(html, /Quiet launch strategy/i);
+  assert.match(html, /Start presentation/i);
+  assert.match(html, /Your Account/i);
+  assert.doesNotMatch(html, /pricing|upgrade now|starter loading skeleton|needs review|private by default/i);
 });
 
-test("keeps the loading skeleton scoped and disposable", async () => {
-  const [preview, css, page, layout, packageJson, files] = await Promise.all([
-    readFile(new URL("SkeletonPreview.tsx", previewRoot), "utf8"),
-    readFile(new URL("preview.css", previewRoot), "utf8"),
-    readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
-    readFile(new URL("../app/layout.tsx", import.meta.url), "utf8"),
-    readFile(new URL("../package.json", import.meta.url), "utf8"),
-    readdir(previewRoot),
+test("implements the modular palette-driven frontend", async () => {
+  const [css, app, flow, editor, presenter, workspace, sidebar] = await Promise.all([
+    readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
+    readFile(new URL("../app/components/workspace/PresentationApp.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/components/workspace/NewPresentationFlow.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/components/workspace/ScriptEditor.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/presenter/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/components/workspace/PresentationWorkspace.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/components/workspace/WorkspaceSidebar.tsx", import.meta.url), "utf8"),
   ]);
 
-  assert.deepEqual(files.sort(), ["SkeletonPreview.tsx", "preview.css"]);
-  assert.match(preview, /from "react-loading-skeleton"/);
-  assert.match(preview, /baseColor="#eceae7"/);
-  assert.match(preview, /highlightColor="#f9f8f6"/);
-  assert.match(preview, /duration=\{2\.8\}/);
-  assert.match(preview, /sites-skeleton-search-placeholder/);
-  assert.match(packageJson, /"react-loading-skeleton": "3\.5\.0"/);
-
-  const shellIndex = preview.indexOf('className="sites-skeleton-shell"');
-  const statusIndex = preview.indexOf('className="sites-skeleton-status"');
-  assert.ok(shellIndex >= 0 && statusIndex > shellIndex);
-  assert.match(css, /position:\s*fixed/);
-  assert.match(css, /inset:\s*0/);
-  assert.match(css, /opacity:\s*0\.52/);
-  assert.match(css, /prefers-reduced-motion:\s*reduce/);
-  assert.doesNotMatch(css, /#020617|canvas|pets|progress/i);
-  assert.doesNotMatch(
-    preview,
-    /loading-spinner|status-mark|status-progress|canvas|cookie|random/i,
-  );
-
-  assert.match(page, /export const metadata:\s*Metadata/);
-  assert.match(page, /"codex-preview": "development"/);
-  assert.match(page, /<SkeletonPreview \/>/);
-  assert.match(layout, /title:\s*"Starter Project"/);
-  assert.doesNotMatch(layout, /codex-preview|_sites-preview|themeColor|\bViewport\b/);
-  assert.doesNotMatch(css, /(^|\s)(html|body)\s*\{/m);
-
-  await assert.rejects(
-    access(new URL("public/_sites-preview", templateRoot)),
-  );
+  assert.match(css, /--powder:\s*#fce4d8/i);
+  assert.match(css, /--pitch:\s*#070600/i);
+  assert.match(css, /--blue:\s*#279af1/i);
+  assert.match(css, /backdrop-filter:\s*blur/i);
+  assert.match(css, /html \{ height: 100%; overflow: hidden;/);
+  assert.match(css, /\.app-main \{[^}]*overflow: hidden;/);
+  assert.match(css, /\.create-workspace \{[^}]*height: 100%;/);
+  assert.match(css, /\.app-shell \{[^}]*background: var\(--powder\);/);
+  assert.doesNotMatch(css, /\.ambient--one|\.ambient--two|\.ambient--three/);
+  assert.match(css, /\.presentation-row\.is-active \{[^}]*box-shadow: none;/);
+  assert.match(css, /\.workspace-sidebar \{[^}]*box-shadow: none;/);
+  assert.match(app, /WorkspaceSidebar/);
+  assert.match(flow, /<h2>Upload<\/h2>/);
+  assert.match(flow, /<h2>Details<\/h2>/);
+  assert.match(flow, /> Generate/);
+  assert.doesNotMatch(flow, /Upload slides|Edit the essentials|Generate teleprompter script/);
+  assert.doesNotMatch(editor, /Teleprompter editor|Focused AI edits|Reading width/);
+  assert.match(editor, /live-dot/);
+  assert.match(editor, /openPreviewFullscreen/);
+  assert.match(editor, /requestFullscreen/);
+  assert.match(presenter, /BroadcastChannel/);
+  assert.match(presenter, /Open audience window/);
+  assert.match(workspace, /slide-navigation__control/);
+  assert.match(workspace, /aria-label="Previous slide"/);
+  assert.match(workspace, /aria-label="Next slide"/);
+  assert.match(sidebar, /placeholder="Search"/);
+  assert.match(sidebar, /aria-label="Add presentation"/);
+  assert.match(sidebar, /onToggleCollapse/);
+  assert.match(app, /sidebarCollapsed/);
+  assert.match(css, /\.workspace-sidebar\.is-collapsed/);
+  assert.match(css, /\.workspace-sidebar\.is-collapsed \.brand-lockup \{ justify-content: center; gap: 0;/);
+  assert.match(css, /\.workspace-sidebar\.is-collapsed \.sidebar-toggle \{ width: 47px; height: 47px; flex: 0 0 47px;/);
+  assert.match(css, /\.workspace-sidebar\.is-collapsed \.presentation-row \{ width: 46px; min-height: 46px; margin-inline: auto;/);
+  assert.match(css, /\.workspace-sidebar\.is-collapsed \.presentation-row__main \{ width: 100%; height: 44px; flex: 1 1 0; justify-content: center;/);
+  assert.doesNotMatch(sidebar, /Your presentations|Search your work|presentation copilot/);
+  assert.match(editor, /aria-label="Insert pause"/);
 });
