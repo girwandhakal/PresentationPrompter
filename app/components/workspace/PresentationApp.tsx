@@ -20,29 +20,50 @@ export function PresentationApp({ initialView }: { initialView: AppView }) {
   const [editingTitleId, setEditingTitleId] = useState<string | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [accountOpen, setAccountOpen] = useState(false);
+  const [storageReady, setStorageReady] = useState(false);
+  const [editorDirty, setEditorDirty] = useState(false);
 
   useEffect(() => {
+    let storedPresentations: Presentation[] | null = null;
     try {
       const stored = window.localStorage.getItem(STORAGE_KEY);
       if (stored) {
         const parsed = JSON.parse(stored) as Presentation[];
-        queueMicrotask(() => setPresentations(parsed));
+        if (Array.isArray(parsed) && parsed.length > 0 && parsed.every((item) => item && typeof item.id === "string" && Array.isArray(item.slides))) {
+          storedPresentations = parsed;
+        }
       }
     } catch {
       // The sample workspace remains available when local storage is unavailable.
     }
+    queueMicrotask(() => {
+      if (storedPresentations) {
+        setPresentations(storedPresentations);
+        setActiveId(storedPresentations[0].id);
+      }
+      setStorageReady(true);
+    });
   }, []);
 
   useEffect(() => {
+    if (!storageReady) return;
     try { window.localStorage.setItem(STORAGE_KEY, JSON.stringify(presentations)); } catch { /* local preferences are best effort */ }
-  }, [presentations]);
+  }, [presentations, storageReady]);
 
   const active = useMemo(
     () => presentations.find((presentation) => presentation.id === activeId) ?? presentations[0],
     [activeId, presentations],
   );
 
+  function confirmEditorExit() {
+    if (view !== "editor" || !editorDirty) return true;
+    if (!window.confirm("You have unsaved script changes. Leave without saving?")) return false;
+    setEditorDirty(false);
+    return true;
+  }
+
   function select(id: string) {
+    if (!confirmEditorExit()) return;
     setActiveId(id);
     setEditingTitleId(null);
     setView("project");
@@ -66,6 +87,7 @@ export function PresentationApp({ initialView }: { initialView: AppView }) {
   }
 
   function duplicate(id: string) {
+    if (!confirmEditorExit()) return;
     const source = presentations.find((item) => item.id === id);
     if (!source) return;
     const copy = { ...source, id: `${source.id}-${Date.now()}`, title: `${source.title} — copy`, updated: "Just now" };
@@ -76,6 +98,10 @@ export function PresentationApp({ initialView }: { initialView: AppView }) {
 
   function remove() {
     if (!deleteId) return;
+    if (!confirmEditorExit()) {
+      setDeleteId(null);
+      return;
+    }
     const remaining = presentations.filter((item) => item.id !== deleteId);
     setPresentations(remaining.length ? remaining : initialPresentations);
     if (deleteId === activeId) setActiveId((remaining[0] ?? initialPresentations[0]).id);
@@ -84,6 +110,7 @@ export function PresentationApp({ initialView }: { initialView: AppView }) {
 
   function saveSlides(slides: Slide[]) {
     setPresentations((current) => current.map((item) => item.id === activeId ? { ...item, slides, updated: "Just now" } : item));
+    setEditorDirty(false);
   }
 
   return (
@@ -96,7 +123,7 @@ export function PresentationApp({ initialView }: { initialView: AppView }) {
         onCloseMobile={() => setMobileOpen(false)}
         onToggleCollapse={() => setSidebarCollapsed((current) => !current)}
         onSelect={select}
-        onAdd={() => setView("new")}
+        onAdd={() => { if (confirmEditorExit()) setView("new"); }}
         onDuplicate={duplicate}
         onDelete={setDeleteId}
         onAccount={() => setAccountOpen(true)}
@@ -105,7 +132,7 @@ export function PresentationApp({ initialView }: { initialView: AppView }) {
         <button className="floating-mobile-menu" onClick={() => setMobileOpen(true)} aria-label="Open presentation sidebar"><Menu /></button>
         {view === "new" && <NewPresentationFlow onGenerated={addGenerated} />}
         {view === "project" && active && <PresentationWorkspace presentation={active} isEditingTitle={editingTitleId === active.id} onStartTitleEdit={() => setEditingTitleId(active.id)} onCommitTitle={(title) => rename(active.id, title)} onCancelTitleEdit={() => setEditingTitleId(null)} onEdit={() => setView("editor")} onOpenSidebar={() => setMobileOpen(true)} />}
-        {view === "editor" && active && <ScriptEditor key={active.id} presentation={active} onBack={() => setView("project")} onSave={saveSlides} onOpenSidebar={() => setMobileOpen(true)} />}
+        {view === "editor" && active && <ScriptEditor key={active.id} presentation={active} onBack={() => { setEditorDirty(false); setView("project"); }} onSave={saveSlides} onOpenSidebar={() => setMobileOpen(true)} onDirtyChange={setEditorDirty} />}
       </div>
 
       {deleteId && (

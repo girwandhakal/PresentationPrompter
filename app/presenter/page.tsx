@@ -17,6 +17,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { initialPresentations } from "../components/workspace/mock-data";
 import { SlideVisual } from "../components/workspace/SlideVisual";
+import { documentToSpokenText, parseScriptDocument } from "../components/workspace/script-types";
 
 const deck = initialPresentations[0];
 
@@ -27,6 +28,8 @@ export default function PresenterPage() {
   const [popupBlocked, setPopupBlocked] = useState(false);
   const channelRef = useRef<BroadcastChannel | null>(null);
   const slide = deck.slides[index];
+  const spoken = documentToSpokenText(parseScriptDocument(slide?.script, slide?.body ?? "", slide?.cue ?? ""));
+  const nextSpoken = documentToSpokenText(parseScriptDocument(deck.slides[index + 1]?.script, deck.slides[index + 1]?.body ?? "", deck.slides[index + 1]?.cue ?? ""));
 
   const broadcast = useCallback((nextIndex = index) => {
     channelRef.current?.postMessage({ type: "snapshot", index: nextIndex, title: deck.title });
@@ -72,10 +75,10 @@ export default function PresenterPage() {
       <div className="presenter-grid">
         <section className="prompt-stage glass-panel">
           <div className="prompt-stage__meta"><span>Slide {index + 1} of {deck.slides.length}</span><span><Gauge /> 130 wpm</span></div>
-          <div className="prompt-script"><span className="prompt-before">{slide.body.split(" ").slice(0, 8).join(" ")}</span> <mark>{slide.body.split(" ").slice(8, 13).join(" ")}</mark> {slide.body.split(" ").slice(13).join(" ")}</div>
+          <div className="prompt-script"><span className="prompt-before">{spoken.trim().split(" ").slice(0, 8).join(" ")}</span> <mark>{spoken.trim().split(" ").slice(8, 13).join(" ")}</mark> {spoken.trim().split(" ").slice(13).join(" ")}</div>
           <div className="prompt-focus-line"><i /></div>
           <div className="live-cue"><Eye /><div><span>{slide.cueType}</span><strong>{slide.cue}</strong></div></div>
-          <div className="next-line"><p>{deck.slides[index + 1]?.body.split(".")[0] ?? "End the presentation and leave room for questions."}</p></div>
+          <div className="next-line"><p>{nextSpoken.trim().split(".")[0] || "End the presentation and leave room for questions."}</p></div>
         </section>
 
         <aside className="presenter-context">
