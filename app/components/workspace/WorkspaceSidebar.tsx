@@ -44,11 +44,20 @@ export function WorkspaceSidebar({
 }: Props) {
   const [query, setQuery] = useState("");
   const [menuId, setMenuId] = useState<string | null>(null);
+  const [menuPosition, setMenuPosition] = useState<{ top: number; left: number } | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+
+  function closeMenu() {
+    setMenuId(null);
+    setMenuPosition(null);
+  }
 
   useEffect(() => {
     function closeMenu(event: MouseEvent) {
-      if (!menuRef.current?.contains(event.target as Node)) setMenuId(null);
+      if (!menuRef.current?.contains(event.target as Node)) {
+        setMenuId(null);
+        setMenuPosition(null);
+      }
     }
     document.addEventListener("mousedown", closeMenu);
     return () => document.removeEventListener("mousedown", closeMenu);
@@ -101,19 +110,33 @@ export function WorkspaceSidebar({
                   <small>{presentation.updated}</small>
                 </span>
               </button>
-              <button
-                className="presentation-row__menu"
-                aria-label={`Actions for ${presentation.title}`}
-                aria-expanded={menuId === presentation.id}
-                onClick={() => setMenuId(menuId === presentation.id ? null : presentation.id)}
-              >
+                <button
+                  className="presentation-row__menu"
+                  aria-label={`Actions for ${presentation.title}`}
+                  aria-expanded={menuId === presentation.id}
+                  onClick={(event) => {
+                    if (menuId === presentation.id) {
+                      closeMenu();
+                      return;
+                    }
+                    const anchor = event.currentTarget.getBoundingClientRect();
+                    const menuWidth = 178;
+                    const menuHeight = 150;
+                    const left = Math.min(Math.max(8, anchor.right - menuWidth), window.innerWidth - menuWidth - 8);
+                    const top = anchor.bottom + menuHeight > window.innerHeight - 8
+                      ? Math.max(8, anchor.top - menuHeight - 4)
+                      : anchor.bottom + 4;
+                    setMenuPosition({ top, left });
+                    setMenuId(presentation.id);
+                  }}
+                >
                 <MoreHorizontal size={17} />
               </button>
               {menuId === presentation.id && (
-                <div className="project-menu glass-popover" ref={menuRef}>
-                  <button onClick={() => { onDuplicate(presentation.id); setMenuId(null); }}><Copy /> Duplicate</button>
-                  <button onClick={onAdd}><Upload /> Replace slides</button>
-                  <button className="is-danger" onClick={() => { onDelete(presentation.id); setMenuId(null); }}><Trash2 /> Delete</button>
+                <div className="project-menu glass-popover" ref={menuRef} style={menuPosition ?? undefined}>
+                  <button onClick={() => { onDuplicate(presentation.id); closeMenu(); }}><Copy /> Duplicate</button>
+                  <button onClick={() => { onAdd(); closeMenu(); }}><Upload /> Replace slides</button>
+                  <button className="is-danger" onClick={() => { onDelete(presentation.id); closeMenu(); }}><Trash2 /> Delete</button>
                 </div>
               )}
             </div>

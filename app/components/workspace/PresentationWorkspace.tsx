@@ -17,7 +17,9 @@ import {
 import Link from "next/link";
 import { useRef, useState } from "react";
 import { SlideVisual } from "./SlideVisual";
+import { TeleprompterText } from "./TeleprompterText";
 import type { Presentation } from "./types";
+import { documentToSpokenText, parseScriptDocument } from "./script-types";
 
 type Props = {
   presentation: Presentation;
@@ -96,13 +98,11 @@ export function PresentationWorkspace({ presentation, isEditingTitle, onStartTit
 
       <div className="workspace-overview">
         <section className="slide-rail glass-panel" aria-label="Presentation slides">
-          <div className="panel-label"><span className="sr-only">Slides</span><small>{presentation.slides.length}</small></div>
           <div className="slide-rail__list">
             {presentation.slides.map((item, index) => (
-              <button className={index === activeIndex ? "is-active" : ""} onClick={() => setActiveIndex(index)} key={item.id}>
-                <span className="slide-number">{String(index + 1).padStart(2, "0")}</span>
+              <button className={index === activeIndex ? "is-active" : ""} onClick={() => setActiveIndex(index)} key={item.id} aria-label={`Slide ${index + 1}: ${item.title}`}>
+                <span className="slide-number">{index + 1}</span>
                 <SlideVisual slide={item} compact />
-                <span className="slide-rail__title">{item.title}</span>
               </button>
             ))}
           </div>
@@ -124,7 +124,7 @@ export function PresentationWorkspace({ presentation, isEditingTitle, onStartTit
             <div><span className="eyebrow"><MessageSquareText size={13} /> Script</span><h2>{slide.title}</h2></div>
             <button className="icon-button" onClick={onEdit} aria-label="Edit current slide script"><PenLine /></button>
           </div>
-          <div className="script-copy">{slide.body}</div>
+          <div className="script-copy"><TeleprompterText script={slide.script} value={slide.body} showCueIcon={false} /></div>
           <div className="cue-card">
             <span><Sparkles size={14} /> {slide.cueType}</span>
             <p>{slide.cue}</p>
@@ -135,7 +135,12 @@ export function PresentationWorkspace({ presentation, isEditingTitle, onStartTit
           </div>
           <div className="presenter-peek">
             <div className="presenter-peek__header"><span><Eye size={14} /><span className="sr-only">Presenter preview</span></span><ChevronRight size={15} /></div>
-            <p>{slide.body.split(".")[0]}<span className="focus-word"> {slide.body.split(" ").slice(5, 8).join(" ")}</span></p>
+            {(() => {
+              const spoken = documentToSpokenText(parseScriptDocument(slide.script, slide.body, slide.cue)).replace(/\s+/g, " ").trim();
+              const sentence = spoken.split(".")[0];
+              const focus = spoken.split(" ").slice(5, 8).join(" ");
+              return <p>{sentence}<span className="focus-word"> {focus}</span></p>;
+            })()}
             <div><i style={{ width: `${presentation.progress}%` }} /></div>
           </div>
           <button className="ai-refine-button" onClick={onEdit} aria-label="Refine script" title="Refine script"><WandSparkles /></button>
