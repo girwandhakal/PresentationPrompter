@@ -135,7 +135,12 @@ export function PresentationWorkspace({ presentation, isEditingTitle, onStartTit
           </div>
           <div className="presenter-peek">
             <div className="presenter-peek__header"><span><Eye size={14} /><span className="sr-only">Presenter preview</span></span><ChevronRight size={15} /></div>
-            <p>{documentToSpokenText(parseScriptDocument(slide.script, slide.body, slide.cue)).replace(/\s+/g, ' ').trim().split(".")[0]}<span className="focus-word"> {documentToSpokenText(parseScriptDocument(slide.script, slide.body, slide.cue)).replace(/\s+/g, ' ').trim().split(" ").slice(5, 8).join(" ")}</span></p>
+            {(() => {
+              const spoken = documentToSpokenText(parseScriptDocument(slide.script, slide.body, slide.cue)).replace(/\s+/g, " ").trim();
+              const sentence = spoken.split(".")[0];
+              const focus = spoken.split(" ").slice(5, 8).join(" ");
+              return <p>{sentence}<span className="focus-word"> {focus}</span></p>;
+            })()}
             <div><i style={{ width: `${presentation.progress}%` }} /></div>
           </div>
           <button className="ai-refine-button" onClick={onEdit} aria-label="Refine script" title="Refine script"><WandSparkles /></button>
