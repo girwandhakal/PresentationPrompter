@@ -37,10 +37,9 @@ test("preview renders structured text without raw markup injection", () => {
   assert.match(preview, /teleprompter-cue/);
 });
 
-test("editor visual conventions include a tabular noninteractive gutter and bold cue chips", () => {
-  assert.match(css, /script-line-gutter/);
-  assert.match(css, /font-variant-numeric: tabular-nums/);
-  assert.match(css, /pointer-events: none/);
+test("editor visual conventions include a noninteractive placeholder and bold cue chips", () => {
+  assert.match(css, /script-editor-placeholder/);
+  assert.match(css, /\.script-editor-placeholder \{[^}]*pointer-events: none/);
   assert.match(css, /script-cue-chip/);
   assert.match(css, /font-weight: 750/);
 });
