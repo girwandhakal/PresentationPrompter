@@ -138,7 +138,7 @@ export function PresentationApp({ initialView }: { initialView: AppView }) {
       {deleteId && (
         <div className="modal-backdrop" role="presentation" onMouseDown={() => setDeleteId(null)}>
           <div className="modal glass-panel" role="alertdialog" aria-modal="true" aria-labelledby="delete-title" onMouseDown={(event) => event.stopPropagation()}>
-            <span className="eyebrow">Remove presentation</span><h2 id="delete-title">Delete this presentation?</h2><p>This removes the local project, script, and session history from this browser.</p>
+            <h2 id="delete-title">Delete this presentation?</h2>
             <div className="modal-actions"><button className="secondary-button" onClick={() => setDeleteId(null)}>Keep it</button><button className="danger-button" onClick={remove}>Delete presentation</button></div>
           </div>
         </div>

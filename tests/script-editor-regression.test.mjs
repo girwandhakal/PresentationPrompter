@@ -6,6 +6,8 @@ const root = process.cwd();
 const types = fs.readFileSync(`${root}/app/components/workspace/script-types.ts`, "utf8");
 const lexical = fs.readFileSync(`${root}/app/components/workspace/script-lexical.ts`, "utf8");
 const editor = fs.readFileSync(`${root}/app/components/workspace/ScriptEditor.tsx`, "utf8");
+const overview = fs.readFileSync(`${root}/app/components/workspace/PresentationWorkspace.tsx`, "utf8");
+const styles = fs.readFileSync(`${root}/app/globals.css`, "utf8");
 
 test("document schema stores paragraphs, marks, breaks, cue IDs, and version", () => {
   assert.match(types, /version: 1/);
@@ -51,6 +53,28 @@ test("autosave is debounced and explicit save flushes", () => {
   assert.match(editor, /onSave\(slides\)/);
 });
 
+test("studio header relies on autosave without save controls", () => {
+  assert.doesNotMatch(editor, /aria-label="Save script"/);
+  assert.doesNotMatch(editor, /className="saved-state"/);
+});
+
+test("studio canvas omits script metadata chrome", () => {
+  assert.doesNotMatch(editor, /className="duration-pill"/);
+  assert.doesNotMatch(editor, /className="editor-stats"/);
+});
+
+test("overview slide rail uses numbered thumbnails without captions", () => {
+  assert.match(overview, /className="slide-number">\{index \+ 1\}/);
+  assert.match(overview, /aria-label={`Slide \${index \+ 1}: \${item\.title}`}/);
+  assert.doesNotMatch(overview, /<div className="panel-label">/);
+  assert.doesNotMatch(overview, /slide-rail__title/);
+});
+
+test("compact slide thumbnails clip every corner consistently", () => {
+  assert.match(styles, /\.slide-visual\.is-compact \{[^}]*border-radius: 10px/);
+  assert.match(styles, /\.slide-visual\.is-compact \{[^}]*clip-path: inset\(0 round 10px\)/);
+});
+
 test("privacy boundary renders audience text from spoken document", () => {
   const presenter = fs.readFileSync(`${root}/app/presenter/page.tsx`, "utf8");
   assert.match(presenter, /documentToSpokenText/);
@@ -81,14 +105,24 @@ test("format toolbar exposes active state and history controls", () => {
   assert.match(editor, /REDO_COMMAND/);
 });
 
-test("line measurement reacts to edits, scroll, resize, and fonts", () => {
-  assert.match(editor, /MutationObserver/);
-  assert.match(editor, /addEventListener\("scroll"/);
-  assert.match(editor, /document\.fonts\?\.ready/);
+test("studio editor omits the line-number gutter", () => {
+  assert.doesNotMatch(editor, /LineNumberGutter/);
+  assert.doesNotMatch(editor, /script-line-gutter/);
+});
+
+test("script scroll uses one composited, speed-sensitive elastic layer", () => {
+  assert.match(editor, /addEventListener\("wheel"/);
+  assert.match(editor, /passive: false/);
+  assert.match(editor, /requestAnimationFrame\(animate\)/);
+  assert.match(editor, /filteredSpeed/);
+  assert.match(editor, /direction = delta > 0 \? -1 : 1/);
+  assert.match(editor, /response = target === 0 \? 55 : 52/);
+  assert.match(editor, /window\.setTimeout\(release, 24\)/);
+  assert.match(editor, /script-editor-elastic-layer/);
 });
 
 test("cue labels are accessible and private from spoken metrics", () => {
   assert.match(types, /documentCueCount/);
-  assert.match(editor, /Cue editing/);
+  assert.match(editor, /aria-label={`Insert \${label} cue`}/);
   assert.match(fs.readFileSync(`${root}/app/components/workspace/TeleprompterText.tsx`, "utf8"), /aria-label={`Cue:/);
 });

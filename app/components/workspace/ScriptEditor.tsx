@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, Bold, Clock3, Eye, Italic, Maximize2, Menu, Mic2, Redo2, Save, Sparkles, Undo2 } from "lucide-react";
+import { ArrowLeft, Bold, Clock3, Eye, Italic, Menu, Mic2, Redo2, Sparkles, Undo2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   $createTextNode,
@@ -21,17 +21,13 @@ import { LexicalErrorBoundary } from "@lexical/react/LexicalErrorBoundary";
 import { RichTextPlugin } from "@lexical/react/LexicalRichTextPlugin";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { HistoryPlugin } from "@lexical/react/LexicalHistoryPlugin";
-import { SlideVisual } from "./SlideVisual";
-import { TeleprompterText } from "./TeleprompterText";
 import type { Presentation, Slide } from "./types";
 import { CueNode, ScriptParagraphNode, $createCueNode } from "./script-nodes";
 import { documentFromLexicalState, loadScriptDocument } from "./script-lexical";
 import {
-  documentCueCount,
   documentFromLegacy,
   documentToDuration,
   documentToSpokenText,
-  documentToWordCount,
   makeId,
   parseScriptDocument,
   type ScriptDocument,
@@ -169,95 +165,98 @@ function CueKeyboardPlugin({ startCue, onCueState }: { startCue: (editor: Lexica
   return null;
 }
 
-function LineNumberGutter({
-  editorRef,
+function ElasticOverscroll({
   scrollRef,
-  gutterRef,
-  onCount,
+  layerRef,
 }: {
-  editorRef: React.RefObject<HTMLDivElement | null>;
   scrollRef: React.RefObject<HTMLDivElement | null>;
-  gutterRef: React.RefObject<HTMLDivElement | null>;
-  onCount: (count: number) => void;
+  layerRef: React.RefObject<HTMLDivElement | null>;
 }) {
-  const redraw = useCallback(() => {
-    const editor = editorRef.current;
-    const scroll = scrollRef.current;
-    const gutter = gutterRef.current;
-    if (!editor || !scroll || !gutter) return;
-
-    const rects: DOMRect[] = [];
-    editor.querySelectorAll<HTMLElement>(".script-paragraph").forEach((paragraph) => {
-      const walker = document.createTreeWalker(paragraph, NodeFilter.SHOW_TEXT);
-      let textNode: Node | null;
-      let hasVisibleText = false;
-      while ((textNode = walker.nextNode())) {
-        const range = document.createRange();
-        range.selectNodeContents(textNode);
-        for (const rect of Array.from(range.getClientRects())) {
-          if (rect.height > 0 && rect.width >= 0) {
-            rects.push(rect);
-            hasVisibleText = true;
-          }
-        }
-      }
-      paragraph.querySelectorAll("br").forEach((breakNode) => {
-        const range = document.createRange();
-        range.selectNode(breakNode);
-        const rect = range.getBoundingClientRect();
-        if (rect.height > 0) rects.push(rect);
-      });
-      if (!hasVisibleText && !paragraph.querySelector("br")) rects.push(paragraph.getBoundingClientRect());
-    });
-
-    const editorTop = editor.getBoundingClientRect().top;
-    const lineHeight = Number.parseFloat(getComputedStyle(editor).lineHeight) || 25;
-    const mergeDistance = Math.max(2, lineHeight * 0.18);
-    const rows = rects
-      .filter((rect) => rect.height > 0)
-      .sort((a, b) => a.top - b.top || a.left - b.left)
-      .reduce<number[]>((positions, rect) => {
-        const y = rect.top - editorTop + scroll.scrollTop;
-        if (!positions.length || Math.abs(positions[positions.length - 1] - y) > mergeDistance) positions.push(y);
-        return positions;
-      }, []);
-
-    gutter.replaceChildren(...rows.map((y, index) => {
-      const line = document.createElement("span");
-      line.className = "script-line-number";
-      line.textContent = String(index + 1);
-      line.style.top = `${y}px`;
-      return line;
-    }));
-    gutter.style.height = `${Math.max(editor.scrollHeight, scroll.clientHeight)}px`;
-    onCount(rows.length);
-  }, [editorRef, gutterRef, onCount, scrollRef]);
-
   useEffect(() => {
-    let frame = 0;
-    const schedule = () => {
-      cancelAnimationFrame(frame);
-      frame = requestAnimationFrame(redraw);
-    };
-    const resizeObserver = new ResizeObserver(schedule);
-    const editor = editorRef.current;
     const scroll = scrollRef.current;
-    if (editor) resizeObserver.observe(editor);
-    if (scroll) resizeObserver.observe(scroll);
-    const mutationObserver = editor ? new MutationObserver(schedule) : null;
-    mutationObserver?.observe(editor, { subtree: true, childList: true, characterData: true });
-    scroll?.addEventListener("scroll", schedule, { passive: true });
-    window.addEventListener("resize", schedule, { passive: true });
-    document.fonts?.ready.then(schedule);
-    schedule();
+    const layer = layerRef.current;
+    if (!scroll || !layer) return;
+
+    let current = 0;
+    let target = 0;
+    let filteredSpeed = 0;
+    let lastInputAt = 0;
+    let lastFrameAt = 0;
+    let frame = 0;
+    let releaseTimer: number | undefined;
+
+    function render(value: number) {
+      current = value;
+      layer.style.setProperty("--script-elastic-y", `${value.toFixed(3)}px`);
+    }
+
+    function animate(now: number) {
+      const elapsed = lastFrameAt ? Math.min(40, now - lastFrameAt) : 16;
+      lastFrameAt = now;
+      const response = target === 0 ? 55 : 52;
+      const blend = 1 - Math.exp(-elapsed / response);
+      render(current + (target - current) * blend);
+
+      if (Math.abs(target - current) < 0.05) {
+        render(target);
+        frame = 0;
+        lastFrameAt = 0;
+        return;
+      }
+      frame = requestAnimationFrame(animate);
+    }
+
+    function ensureAnimation() {
+      if (!frame) frame = requestAnimationFrame(animate);
+    }
+
+    function release() {
+      target = 0;
+      filteredSpeed = 0;
+      ensureAnimation();
+    }
+
+    function onWheel(event: WheelEvent) {
+      if (event.ctrlKey || event.deltaY === 0 || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+
+      const multiplier = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? scroll.clientHeight : 1;
+      const delta = event.deltaY * multiplier;
+      const maxScrollTop = Math.max(0, scroll.scrollHeight - scroll.clientHeight);
+      const available = delta < 0 ? scroll.scrollTop : maxScrollTop - scroll.scrollTop;
+      const spill = Math.abs(delta) - Math.max(0, available);
+
+      if (spill <= 0) {
+        if (current !== 0 || target !== 0) release();
+        return;
+      }
+
+      event.preventDefault();
+      scroll.scrollTop = delta < 0 ? 0 : maxScrollTop;
+
+      const now = event.timeStamp;
+      const elapsed = lastInputAt ? Math.max(8, Math.min(80, now - lastInputAt)) : 16;
+      lastInputAt = now;
+      const speed = spill / elapsed;
+      filteredSpeed = filteredSpeed * 0.7 + speed * 0.3;
+
+      // Pull opposite the wheel direction, like a physical sheet reaching its edge.
+      const direction = delta > 0 ? -1 : 1;
+      const distance = Math.min(52, 6 + Math.log1p(spill) * 5 + Math.min(18, filteredSpeed * 7));
+      target = direction * distance;
+
+      if (releaseTimer) window.clearTimeout(releaseTimer);
+      releaseTimer = window.setTimeout(release, 24);
+      ensureAnimation();
+    }
+
+    scroll.addEventListener("wheel", onWheel, { passive: false });
     return () => {
+      scroll.removeEventListener("wheel", onWheel);
+      if (releaseTimer) window.clearTimeout(releaseTimer);
       cancelAnimationFrame(frame);
-      resizeObserver.disconnect();
-      mutationObserver?.disconnect();
-      scroll?.removeEventListener("scroll", schedule);
-      window.removeEventListener("resize", schedule);
+      layer.style.removeProperty("--script-elastic-y");
     };
-  }, [editorRef, redraw, scrollRef]);
+  }, [layerRef, scrollRef]);
 
   return null;
 }
@@ -287,12 +286,10 @@ export function ScriptEditor({ presentation, onBack, onSave, onOpenSidebar, onDi
   })));
   const [activeIndex, setActiveIndex] = useState(0);
   const [saved, setSaved] = useState(true);
-  const [pendingCue, setPendingCue] = useState(false);
-  const [lineCount, setLineCount] = useState(0);
+  const [, setPendingCue] = useState(false);
   const editorRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
-  const gutterRef = useRef<HTMLDivElement>(null);
-  const previewRef = useRef<HTMLElement>(null);
+  const elasticLayerRef = useRef<HTMLDivElement>(null);
   const autosave = useRef<number | undefined>(undefined);
   const active = slides[activeIndex];
 
@@ -349,7 +346,6 @@ export function ScriptEditor({ presentation, onBack, onSave, onOpenSidebar, onDi
     if (index === activeIndex) return;
     if (!saved) save();
     setPendingCue(false);
-    setLineCount(0);
     setActiveIndex(index);
   }, [activeIndex, save, saved]);
 
@@ -374,8 +370,6 @@ export function ScriptEditor({ presentation, onBack, onSave, onOpenSidebar, onDi
 
   if (!active) return null;
   const script = active.script ?? documentFromLegacy(active.body, active.cue);
-  const words = documentToWordCount(script);
-  const cues = documentCueCount(script);
 
   function leave() {
     if (!saved) save();
@@ -389,10 +383,6 @@ export function ScriptEditor({ presentation, onBack, onSave, onOpenSidebar, onDi
           <button type="button" className="icon-button mobile-menu" onClick={onOpenSidebar} aria-label="Open presentation sidebar"><Menu /></button>
           <button type="button" className="back-button" onClick={leave} aria-label="Back to presentation"><ArrowLeft /></button>
           <strong>{presentation.title}</strong>
-        </div>
-        <div className="editor-header__tools">
-          <span className="saved-state" aria-label={saved ? "Saved" : "Unsaved changes"}><i className={saved ? "" : "is-unsaved"} /></span>
-          <button type="button" className="header-icon header-icon--primary" onClick={save} aria-label="Save script"><Save /></button>
         </div>
       </header>
 
@@ -409,8 +399,7 @@ export function ScriptEditor({ presentation, onBack, onSave, onOpenSidebar, onDi
 
         <section className="editor-canvas glass-panel">
           <div className="editor-canvas__top">
-            <div><span className="eyebrow">Script · slide {activeIndex + 1}</span><h1>{active.title}</h1></div>
-            <div className="duration-pill"><Clock3 /> {active.duration}</div>
+            <div><h1>{active.title}</h1></div>
           </div>
 
           <LexicalComposer initialConfig={config} key={active.id}>
@@ -420,31 +409,19 @@ export function ScriptEditor({ presentation, onBack, onSave, onOpenSidebar, onDi
             <HistoryPlugin />
             <div className="script-editor-surface" aria-label="Spoken script editing surface">
               <div className="script-editor-scroll" ref={scrollRef}>
-                <div className="script-line-gutter" ref={gutterRef} aria-hidden="true" />
-                <RichTextPlugin
-                  contentEditable={<div ref={editorRef} className="script-editor-input"><ContentEditable aria-label="Script editor" /></div>}
-                  placeholder={<div className="script-editor-placeholder">Start writing your script…</div>}
-                  ErrorBoundary={LexicalErrorBoundary}
-                />
-                <LineNumberGutter editorRef={editorRef} scrollRef={scrollRef} gutterRef={gutterRef} onCount={setLineCount} />
+                <div className="script-editor-elastic-layer" ref={elasticLayerRef}>
+                  <RichTextPlugin
+                    contentEditable={<div ref={editorRef} className="script-editor-input"><ContentEditable aria-label="Script editor" /></div>}
+                    placeholder={<div className="script-editor-placeholder">Start writing your script…</div>}
+                    ErrorBoundary={LexicalErrorBoundary}
+                  />
+                </div>
+                <ElasticOverscroll scrollRef={scrollRef} layerRef={elasticLayerRef} />
               </div>
             </div>
           </LexicalComposer>
-
-          <div className="editor-stats" aria-live="polite">
-            <span>{words} words</span><span>{lineCount || script.paragraphs.length} lines</span><span>{cues} cues</span>
-            {pendingCue && <span className="cue-editing">Cue editing · Enter to commit · Esc to cancel</span>}
-          </div>
         </section>
 
-        <aside className="editor-preview glass-panel" ref={previewRef}>
-          <div className="panel-label"><span className="live-dot" aria-hidden="true" /><span className="sr-only">Presentation preview</span><button type="button" className="icon-button" onClick={() => void previewRef.current?.requestFullscreen?.()} aria-label="Open presentation preview full screen"><Maximize2 /></button></div>
-          <SlideVisual slide={active} compact />
-          <div className="teleprompter-preview">
-            <TeleprompterText script={script} className="teleprompter-preview__script" />
-            <div className="focus-line" aria-hidden="true" />
-          </div>
-        </aside>
       </div>
     </main>
   );

@@ -98,13 +98,11 @@ export function PresentationWorkspace({ presentation, isEditingTitle, onStartTit
 
       <div className="workspace-overview">
         <section className="slide-rail glass-panel" aria-label="Presentation slides">
-          <div className="panel-label"><span className="sr-only">Slides</span><small>{presentation.slides.length}</small></div>
           <div className="slide-rail__list">
             {presentation.slides.map((item, index) => (
-              <button className={index === activeIndex ? "is-active" : ""} onClick={() => setActiveIndex(index)} key={item.id}>
-                <span className="slide-number">{String(index + 1).padStart(2, "0")}</span>
+              <button className={index === activeIndex ? "is-active" : ""} onClick={() => setActiveIndex(index)} key={item.id} aria-label={`Slide ${index + 1}: ${item.title}`}>
+                <span className="slide-number">{index + 1}</span>
                 <SlideVisual slide={item} compact />
-                <span className="slide-rail__title">{item.title}</span>
               </button>
             ))}
           </div>
