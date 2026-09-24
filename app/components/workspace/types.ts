@@ -1,3 +1,5 @@
+import type { ScriptDocument } from "./script-types";
+
 export type CueType = "Pause" | "Emphasize" | "Gesture" | "Look up";
 
 export type Slide = {
@@ -5,6 +7,7 @@ export type Slide = {
   eyebrow: string;
   title: string;
   body: string;
+  script?: ScriptDocument;
   cue: string;
   cueType: CueType;
   duration: string;

@@ -336,7 +336,7 @@ export async function POST(request: Request) {
       console.error("OpenAI API error", {
         status: error.status,
         code: error.code,
-        requestId: error.request_id,
+        requestId: error.requestID,
       });
       return Response.json(
         {

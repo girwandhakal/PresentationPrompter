@@ -15,6 +15,8 @@ import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { initialPresentations } from "../components/workspace/mock-data";
 import { SlideVisual } from "../components/workspace/SlideVisual";
+import { TeleprompterText } from "../components/workspace/TeleprompterText";
+import { documentToSpokenText, parseScriptDocument } from "../components/workspace/script-types";
 import type { Presentation } from "../components/workspace/types";
 
 const STORAGE_KEY = "cueframe-presentations-v2";
@@ -28,6 +30,7 @@ export default function PresenterPage() {
   const [popupBlocked, setPopupBlocked] = useState(false);
   const channelRef = useRef<BroadcastChannel | null>(null);
   const slide = deck.slides[index];
+  const script = parseScriptDocument(slide.script, slide.body, slide.cue);
 
   useEffect(() => {
     try {
@@ -113,11 +116,7 @@ export default function PresenterPage() {
             <span><Gauge size={12} /> 130 wpm</span>
           </div>
 
-          <div className="prompt-text">
-            <span className="prompt-prev">{slide.body.split(" ").slice(0, 8).join(" ")}</span>
-            {" "}<mark>{slide.body.split(" ").slice(8, 14).join(" ")}</mark>
-            {" "}{slide.body.split(" ").slice(14).join(" ")}
-          </div>
+          <TeleprompterText className="prompt-text" script={script} />
 
           <div className="prompt-line"><i /></div>
 
@@ -130,7 +129,7 @@ export default function PresenterPage() {
           </div>
 
           <p className="next-hint">
-            {deck.slides[index + 1]?.body.split(".")[0] ?? "End of presentation — leave room for questions."}
+            {deck.slides[index + 1] ? documentToSpokenText(parseScriptDocument(deck.slides[index + 1].script, deck.slides[index + 1].body, deck.slides[index + 1].cue)).split(".")[0] : "End of presentation — leave room for questions."}
           </p>
         </section>
 

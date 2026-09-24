@@ -21,6 +21,8 @@ export function PresentationApp({ initialView }: { initialView: AppView }) {
   const [editingTitleId, setEditingTitleId] = useState<string | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [accountOpen, setAccountOpen] = useState(false);
+  const [storageReady, setStorageReady] = useState(false);
+  const [editorDirty, setEditorDirty] = useState(false);
 
   useEffect(() => {
     try {
@@ -28,28 +30,41 @@ export function PresentationApp({ initialView }: { initialView: AppView }) {
       const storedActiveId = window.localStorage.getItem(ACTIVE_STORAGE_KEY);
       if (stored) {
         const parsed = JSON.parse(stored) as Presentation[];
-        queueMicrotask(() => setPresentations(parsed));
-        if (storedActiveId && parsed.some((presentation) => presentation.id === storedActiveId)) {
-          queueMicrotask(() => setActiveId(storedActiveId));
+        if (Array.isArray(parsed) && parsed.length && parsed.every((item) => item && typeof item.id === "string" && Array.isArray(item.slides))) {
+          queueMicrotask(() => {
+            setPresentations(parsed);
+            setActiveId(storedActiveId && parsed.some((presentation) => presentation.id === storedActiveId) ? storedActiveId : parsed[0].id);
+          });
         }
       }
     } catch { /* local storage unavailable */ }
+    queueMicrotask(() => setStorageReady(true));
   }, []);
 
   useEffect(() => {
+    if (!storageReady) return;
     try { window.localStorage.setItem(STORAGE_KEY, JSON.stringify(presentations)); } catch { /* best effort */ }
-  }, [presentations]);
+  }, [presentations, storageReady]);
 
   useEffect(() => {
+    if (!storageReady) return;
     try { window.localStorage.setItem(ACTIVE_STORAGE_KEY, activeId); } catch { /* best effort */ }
-  }, [activeId]);
+  }, [activeId, storageReady]);
 
   const active = useMemo(
     () => presentations.find((p) => p.id === activeId) ?? presentations[0],
     [activeId, presentations],
   );
 
+  function confirmEditorExit() {
+    if (view !== "editor" || !editorDirty) return true;
+    if (!window.confirm("You have unsaved script changes. Leave without saving?")) return false;
+    setEditorDirty(false);
+    return true;
+  }
+
   function select(id: string) {
+    if (!confirmEditorExit()) return;
     setActiveId(id);
     setEditingTitleId(null);
     setView("project");
@@ -70,6 +85,7 @@ export function PresentationApp({ initialView }: { initialView: AppView }) {
   }
 
   function duplicate(id: string) {
+    if (!confirmEditorExit()) return;
     const src = presentations.find((p) => p.id === id);
     if (!src) return;
     const copy = { ...src, id: `${src.id}-${Date.now()}`, title: `${src.title} — copy`, updated: "Just now" };
@@ -80,6 +96,7 @@ export function PresentationApp({ initialView }: { initialView: AppView }) {
 
   function remove() {
     if (!deleteId) return;
+    if (!confirmEditorExit()) { setDeleteId(null); return; }
     const remaining = presentations.filter((p) => p.id !== deleteId);
     setPresentations(remaining.length ? remaining : initialPresentations);
     if (deleteId === activeId) setActiveId((remaining[0] ?? initialPresentations[0]).id);
@@ -88,6 +105,7 @@ export function PresentationApp({ initialView }: { initialView: AppView }) {
 
   function saveSlides(slides: Slide[]) {
     setPresentations((cur) => cur.map((p) => p.id === activeId ? { ...p, slides, updated: "Just now" } : p));
+    setEditorDirty(false);
   }
 
   return (
@@ -100,7 +118,7 @@ export function PresentationApp({ initialView }: { initialView: AppView }) {
         onCloseMobile={() => setMobileOpen(false)}
         onToggleCollapse={() => setSidebarCollapsed((c) => !c)}
         onSelect={select}
-        onAdd={() => setView("new")}
+        onAdd={() => { if (confirmEditorExit()) setView("new"); }}
         onDuplicate={duplicate}
         onDelete={setDeleteId}
         onAccount={() => setAccountOpen(true)}
@@ -133,8 +151,9 @@ export function PresentationApp({ initialView }: { initialView: AppView }) {
           <ScriptEditor
             key={active.id}
             presentation={active}
-            onBack={() => setView("project")}
+            onBack={() => { setEditorDirty(false); setView("project"); }}
             onSave={saveSlides}
+            onDirtyChange={setEditorDirty}
           />
         )}
       </div>

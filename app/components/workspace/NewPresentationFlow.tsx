@@ -53,8 +53,9 @@ export function NewPresentationFlow({ onGenerated }: Props) {
       form.set("targetMinutes", String(minutes));
 
       const res = await fetch("/api/generate-script", { method: "POST", body: form });
-      const result = await res.json();
+      const result = await res.json() as { error?: string; deckTitle?: string; slides?: Record<string, string>[] };
       if (!res.ok) throw new Error(result.error || "The script could not be generated.");
+      if (!Array.isArray(result.slides)) throw new Error("The generated script was incomplete.");
 
       const slides: Slide[] = result.slides.map((s: Record<string, string>, i: number) => ({
         id: `generated-${i + 1}`,
@@ -92,7 +93,7 @@ export function NewPresentationFlow({ onGenerated }: Props) {
     <main className="new-pres">
       <div className="new-pres-head">
         <h1 className="new-pres-h1">New presentation</h1>
-        <p className="new-pres-sub">Upload your deck and we'll generate a presenter script.</p>
+        <p className="new-pres-sub">Upload your deck and we&apos;ll generate a presenter script.</p>
       </div>
 
       <div className="new-pres-form">
