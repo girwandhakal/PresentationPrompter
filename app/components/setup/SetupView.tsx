@@ -303,6 +303,9 @@ export function SetupView({ project }: { project: Project }) {
             {failed && (
               <Callout tone="error" title="The script wasn't finished">{failed}</Callout>
             )}
+            {aiStatus?.provider === "demo" && (
+              <Callout title="Demo mode">Scripts are assembled from your slide text so you can try everything. Set OPENAI_API_KEY on the server for real AI writing.</Callout>
+            )}
             {aiReady === false && (
               <Callout tone="warn" title="AI isn't set up">This server doesn&apos;t have an AI key yet, so scripts can&apos;t be written. You can still write your own script in the editor.</Callout>
             )}

@@ -27,7 +27,7 @@ export type PresenterPrefs = {
 export const DEFAULT_PRESENTER_PREFS: PresenterPrefs = {
   fontSize: 44,
   lineHeight: 1.5,
-  width: 68,
+  width: 82,
   paceMultiplier: 1,
   mirror: false,
   highContrast: false,
