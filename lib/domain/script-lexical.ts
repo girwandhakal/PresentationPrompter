@@ -2,8 +2,10 @@ import {
   $createLineBreakNode,
   $createTextNode,
   $getRoot,
+  $isElementNode,
   $isLineBreakNode,
   $isTextNode,
+  type ElementNode,
   type EditorState,
   type LexicalEditor,
 } from "lexical";
@@ -33,7 +35,7 @@ export function loadScriptDocument(editor: LexicalEditor, document: ScriptDocume
   }, { discrete: true, tag: "script-hydrate" });
 }
 
-function paragraphFromNode(node: ReturnType<typeof $createScriptParagraphNode>): ScriptParagraph {
+function paragraphFromNode(node: ElementNode): ScriptParagraph {
   const children: ScriptInline[] = [];
   for (const child of node.getChildren()) {
     if (child.getType() === CueNode.getType() && child.getTextContent().trim()) {
@@ -46,13 +48,15 @@ function paragraphFromNode(node: ReturnType<typeof $createScriptParagraphNode>):
       if (text || !children.length) children.push({ type: "text", text, ...(child.hasFormat("bold") ? { bold: true } : {}), ...(child.hasFormat("italic") ? { italic: true } : {}) });
     }
   }
-  return { id: node.__paragraphId, children: children.length ? children : [{ type: "text", text: "" }] };
+  const id = node instanceof ScriptParagraphNode ? node.__paragraphId : makeId("paragraph");
+  return { id, children: children.length ? children : [{ type: "text", text: "" }] };
 }
 
 export function documentFromLexicalState(editorState: EditorState): ScriptDocument {
   let result: ScriptDocument = { version: 1, paragraphs: [] };
   editorState.read(() => {
-    result = { version: 1, paragraphs: $getRoot().getChildren().filter((node) => node.getType() === ScriptParagraphNode.getType()).map((node) => paragraphFromNode(node as ReturnType<typeof $createScriptParagraphNode>)) };
+    // Any block under the root is kept, so text can never be dropped because of its node type.
+    result = { version: 1, paragraphs: $getRoot().getChildren().filter($isElementNode).map(paragraphFromNode) };
   });
   if (!result.paragraphs.length) result.paragraphs.push({ id: makeId("paragraph"), children: [{ type: "text", text: "" }] });
   return result;

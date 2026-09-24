@@ -85,6 +85,7 @@ test("import, brief, generate, edit, present, and review a deck", async ({ page,
   await expect(page.getByRole("heading", { name: "sample deck", level: 1 })).toBeVisible();
   // The accepted "More conversational" rewrite (which opens with "So,") was saved.
   await expect(page.getByLabel("Script for slide 1").getByText(/^So, thanks for being here/)).toBeVisible();
+  await expect(page.getByLabel("Script for slide 1")).toContainText("One more line for the room.");
 });
 
 test("PowerPoint files import with titles and speaker notes", async ({ page }) => {
@@ -109,6 +110,23 @@ test("PowerPoint files import with titles and speaker notes", async ({ page }) =
   // Speaker notes from the deck reach the editor's inspector.
   await page.getByRole("link", { name: "I'll write it myself" }).click();
   await expect(page.getByLabel("Speaker notes from the deck")).toHaveValue("Mention the APAC number first.");
+
+  // Writing from scratch: text, a cue on its own line, and a new paragraph all persist.
+  await page.getByRole("button", { name: "Write it myself" }).click();
+  await page.keyboard.type("Revenue grew in every region.");
+  await page.keyboard.press("Control+k");
+  await page.keyboard.type("Point to the map");
+  await page.keyboard.press("Enter");
+  await page.keyboard.type("Churn stayed flat.");
+  await page.keyboard.press("Enter");
+  await page.keyboard.type("That is the headline.");
+  await expect(page.getByText(/^12 words/)).toBeVisible();
+  await expect(page.getByRole("status").filter({ hasText: "Saved" })).toBeVisible();
+  await page.reload();
+  const editor = page.getByRole("textbox", { name: "Script for slide 1" });
+  await expect(editor).toContainText("Revenue grew in every region.");
+  await expect(editor).toContainText("That is the headline.");
+  await expect(editor.locator(".script-cue-chip")).toHaveText("Point to the map");
 });
 
 test("unsupported files get a clear, actionable message", async ({ page }) => {

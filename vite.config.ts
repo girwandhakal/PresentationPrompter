@@ -53,7 +53,7 @@ export default defineConfig(async () => {
     // Pre-bundle browser-only dependencies that load lazily (import, editor), so the dev server
     // doesn't re-optimize and reload in the middle of the first import.
     optimizeDeps: {
-      include: ["pdfjs-dist/legacy/build/pdf.mjs", "jszip", "idb", "lexical", "@lexical/react/LexicalComposer", "@lexical/react/LexicalComposerContext", "@lexical/react/LexicalContentEditable", "@lexical/react/LexicalErrorBoundary", "@lexical/react/LexicalHistoryPlugin", "@lexical/react/LexicalRichTextPlugin"],
+      include: ["pdfjs-dist/legacy/build/pdf.mjs", "jszip", "idb", "lexical", "@lexical/react/LexicalComposer", "@lexical/react/LexicalComposerContext", "@lexical/react/LexicalContentEditable", "@lexical/react/LexicalErrorBoundary", "@lexical/react/LexicalHistoryPlugin", "@lexical/react/LexicalRichTextPlugin", "@lexical/react/LexicalAutoFocusPlugin"],
     },
     server: isCodexSeatbeltSandbox
       ? { watch: { useFsEvents: false, usePolling: true } }

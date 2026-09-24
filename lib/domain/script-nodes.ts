@@ -1,17 +1,20 @@
 import {
-  ElementNode,
+  ParagraphNode,
   TextNode,
   type EditorConfig,
   type LexicalNode,
   type NodeKey,
-  type SerializedElementNode,
+  type RangeSelection,
+  type SerializedParagraphNode,
   type SerializedTextNode,
 } from "lexical";
+import { makeId } from "./script";
 
-export type SerializedScriptParagraphNode = SerializedElementNode & { type: "script-paragraph"; paragraphId: string };
+export type SerializedScriptParagraphNode = SerializedParagraphNode & { paragraphId: string };
 export type SerializedCueNode = SerializedTextNode & { type: "script-cue"; cueId: string };
 
-export class ScriptParagraphNode extends ElementNode {
+/** A paragraph with a stable id. Extends Lexical's paragraph so it can replace it everywhere. */
+export class ScriptParagraphNode extends ParagraphNode {
   __paragraphId: string;
   constructor(paragraphId: string, key?: NodeKey) { super(key); this.__paragraphId = paragraphId; }
   static getType() { return "script-paragraph"; }
@@ -20,7 +23,23 @@ export class ScriptParagraphNode extends ElementNode {
   exportJSON(): SerializedScriptParagraphNode { return { ...super.exportJSON(), type: "script-paragraph", paragraphId: this.__paragraphId, version: 1 }; }
   createDOM(config: EditorConfig) { const dom = document.createElement("div"); dom.className = config.theme.paragraph ?? "script-paragraph"; return dom; }
   updateDOM() { return false; }
+  /** Enter creates another script paragraph (never Lexical's built-in paragraph). */
+  insertNewAfter(_selection: RangeSelection, restoreSelection: boolean): ScriptParagraphNode {
+    const next = new ScriptParagraphNode(makeId("paragraph"));
+    this.insertAfter(next, restoreSelection);
+    return next;
+  }
 }
+
+/**
+ * Registered with the editor so every paragraph Lexical creates on its own (typing into an empty
+ * root, pasting, splitting) becomes a script paragraph the serializer understands.
+ */
+export const PARAGRAPH_REPLACEMENT = {
+  replace: ParagraphNode,
+  with: () => new ScriptParagraphNode(makeId("paragraph")),
+  withKlass: ScriptParagraphNode,
+};
 
 export class CueNode extends TextNode {
   __cueId: string;

@@ -4,6 +4,7 @@ import { LexicalComposer } from "@lexical/react/LexicalComposer";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { ContentEditable } from "@lexical/react/LexicalContentEditable";
 import { LexicalErrorBoundary } from "@lexical/react/LexicalErrorBoundary";
+import { AutoFocusPlugin } from "@lexical/react/LexicalAutoFocusPlugin";
 import { HistoryPlugin } from "@lexical/react/LexicalHistoryPlugin";
 import { RichTextPlugin } from "@lexical/react/LexicalRichTextPlugin";
 import {
@@ -24,7 +25,7 @@ import {
 import { Bold, Eye, Hand, Italic, MessageSquarePlus, Pause, Redo2, Undo2, Wind } from "lucide-react";
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 import { documentFromLexicalState, loadScriptDocument } from "@/lib/domain/script-lexical";
-import { $createCueNode, CueNode, ScriptParagraphNode } from "@/lib/domain/script-nodes";
+import { $createCueNode, CueNode, PARAGRAPH_REPLACEMENT, ScriptParagraphNode } from "@/lib/domain/script-nodes";
 import { makeId, type ScriptDocument } from "@/lib/domain/script";
 import type { SelectionAction } from "@/lib/ai/client";
 import { IconButton } from "../ui/button";
@@ -55,16 +56,17 @@ type Props = {
   onSelectionRewrite: (action: SelectionAction, text: string, apply: (replacement: string) => void) => void;
   toolbarEnd?: ReactNode;
   label: string;
+  autoFocus?: boolean;
 };
 
 /**
  * The teleprompter script editor. Cues are atomic private nodes on their own line; formatting is
  * limited to what renders in Presenter (bold, italic). Remount with a new `key` to load new content.
  */
-export const ScriptSurface = forwardRef<ScriptSurfaceHandle, Props>(function ScriptSurface({ document, onChange, locked, aiEnabled, onSelectionRewrite, toolbarEnd, label }, ref) {
+export const ScriptSurface = forwardRef<ScriptSurfaceHandle, Props>(function ScriptSurface({ document, onChange, locked, aiEnabled, onSelectionRewrite, toolbarEnd, label, autoFocus }, ref) {
   const config = useMemo(() => ({
     namespace: "CueframeScript",
-    nodes: [ScriptParagraphNode, CueNode],
+    nodes: [ScriptParagraphNode, CueNode, PARAGRAPH_REPLACEMENT],
     theme: { paragraph: "script-paragraph", text: { bold: "script-bold", italic: "script-italic" } },
     onError: (error: Error) => { throw error; },
   }), []);
@@ -76,12 +78,14 @@ export const ScriptSurface = forwardRef<ScriptSurfaceHandle, Props>(function Scr
       <div className="script-surface" ref={surfaceRef} data-locked={locked}>
         <RichTextPlugin
           contentEditable={<ContentEditable className="script-surface__input" aria-label={label} aria-multiline="true" spellCheck />}
-          placeholder={<div className="script-surface__placeholder">Write what you&apos;ll say on this slide…</div>}
+          placeholder={null}
           ErrorBoundary={LexicalErrorBoundary}
         />
+        <Placeholder />
         <SelectionBubble containerRef={surfaceRef} aiEnabled={aiEnabled} locked={locked} onRewrite={onSelectionRewrite} />
       </div>
       <HistoryPlugin />
+      {autoFocus && <AutoFocusPlugin defaultSelection="rootEnd" />}
       <DocumentPlugin document={document} onChange={onChange} />
       <EditablePlugin editable={!locked} />
       <KeyboardPlugin />
@@ -147,6 +151,22 @@ function cueAtSelection() {
 }
 
 // ── Plugins ─────────────────────────────────────────────────────────────────
+
+/** Lexical only shows its placeholder for built-in paragraphs; script paragraphs need their own. */
+function Placeholder() {
+  const [editor] = useLexicalComposerContext();
+  const [empty, setEmpty] = useState(false);
+  useEffect(() => {
+    const check = (state: EditorState) => state.read(() => {
+      const root = $getRoot();
+      setEmpty(root.getChildrenSize() <= 1 && !root.getTextContent().trim());
+    });
+    check(editor.getEditorState());
+    return editor.registerUpdateListener(({ editorState }) => check(editorState));
+  }, [editor]);
+  if (!empty) return null;
+  return <div className="script-surface__placeholder" aria-hidden="true">Write what you&apos;ll say on this slide…</div>;
+}
 
 function Toolbar({ end }: { end?: ReactNode }) {
   const [editor] = useLexicalComposerContext();

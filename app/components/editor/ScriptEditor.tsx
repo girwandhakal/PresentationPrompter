@@ -43,6 +43,7 @@ export function ScriptEditor({ project, initialSlideId }: { project: Project; in
   const [pending, setPending] = useState<string | null>(null);
   const [proposal, setProposal] = useState<Proposal | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [focusEditor, setFocusEditor] = useState(false);
   const surface = useRef<ScriptSurfaceHandle>(null);
   const controller = useRef<AbortController | null>(null);
 
@@ -341,7 +342,7 @@ export function ScriptEditor({ project, initialSlideId }: { project: Project; in
                 <p>No script for this slide yet.</p>
                 <div className="editor-empty__actions">
                   {aiEnabled && <Button variant="primary" size="sm" icon={<Sparkles />} onClick={() => runScriptAction("regenerate", "Write this slide", plannedWords)}>Write this slide</Button>}
-                  <Button variant="secondary" size="sm" onClick={() => patchScript({ origin: "user" })}>Write it myself</Button>
+                  <Button variant="secondary" size="sm" onClick={() => { setFocusEditor(true); patchScript({ origin: "user" }); }}>Write it myself</Button>
                 </div>
               </div>
             ) : (
@@ -353,6 +354,7 @@ export function ScriptEditor({ project, initialSlideId }: { project: Project; in
                 locked={locked}
                 aiEnabled={aiEnabled}
                 label={`Script for slide ${index + 1}`}
+                autoFocus={focusEditor}
                 onSelectionRewrite={onSelectionRewrite}
                 toolbarEnd={aiEnabled ? (
                   <Menu
