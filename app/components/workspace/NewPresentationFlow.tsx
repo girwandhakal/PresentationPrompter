@@ -32,10 +32,10 @@ export function NewPresentationFlow({ onGenerated }: Props) {
   const wordBudget = useMemo(() => Math.round(minutes * wpm * 0.88), [minutes, wpm]);
   const valid = Boolean(file && title.trim() && goal.trim() && audience.trim());
 
-  function chooseFile(nextFile?: File) {
-    if (!nextFile) return;
-    setFile(nextFile);
-    if (!title) setTitle(nextFile.name.replace(/\.(pdf|pptx?|png|jpe?g|webp)$/i, "").replace(/[-_]+/g, " "));
+  function chooseFile(next?: File) {
+    if (!next) return;
+    setFile(next);
+    if (!title) setTitle(next.name.replace(/\.(pdf|pptx?|png|jpe?g|webp)$/i, "").replace(/[-_]+/g, " "));
     setError("");
   }
 
@@ -51,20 +51,22 @@ export function NewPresentationFlow({ onGenerated }: Props) {
       form.set("preset", goal);
       form.set("audience", audience);
       form.set("targetMinutes", String(minutes));
-      const response = await fetch("/api/generate-script", { method: "POST", body: form });
-      const result = await response.json();
-      if (!response.ok) throw new Error(result.error || "The script could not be generated.");
 
-      const slides: Slide[] = result.slides.map((slide: Record<string, string>, index: number) => ({
-        id: `generated-${index + 1}`,
-        eyebrow: slide.eyebrow || `SLIDE ${index + 1}`,
-        title: slide.title,
-        body: slide.body,
-        cue: slide.cue,
+      const res = await fetch("/api/generate-script", { method: "POST", body: form });
+      const result = await res.json() as { error?: string; deckTitle?: string; slides?: Record<string, string>[] };
+      if (!res.ok) throw new Error(result.error || "The script could not be generated.");
+      if (!Array.isArray(result.slides)) throw new Error("The generated script was incomplete.");
+
+      const slides: Slide[] = result.slides.map((s: Record<string, string>, i: number) => ({
+        id: `generated-${i + 1}`,
+        eyebrow: s.eyebrow || `SLIDE ${i + 1}`,
+        title: s.title,
+        body: s.body,
+        cue: s.cue,
         cueType: "Pause",
-        duration: slide.duration,
-        marker: slide.speakerNote || "Speaker note",
-        accent: (["petal", "blue", "ink"] as const)[index % 3],
+        duration: s.duration,
+        marker: s.speakerNote || "Speaker note",
+        accent: (["petal", "blue", "ink"] as const)[i % 3],
       }));
 
       onGenerated({
@@ -77,84 +79,209 @@ export function NewPresentationFlow({ onGenerated }: Props) {
         progress: 100,
         slides,
       });
-    } catch (generationError) {
-      setError(generationError instanceof Error ? generationError.message : "The script could not be generated.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "The script could not be generated.");
     } finally {
       setGenerating(false);
     }
   }
 
+  const fileComplete = Boolean(file);
+  const detailsComplete = Boolean(title && goal && audience);
+
   return (
-    <main className="create-workspace">
-      <header className="create-header">
-        <div>
-          <h1>New presentation</h1>
-        </div>
-        <div className="create-progress glass-panel" aria-label="3 steps"><strong>3</strong></div>
-      </header>
+    <main className="new-pres">
+      <div className="new-pres-head">
+        <h1 className="new-pres-h1">New presentation</h1>
+        <p className="new-pres-sub">Upload your deck and we&apos;ll generate a presenter script.</p>
+      </div>
 
-      <section className={`flow-section glass-panel ${file ? "is-complete" : ""}`}>
-        <div className="step-number">01</div>
-        <div className="flow-section__body">
-          <div className="flow-section__heading">
-            <div><h2>Upload</h2><p>PDF · PPTX · Images</p></div>
-            {file && <span className="complete-chip"><Check size={13} /> Ready</span>}
-          </div>
-          {!file ? (
-            <button
-              className={`drop-zone ${dragging ? "is-dragging" : ""}`}
-              onClick={() => inputRef.current?.click()}
-              onDragOver={(event) => { event.preventDefault(); setDragging(true); }}
-              onDragLeave={() => setDragging(false)}
-              onDrop={(event) => { event.preventDefault(); setDragging(false); chooseFile(event.dataTransfer.files[0]); }}
-            >
-              <span className="drop-zone__orb"><UploadCloud /></span>
-              <strong>Upload</strong>
-              <span>PDF · PPTX · Images</span>
-            </button>
-          ) : (
-            <div className="uploaded-file">
-              <div className="uploaded-file__icon">{file.type.startsWith("image/") ? <FileImage /> : <FileText />}</div>
-              <div><strong>{file.name}</strong><span>{(file.size / 1024 / 1024).toFixed(1)} MB · ready to analyze</span></div>
-              <div className="mini-slide-stack" aria-hidden="true"><i /><i /><i /></div>
-              <button className="icon-button" onClick={() => setFile(null)} aria-label="Remove uploaded file"><X size={17} /></button>
+      <div className="new-pres-form">
+        {/* Step 1 – Upload */}
+        <div className={`step-card ${fileComplete ? "is-complete" : ""}`}>
+          <div className="step-card-head">
+            <div className="step-num">{fileComplete ? <Check size={14} /> : "01"}</div>
+            <div>
+              <p className="step-card-title">Upload your deck</p>
+              <p className="step-card-sub">PDF · PPTX · Images</p>
             </div>
-          )}
-          <input ref={inputRef} hidden type="file" accept=".pdf,.ppt,.pptx,.png,.jpg,.jpeg,.webp" onChange={(event) => chooseFile(event.target.files?.[0])} />
-        </div>
-      </section>
+            {fileComplete && (
+              <span className="step-done-badge"><Check size={11} /> Ready</span>
+            )}
+          </div>
 
-      <section className={`flow-section glass-panel ${title && goal && audience ? "is-complete" : ""}`}>
-        <div className="step-number">02</div>
-        <div className="flow-section__body">
-          <div className="flow-section__heading">
-            <div><h2>Details</h2></div>
-          </div>
-          <div className="form-grid">
-            <label className="field field--wide"><span>Title</span><input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Presentation title" /></label>
-            <label className="field field--wide"><span>Goal</span><textarea value={goal} onChange={(event) => setGoal(event.target.value)} placeholder="What should it accomplish?" rows={3} /></label>
-            <label className="field field--wide"><span>Audience</span><input value={audience} onChange={(event) => setAudience(event.target.value)} placeholder="Who is in the room?" /></label>
-            <label className="field"><span>Length</span><div className="field-with-unit"><input type="number" min="2" max="60" value={minutes} onChange={(event) => setMinutes(Number(event.target.value))} /><em>min</em></div></label>
-            <label className="field"><span>Speaking pace</span><div className="field-with-unit"><input type="number" min="80" max="200" value={wpm} onChange={(event) => setWpm(Number(event.target.value))} /><em>wpm</em></div></label>
-            <label className="field field--wide"><span>Detail</span><div className="segmented-control">{["Full script", "Concise notes", "Cue-led"].map((option) => <button type="button" className={depth === option ? "is-active" : ""} onClick={() => setDepth(option)} key={option}>{option}</button>)}</div></label>
+          <div className="step-card-body">
+            {!file ? (
+              <button
+                className={`drop-zone ${dragging ? "is-dragging" : ""}`}
+                onClick={() => inputRef.current?.click()}
+                onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
+                onDragLeave={() => setDragging(false)}
+                onDrop={(e) => { e.preventDefault(); setDragging(false); chooseFile(e.dataTransfer.files[0]); }}
+              >
+                <span className="drop-zone-icon"><UploadCloud size={17} /></span>
+                <span className="drop-zone-label">Drop your file here</span>
+                <span className="drop-zone-hint">or click to browse</span>
+              </button>
+            ) : (
+              <div className="uploaded-file">
+                <div className="uploaded-file-icon">
+                  {file.type.startsWith("image/") ? <FileImage size={18} /> : <FileText size={18} />}
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <p className="uploaded-file-name">{file.name}</p>
+                  <p className="uploaded-file-meta">{(file.size / 1024 / 1024).toFixed(1)} MB · ready</p>
+                </div>
+                <button
+                  className="btn-icon"
+                  onClick={() => setFile(null)}
+                  aria-label="Remove file"
+                  style={{ border: 0 }}
+                >
+                  <X size={15} />
+                </button>
+              </div>
+            )}
+            <input
+              ref={inputRef}
+              hidden
+              type="file"
+              accept=".pdf,.ppt,.pptx,.png,.jpg,.jpeg,.webp"
+              onChange={(e) => chooseFile(e.target.files?.[0])}
+            />
           </div>
         </div>
-      </section>
 
-      <section className="flow-section flow-section--final glass-panel">
-        <div className="step-number">03</div>
-        <div className="flow-section__body">
-          <div className="generation-summary">
-            <div><span>Estimated script</span><strong>{wordBudget.toLocaleString()} words</strong></div>
-            <div><span>Target delivery</span><strong>{minutes} minutes</strong></div>
-            <div><span>Format</span><strong>{depth}</strong></div>
+        {/* Step 2 – Details */}
+        <div className={`step-card ${detailsComplete ? "is-complete" : ""}`}>
+          <div className="step-card-head">
+            <div className="step-num">{detailsComplete ? <Check size={14} /> : "02"}</div>
+            <div>
+              <p className="step-card-title">Presentation details</p>
+            </div>
+            {detailsComplete && (
+              <span className="step-done-badge"><Check size={11} /> Ready</span>
+            )}
           </div>
-          {error && <div className="form-error" role="alert">{error}</div>}
-          <button className="generate-button" disabled={!valid || generating} onClick={generate}>
-            {generating ? <><LoaderCircle className="spin" /> Generating…</> : <><Sparkles /> Generate</>}
-          </button>
+
+          <div className="step-card-body">
+            <div className="form-grid">
+              <label className="form-field form-field--full">
+                <span className="field-label">Title</span>
+                <input
+                  className="field-input"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  placeholder="Presentation title"
+                />
+              </label>
+              <label className="form-field form-field--full">
+                <span className="field-label">Goal</span>
+                <textarea
+                  className="field-textarea"
+                  value={goal}
+                  onChange={(e) => setGoal(e.target.value)}
+                  placeholder="What should this presentation accomplish?"
+                  rows={2}
+                />
+              </label>
+              <label className="form-field form-field--full">
+                <span className="field-label">Audience</span>
+                <input
+                  className="field-input"
+                  value={audience}
+                  onChange={(e) => setAudience(e.target.value)}
+                  placeholder="Who's in the room?"
+                />
+              </label>
+              <label className="form-field">
+                <span className="field-label">Length</span>
+                <div className="field-unit-wrap">
+                  <input
+                    className="field-input"
+                    type="number"
+                    min="2"
+                    max="60"
+                    value={minutes}
+                    onChange={(e) => setMinutes(Number(e.target.value))}
+                  />
+                  <span className="field-unit">min</span>
+                </div>
+              </label>
+              <label className="form-field">
+                <span className="field-label">Speaking pace</span>
+                <div className="field-unit-wrap">
+                  <input
+                    className="field-input"
+                    type="number"
+                    min="80"
+                    max="220"
+                    value={wpm}
+                    onChange={(e) => setWpm(Number(e.target.value))}
+                  />
+                  <span className="field-unit">wpm</span>
+                </div>
+              </label>
+              <label className="form-field form-field--full">
+                <span className="field-label">Script depth</span>
+                <div className="segmented">
+                  {["Full script", "Concise notes", "Cue-led"].map((opt) => (
+                    <button
+                      type="button"
+                      key={opt}
+                      className={`seg-opt ${depth === opt ? "is-active" : ""}`}
+                      onClick={() => setDepth(opt)}
+                    >
+                      {opt}
+                    </button>
+                  ))}
+                </div>
+              </label>
+            </div>
+          </div>
         </div>
-      </section>
+
+        {/* Step 3 – Generate */}
+        <div className="step-card gen-card">
+          <div className="step-card-head">
+            <div className="step-num">03</div>
+            <div>
+              <p className="step-card-title">Generate script</p>
+            </div>
+          </div>
+
+          <div className="step-card-body">
+            <div className="gen-summary">
+              <div className="gen-summary-item">
+                <span className="gen-item-label">Word budget</span>
+                <strong className="gen-item-val">{wordBudget.toLocaleString()}</strong>
+              </div>
+              <div className="gen-summary-item">
+                <span className="gen-item-label">Target</span>
+                <strong className="gen-item-val">{minutes} min</strong>
+              </div>
+              <div className="gen-summary-item">
+                <span className="gen-item-label">Format</span>
+                <strong className="gen-item-val">{depth}</strong>
+              </div>
+            </div>
+
+            {error && <div className="form-error" role="alert">{error}</div>}
+
+            <button
+              className="btn btn-primary btn-full btn-lg"
+              disabled={!valid || generating}
+              onClick={generate}
+            >
+              {generating ? (
+                <><LoaderCircle className="spin" size={16} /> Generating…</>
+              ) : (
+                <><Sparkles size={15} /> Generate presentation script</>
+              )}
+            </button>
+          </div>
+        </div>
+      </div>
     </main>
   );
 }

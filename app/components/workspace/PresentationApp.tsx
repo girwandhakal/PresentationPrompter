@@ -10,6 +10,7 @@ import type { AppView, Presentation, Slide } from "./types";
 import { WorkspaceSidebar } from "./WorkspaceSidebar";
 
 const STORAGE_KEY = "cueframe-presentations-v2";
+const ACTIVE_STORAGE_KEY = "cueframe-active-presentation-v1";
 
 export function PresentationApp({ initialView }: { initialView: AppView }) {
   const [presentations, setPresentations] = useState(initialPresentations);
@@ -24,34 +25,34 @@ export function PresentationApp({ initialView }: { initialView: AppView }) {
   const [editorDirty, setEditorDirty] = useState(false);
 
   useEffect(() => {
-    let storedPresentations: Presentation[] | null = null;
     try {
       const stored = window.localStorage.getItem(STORAGE_KEY);
+      const storedActiveId = window.localStorage.getItem(ACTIVE_STORAGE_KEY);
       if (stored) {
         const parsed = JSON.parse(stored) as Presentation[];
-        if (Array.isArray(parsed) && parsed.length > 0 && parsed.every((item) => item && typeof item.id === "string" && Array.isArray(item.slides))) {
-          storedPresentations = parsed;
+        if (Array.isArray(parsed) && parsed.length && parsed.every((item) => item && typeof item.id === "string" && Array.isArray(item.slides))) {
+          queueMicrotask(() => {
+            setPresentations(parsed);
+            setActiveId(storedActiveId && parsed.some((presentation) => presentation.id === storedActiveId) ? storedActiveId : parsed[0].id);
+          });
         }
       }
-    } catch {
-      // The sample workspace remains available when local storage is unavailable.
-    }
-    queueMicrotask(() => {
-      if (storedPresentations) {
-        setPresentations(storedPresentations);
-        setActiveId(storedPresentations[0].id);
-      }
-      setStorageReady(true);
-    });
+    } catch { /* local storage unavailable */ }
+    queueMicrotask(() => setStorageReady(true));
   }, []);
 
   useEffect(() => {
     if (!storageReady) return;
-    try { window.localStorage.setItem(STORAGE_KEY, JSON.stringify(presentations)); } catch { /* local preferences are best effort */ }
+    try { window.localStorage.setItem(STORAGE_KEY, JSON.stringify(presentations)); } catch { /* best effort */ }
   }, [presentations, storageReady]);
 
+  useEffect(() => {
+    if (!storageReady) return;
+    try { window.localStorage.setItem(ACTIVE_STORAGE_KEY, activeId); } catch { /* best effort */ }
+  }, [activeId, storageReady]);
+
   const active = useMemo(
-    () => presentations.find((presentation) => presentation.id === activeId) ?? presentations[0],
+    () => presentations.find((p) => p.id === activeId) ?? presentations[0],
     [activeId, presentations],
   );
 
@@ -69,47 +70,41 @@ export function PresentationApp({ initialView }: { initialView: AppView }) {
     setView("project");
   }
 
-  function addGenerated(presentation: Presentation) {
-    setPresentations((current) => [presentation, ...current]);
-    setActiveId(presentation.id);
+  function addGenerated(p: Presentation) {
+    setPresentations((cur) => [p, ...cur]);
+    setActiveId(p.id);
     setEditingTitleId(null);
     setView("project");
   }
 
   function rename(id: string, title: string) {
-    const nextTitle = title.trim();
-    if (!nextTitle) {
-      setEditingTitleId(null);
-      return;
-    }
-    setPresentations((current) => current.map((item) => item.id === id ? { ...item, title: nextTitle, updated: "Just now" } : item));
+    const next = title.trim();
+    if (!next) { setEditingTitleId(null); return; }
+    setPresentations((cur) => cur.map((p) => p.id === id ? { ...p, title: next, updated: "Just now" } : p));
     setEditingTitleId(null);
   }
 
   function duplicate(id: string) {
     if (!confirmEditorExit()) return;
-    const source = presentations.find((item) => item.id === id);
-    if (!source) return;
-    const copy = { ...source, id: `${source.id}-${Date.now()}`, title: `${source.title} — copy`, updated: "Just now" };
-    setPresentations((current) => [copy, ...current]);
+    const src = presentations.find((p) => p.id === id);
+    if (!src) return;
+    const copy = { ...src, id: `${src.id}-${Date.now()}`, title: `${src.title} — copy`, updated: "Just now" };
+    setPresentations((cur) => [copy, ...cur]);
     setActiveId(copy.id);
     setView("project");
   }
 
   function remove() {
     if (!deleteId) return;
-    if (!confirmEditorExit()) {
-      setDeleteId(null);
-      return;
-    }
-    const remaining = presentations.filter((item) => item.id !== deleteId);
+    if (!confirmEditorExit()) { setDeleteId(null); return; }
+    const remaining = presentations.filter((p) => p.id !== deleteId);
     setPresentations(remaining.length ? remaining : initialPresentations);
     if (deleteId === activeId) setActiveId((remaining[0] ?? initialPresentations[0]).id);
     setDeleteId(null);
   }
 
   function saveSlides(slides: Slide[]) {
-    setPresentations((current) => current.map((item) => item.id === activeId ? { ...item, slides, updated: "Just now" } : item));
+    setPresentations((cur) => cur.map((p) => p.id === activeId ? { ...p, slides, updated: "Just now" } : p));
     setEditorDirty(false);
   }
 
@@ -121,36 +116,86 @@ export function PresentationApp({ initialView }: { initialView: AppView }) {
         mobileOpen={mobileOpen}
         collapsed={sidebarCollapsed}
         onCloseMobile={() => setMobileOpen(false)}
-        onToggleCollapse={() => setSidebarCollapsed((current) => !current)}
+        onToggleCollapse={() => setSidebarCollapsed((c) => !c)}
         onSelect={select}
         onAdd={() => { if (confirmEditorExit()) setView("new"); }}
         onDuplicate={duplicate}
         onDelete={setDeleteId}
         onAccount={() => setAccountOpen(true)}
       />
+
       <div className="app-main">
-        <button className="floating-mobile-menu" onClick={() => setMobileOpen(true)} aria-label="Open presentation sidebar"><Menu /></button>
+        <button
+          className="mobile-trigger"
+          onClick={() => setMobileOpen(true)}
+          aria-label="Open sidebar"
+        >
+          <Menu size={17} />
+        </button>
+
         {view === "new" && <NewPresentationFlow onGenerated={addGenerated} />}
-        {view === "project" && active && <PresentationWorkspace presentation={active} isEditingTitle={editingTitleId === active.id} onStartTitleEdit={() => setEditingTitleId(active.id)} onCommitTitle={(title) => rename(active.id, title)} onCancelTitleEdit={() => setEditingTitleId(null)} onEdit={() => setView("editor")} onOpenSidebar={() => setMobileOpen(true)} />}
-        {view === "editor" && active && <ScriptEditor key={active.id} presentation={active} onBack={() => { setEditorDirty(false); setView("project"); }} onSave={saveSlides} onOpenSidebar={() => setMobileOpen(true)} onDirtyChange={setEditorDirty} />}
+
+        {view === "project" && active && (
+          <PresentationWorkspace
+            presentation={active}
+            isEditingTitle={editingTitleId === active.id}
+            onStartTitleEdit={() => setEditingTitleId(active.id)}
+            onCommitTitle={(title) => rename(active.id, title)}
+            onCancelTitleEdit={() => setEditingTitleId(null)}
+            onEdit={() => setView("editor")}
+            onOpenSidebar={() => setMobileOpen(true)}
+          />
+        )}
+
+        {view === "editor" && active && (
+          <ScriptEditor
+            key={active.id}
+            presentation={active}
+            onBack={() => { setEditorDirty(false); setView("project"); }}
+            onSave={saveSlides}
+            onDirtyChange={setEditorDirty}
+          />
+        )}
       </div>
 
       {deleteId && (
         <div className="modal-backdrop" role="presentation" onMouseDown={() => setDeleteId(null)}>
-          <div className="modal glass-panel" role="alertdialog" aria-modal="true" aria-labelledby="delete-title" onMouseDown={(event) => event.stopPropagation()}>
+          <div
+            className="modal"
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="delete-title"
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            <span className="modal-eyebrow">Remove presentation</span>
             <h2 id="delete-title">Delete this presentation?</h2>
-            <div className="modal-actions"><button className="secondary-button" onClick={() => setDeleteId(null)}>Keep it</button><button className="danger-button" onClick={remove}>Delete presentation</button></div>
+            <p>This removes the local project, script, and session history from this browser.</p>
+            <div className="modal-actions">
+              <button className="btn btn-secondary" onClick={() => setDeleteId(null)}>Keep it</button>
+              <button className="btn btn-danger" onClick={remove}>Delete</button>
+            </div>
           </div>
         </div>
       )}
 
       {accountOpen && (
         <div className="modal-backdrop" role="presentation" onMouseDown={() => setAccountOpen(false)}>
-          <div className="modal glass-panel" role="dialog" aria-modal="true" aria-labelledby="account-title" onMouseDown={(event) => event.stopPropagation()}>
-            <button className="icon-button modal-close" onClick={() => setAccountOpen(false)} aria-label="Close"><X /></button>
-            <span className="eyebrow">Account</span><h2 id="account-title">Your Account</h2>
+          <div
+            className="modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="account-title"
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            <button className="btn-icon modal-close" onClick={() => setAccountOpen(false)} aria-label="Close">
+              <X size={16} />
+            </button>
+            <span className="modal-eyebrow">Account</span>
+            <h2 id="account-title">Your Account</h2>
             <p>Presentation preferences are managed here.</p>
-            <div className="modal-actions"><button className="start-button" onClick={() => setAccountOpen(false)}>Done</button></div>
+            <div className="modal-actions">
+              <button className="btn btn-primary" onClick={() => setAccountOpen(false)}>Done</button>
+            </div>
           </div>
         </div>
       )}

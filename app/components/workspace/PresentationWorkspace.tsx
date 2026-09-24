@@ -3,23 +3,17 @@
 import {
   ArrowLeft,
   ArrowRight,
-  ChevronRight,
   Clock3,
   Eye,
-  Menu,
-  MessageSquareText,
   PenLine,
   Play,
   Sparkles,
   TimerReset,
-  WandSparkles,
 } from "lucide-react";
 import Link from "next/link";
 import { useRef, useState } from "react";
 import { SlideVisual } from "./SlideVisual";
-import { TeleprompterText } from "./TeleprompterText";
 import type { Presentation } from "./types";
-import { documentToSpokenText, parseScriptDocument } from "./script-types";
 
 type Props = {
   presentation: Presentation;
@@ -31,119 +25,184 @@ type Props = {
   onOpenSidebar: () => void;
 };
 
-export function PresentationWorkspace({ presentation, isEditingTitle, onStartTitleEdit, onCommitTitle, onCancelTitleEdit, onEdit, onOpenSidebar }: Props) {
+export function PresentationWorkspace({
+  presentation,
+  isEditingTitle,
+  onStartTitleEdit,
+  onCommitTitle,
+  onCancelTitleEdit,
+  onEdit,
+}: Props) {
   const [activeIndex, setActiveIndex] = useState(0);
   const [titleDraft, setTitleDraft] = useState(presentation.title);
-  const titleEditWasCancelled = useRef(false);
+  const cancelledRef = useRef(false);
   const slide = presentation.slides[activeIndex] ?? presentation.slides[0];
-  const totalSeconds = presentation.slides.reduce((total, item) => {
-    const [minutes, seconds] = item.duration.split(":").map(Number);
-    return total + minutes * 60 + seconds;
+
+  const totalSeconds = presentation.slides.reduce((sum, s) => {
+    const [m, sec] = s.duration.split(":").map(Number);
+    return sum + m * 60 + sec;
   }, 0);
 
-  function commitTitle() {
-    if (titleEditWasCancelled.current) return;
-    onCommitTitle(titleDraft);
-  }
-
-  function beginTitleEdit() {
-    titleEditWasCancelled.current = false;
+  function beginEdit() {
+    cancelledRef.current = false;
     setTitleDraft(presentation.title);
     onStartTitleEdit();
   }
 
-  function cancelTitleEdit() {
-    titleEditWasCancelled.current = true;
+  function commitEdit() {
+    if (cancelledRef.current) return;
+    onCommitTitle(titleDraft);
+  }
+
+  function cancelEdit() {
+    cancelledRef.current = true;
     onCancelTitleEdit();
   }
 
   if (!slide) return null;
 
   return (
-    <main className="project-workspace">
-      <header className="project-header">
-        <button className="icon-button mobile-menu" onClick={onOpenSidebar} aria-label="Open presentation sidebar"><Menu /></button>
-        <div className={`project-heading ${isEditingTitle ? "is-editing" : ""}`}>
-          <div>
-            {isEditingTitle ? (
-              <input
-                autoFocus
-                aria-label="Presentation title"
-                className="project-title-input"
-                size={Math.max(12, titleDraft.length + 1)}
-                value={titleDraft}
-                onBlur={commitTitle}
-                onFocus={(event) => event.currentTarget.select()}
-                onChange={(event) => setTitleDraft(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") event.currentTarget.blur();
-                  if (event.key === "Escape") cancelTitleEdit();
-                }}
-              />
-            ) : (
-              <h1 className="project-title" role="button" tabIndex={0} title="Double-click to rename" onDoubleClick={beginTitleEdit} onKeyDown={(event) => {
-                if (event.key === "Enter" || event.key === " ") {
-                  event.preventDefault();
-                  beginTitleEdit();
-                }
-              }}>{presentation.title}</h1>
-            )}
-          </div>
-        </div>
-        <div className="header-actions">
-          <button className="header-icon" onClick={onEdit} aria-label="Edit script" title="Edit script"><PenLine size={17} /></button>
-          <Link className="header-icon header-icon--primary" href="/presenter" aria-label="Start presentation" title="Start presentation"><Play size={17} fill="currentColor" /></Link>
+    <main className="workspace">
+      <header className="workspace-header">
+        {isEditingTitle ? (
+          <input
+            autoFocus
+            aria-label="Presentation title"
+            className="workspace-title-input"
+            value={titleDraft}
+            onBlur={commitEdit}
+            onFocus={(e) => e.currentTarget.select()}
+            onChange={(e) => setTitleDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") e.currentTarget.blur();
+              if (e.key === "Escape") cancelEdit();
+            }}
+          />
+        ) : (
+          <h1
+            className="workspace-title"
+            role="button"
+            tabIndex={0}
+            title="Double-click to rename"
+            onDoubleClick={beginEdit}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") { e.preventDefault(); beginEdit(); }
+            }}
+          >
+            {presentation.title}
+          </h1>
+        )}
+
+        <div className="workspace-actions">
+          <button className="btn btn-secondary" onClick={onEdit} aria-label="Edit script">
+            <PenLine size={14} />
+            Edit script
+          </button>
+          <Link className="btn btn-primary" href="/presenter" aria-label="Start presentation">
+            <Play size={14} fill="currentColor" />
+            Present
+          </Link>
         </div>
       </header>
 
-      <div className="workspace-overview">
-        <section className="slide-rail glass-panel" aria-label="Presentation slides">
-          <div className="slide-rail__list">
-            {presentation.slides.map((item, index) => (
-              <button className={index === activeIndex ? "is-active" : ""} onClick={() => setActiveIndex(index)} key={item.id} aria-label={`Slide ${index + 1}: ${item.title}`}>
-                <span className="slide-number">{index + 1}</span>
-                <SlideVisual slide={item} compact />
+      <div className="workspace-body">
+        <section className="slide-rail" aria-label="Slides">
+          <div className="rail-header">{presentation.slides.length} slides</div>
+          <div className="rail-list">
+            {presentation.slides.map((s, i) => (
+              <button
+                key={s.id}
+                className={`rail-thumb ${i === activeIndex ? "is-active" : ""}`}
+                onClick={() => setActiveIndex(i)}
+              >
+                <span className="rail-thumb-num">{String(i + 1).padStart(2, "0")}</span>
+                <SlideVisual slide={s} compact />
+                <span className="rail-thumb-label">{s.title}</span>
               </button>
             ))}
           </div>
         </section>
 
         <section className="preview-stage">
-          <div className="preview-frame glass-panel glass-panel--deep">
+          <div className="preview-card">
             <SlideVisual slide={slide} />
           </div>
-          <div className="slide-navigation glass-panel">
-            <button className="slide-navigation__control" aria-label="Previous slide" title="Previous slide" disabled={activeIndex === 0} onClick={() => setActiveIndex((value) => Math.max(0, value - 1))}><ArrowLeft size={21} /></button>
-            <span><strong>{activeIndex + 1}</strong> / {presentation.slides.length}</span>
-            <button className="slide-navigation__control" aria-label="Next slide" title="Next slide" disabled={activeIndex === presentation.slides.length - 1} onClick={() => setActiveIndex((value) => Math.min(presentation.slides.length - 1, value + 1))}><ArrowRight size={21} /></button>
+          <div className="preview-nav">
+            <button
+              className="preview-nav-btn"
+              aria-label="Previous slide"
+              disabled={activeIndex === 0}
+              onClick={() => setActiveIndex((n) => Math.max(0, n - 1))}
+            >
+              <ArrowLeft size={18} />
+            </button>
+            <span className="preview-nav-count">
+              <strong>{activeIndex + 1}</strong> / {presentation.slides.length}
+            </span>
+            <button
+              className="preview-nav-btn"
+              aria-label="Next slide"
+              disabled={activeIndex === presentation.slides.length - 1}
+              onClick={() => setActiveIndex((n) => Math.min(presentation.slides.length - 1, n + 1))}
+            >
+              <ArrowRight size={18} />
+            </button>
           </div>
         </section>
 
-        <aside className="script-inspector glass-panel">
-          <div className="inspector-heading">
-            <div><span className="eyebrow"><MessageSquareText size={13} /> Script</span><h2>{slide.title}</h2></div>
-            <button className="icon-button" onClick={onEdit} aria-label="Edit current slide script"><PenLine /></button>
+        <aside className="script-panel" aria-label="Script">
+          <div className="script-panel-head">
+            <div>
+              <p className="script-panel-eyebrow">Script</p>
+              <h2 className="script-panel-title">{slide.title}</h2>
+            </div>
+            <button className="btn-icon" onClick={onEdit} aria-label="Edit slide script">
+              <PenLine size={15} />
+            </button>
           </div>
-          <div className="script-copy"><TeleprompterText script={slide.script} value={slide.body} showCueIcon={false} /></div>
-          <div className="cue-card">
-            <span><Sparkles size={14} /> {slide.cueType}</span>
-            <p>{slide.cue}</p>
+
+          <div className="script-panel-body">
+            <p className="script-body">{slide.body}</p>
+
+            <div className="cue-block">
+              <div className="cue-block-label">
+                <Sparkles size={11} /> {slide.cueType}
+              </div>
+              <p className="cue-block-text">{slide.cue}</p>
+            </div>
+
+            <div className="timing-row">
+              <div className="timing-chip">
+                <Clock3 size={13} />
+                <div>
+                  <span className="timing-chip-label">Slide</span>
+                  <span className="timing-chip-value">{slide.duration}</span>
+                </div>
+              </div>
+              <div className="timing-chip">
+                <TimerReset size={13} />
+                <div>
+                  <span className="timing-chip-label">Total</span>
+                  <span className="timing-chip-value">
+                    {Math.floor(totalSeconds / 60)}:{String(totalSeconds % 60).padStart(2, "0")}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div className="peek-card">
+              <div className="peek-card-label">
+                <Eye size={11} /> Presenter view
+              </div>
+              <p className="peek-card-text">
+                {slide.body.split(".")[0]}
+                <span className="peek-card-highlight"> {slide.body.split(" ").slice(5, 9).join(" ")}</span>
+              </p>
+              <div className="peek-progress">
+                <i style={{ width: `${presentation.progress}%` }} />
+              </div>
+            </div>
           </div>
-          <div className="timing-strip">
-            <div title="Slide time"><Clock3 /><span className="sr-only">Slide time</span><strong>{slide.duration}</strong></div>
-            <div title="Deck time"><TimerReset /><span className="sr-only">Deck time</span><strong>{Math.floor(totalSeconds / 60)}:{String(totalSeconds % 60).padStart(2, "0")}</strong></div>
-          </div>
-          <div className="presenter-peek">
-            <div className="presenter-peek__header"><span><Eye size={14} /><span className="sr-only">Presenter preview</span></span><ChevronRight size={15} /></div>
-            {(() => {
-              const spoken = documentToSpokenText(parseScriptDocument(slide.script, slide.body, slide.cue)).replace(/\s+/g, " ").trim();
-              const sentence = spoken.split(".")[0];
-              const focus = spoken.split(" ").slice(5, 8).join(" ");
-              return <p>{sentence}<span className="focus-word"> {focus}</span></p>;
-            })()}
-            <div><i style={{ width: `${presentation.progress}%` }} /></div>
-          </div>
-          <button className="ai-refine-button" onClick={onEdit} aria-label="Refine script" title="Refine script"><WandSparkles /></button>
         </aside>
       </div>
     </main>

@@ -33,6 +33,20 @@ function textInline(text: string, marks: { bold?: boolean; italic?: boolean } = 
   return { type: "text", text, ...(marks.bold ? { bold: true } : {}), ...(marks.italic ? { italic: true } : {}) };
 }
 
+function splitLegacyCues(child: ScriptText, idPrefix: string): ScriptInline[] {
+  const result: ScriptInline[] = [];
+  const pattern = /\[(pause|emphasize|look up|pronounce:\s*[^\]]*)\]/gi;
+  let cursor = 0;
+  let match: RegExpExecArray | null;
+  while ((match = pattern.exec(child.text))) {
+    if (match.index > cursor) result.push(textInline(child.text.slice(cursor, match.index), child));
+    result.push({ type: "cue", id: makeId(idPrefix), label: match[1].trim() });
+    cursor = match.index + match[0].length;
+  }
+  if (cursor < child.text.length || !result.length) result.push(textInline(child.text.slice(cursor), child));
+  return result;
+}
+
 function parseInlineMarkup(value: string, idPrefix: string): ScriptInline[] {
   const result: ScriptInline[] = [];
   const pattern = /\/(bold|italic|cue)\{([^}]*)\}/g;
@@ -45,7 +59,7 @@ function parseInlineMarkup(value: string, idPrefix: string): ScriptInline[] {
     cursor = match.index + match[0].length;
   }
   if (cursor < value.length) result.push(textInline(value.slice(cursor)));
-  return result.length ? result : [textInline("")];
+  return (result.length ? result : [textInline("")]).flatMap((child) => child.type === "text" ? splitLegacyCues(child, idPrefix) : [child]);
 }
 
 function stripHtml(value: string) {
@@ -62,7 +76,7 @@ function legacyHtmlToMarkup(value: string) {
 
 export function documentFromLegacy(body: string, fallbackCue = "") : ScriptDocument {
   const source = body.includes("<div") || body.includes("<p") ? stripHtml(legacyHtmlToMarkup(body)) : body.replace(/\r\n/g, "\n");
-  const paragraphs = source.split("\n").map((line, index) => {
+  const paragraphs: ScriptParagraph[] = source.split("\n").map((line, index) => {
     const cueOnly = line.match(/^\s*(?:\/cue\{([^}]*)\}|\[cue:\s*([^\]]+)\])\s*$/i);
     if (cueOnly) return { id: `paragraph-${index + 1}`, children: [{ type: "cue", id: makeId("cue"), label: (cueOnly[1] ?? cueOnly[2] ?? "").trim() }] };
     return { id: `paragraph-${index + 1}`, children: parseInlineMarkup(line, `cue-${index}`) };
@@ -85,13 +99,13 @@ export function parseScriptDocument(value: unknown, fallbackBody = "", fallbackC
 }
 
 function normalizeScriptDocument(document: ScriptDocument): ScriptDocument {
-  const paragraphs = document.paragraphs.map((paragraph, paragraphIndex) => ({
+  const paragraphs: ScriptParagraph[] = document.paragraphs.map((paragraph, paragraphIndex) => ({
     id: typeof paragraph.id === "string" && paragraph.id ? paragraph.id : `paragraph-${paragraphIndex + 1}`,
     children: Array.isArray(paragraph.children) && paragraph.children.length
-      ? paragraph.children.flatMap((child) => {
+      ? paragraph.children.flatMap<ScriptInline>((child) => {
         if (child?.type === "cue" && typeof child.label === "string") return [{ type: "cue" as const, id: child.id || makeId("cue"), label: child.label }];
         if (child?.type === "break") return [{ type: "break" as const }];
-        if (child?.type === "text" && typeof child.text === "string") return [{ type: "text" as const, text: child.text, ...(child.bold ? { bold: true } : {}), ...(child.italic ? { italic: true } : {}) }];
+        if (child?.type === "text" && typeof child.text === "string") return splitLegacyCues(child, `cue-${paragraphIndex}`);
         return [];
       })
       : [{ type: "text" as const, text: "" }],

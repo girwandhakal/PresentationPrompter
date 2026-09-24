@@ -30,7 +30,7 @@ export class CueNode extends TextNode {
   static importJSON(serialized: SerializedCueNode) { return new CueNode(serialized.text, serialized.cueId); }
   exportJSON(): SerializedCueNode { return { ...super.exportJSON(), type: "script-cue", cueId: this.__cueId, version: 1 }; }
   createDOM(config: EditorConfig) { const dom = super.createDOM(config); dom.className = "script-cue-chip"; dom.dataset.cueId = this.__cueId; dom.dataset.cueNode = "true"; dom.dataset.empty = this.getTextContent().trim() ? "false" : "true"; dom.setAttribute("aria-label", `Cue: ${this.getTextContent().trim() || "empty cue"}`); return dom; }
-  updateDOM(prevNode: CueNode, dom: HTMLElement, config: EditorConfig) { const changed = super.updateDOM(prevNode, dom, config); dom.dataset.cueId = this.__cueId; dom.dataset.empty = this.getTextContent().trim() ? "false" : "true"; dom.setAttribute("aria-label", `Cue: ${this.getTextContent().trim() || "empty cue"}`); return changed; }
+  updateDOM(prevNode: CueNode, dom: HTMLElement, config: EditorConfig) { const changed = super.updateDOM(prevNode as this, dom, config); dom.dataset.cueId = this.__cueId; dom.dataset.empty = this.getTextContent().trim() ? "false" : "true"; dom.setAttribute("aria-label", `Cue: ${this.getTextContent().trim() || "empty cue"}`); return changed; }
 }
 
 export function $createScriptParagraphNode(id: string) { return new ScriptParagraphNode(id); }

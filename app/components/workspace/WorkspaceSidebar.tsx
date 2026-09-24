@@ -1,14 +1,11 @@
 "use client";
 
 import {
-  ChevronLeft,
   Copy,
   MoreHorizontal,
   PanelLeftClose,
   PanelLeftOpen,
   Plus,
-  Search,
-  Settings2,
   Trash2,
   Upload,
 } from "lucide-react";
@@ -42,112 +39,105 @@ export function WorkspaceSidebar({
   onDelete,
   onAccount,
 }: Props) {
-  const [query, setQuery] = useState("");
   const [menuId, setMenuId] = useState<string | null>(null);
-  const [menuPosition, setMenuPosition] = useState<{ top: number; left: number } | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
-  function closeMenu() {
-    setMenuId(null);
-    setMenuPosition(null);
-  }
-
   useEffect(() => {
-    function closeMenu(event: MouseEvent) {
-      if (!menuRef.current?.contains(event.target as Node)) {
-        setMenuId(null);
-        setMenuPosition(null);
-      }
+    function close(e: MouseEvent) {
+      if (!menuRef.current?.contains(e.target as Node)) setMenuId(null);
     }
-    document.addEventListener("mousedown", closeMenu);
-    return () => document.removeEventListener("mousedown", closeMenu);
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
   }, []);
-
-  const filtered = presentations.filter((presentation) =>
-    presentation.title.toLowerCase().includes(query.toLowerCase()),
-  );
 
   return (
     <>
-      {mobileOpen && <button className="sidebar-scrim" onClick={onCloseMobile} aria-label="Close presentation sidebar" />}
-      <aside className={`workspace-sidebar ${mobileOpen ? "is-open" : ""} ${collapsed ? "is-collapsed" : ""}`}>
-        <div className="brand-lockup">
-          <div className="brand-orbit" aria-hidden="true"><i /><i /><i /></div>
-          <div>
-            <strong>Cueframe</strong>
+      {mobileOpen && (
+        <button className="sidebar-scrim" onClick={onCloseMobile} aria-label="Close sidebar" />
+      )}
+      <aside className={`sidebar ${mobileOpen ? "is-open" : ""} ${collapsed ? "is-collapsed" : ""}`}>
+        {/* Brand */}
+        <div className="sidebar-brand">
+          <div className="sidebar-brand-mark" aria-hidden="true">
+            <i /><i /><i />
           </div>
-          <button className="icon-button sidebar-close" onClick={onCloseMobile} aria-label="Close sidebar">
-            <ChevronLeft size={18} />
-          </button>
-          <button className="icon-button sidebar-toggle" onClick={onToggleCollapse} aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"} title={collapsed ? "Expand sidebar" : "Collapse sidebar"}>
-            {collapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
+          <span className="sidebar-brand-name">Cueframe</span>
+          <button
+            className="sidebar-toggle"
+            onClick={onToggleCollapse}
+            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          >
+            {collapsed ? <PanelLeftOpen size={15} /> : <PanelLeftClose size={15} />}
           </button>
         </div>
 
-        <button className="add-presentation" onClick={onAdd} aria-label="Add presentation" title="Add presentation"><Plus size={21} /></button>
+        {/* New presentation */}
+        <button
+          className="sidebar-new"
+          onClick={onAdd}
+          aria-label="New presentation"
+          title="New presentation"
+        >
+          <Plus size={14} />
+          <span className="sidebar-new-label">New presentation</span>
+        </button>
 
-        <label className="sidebar-search">
-          <Search size={15} aria-hidden="true" />
-          <span className="sr-only">Search presentations</span>
-          <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search" />
-        </label>
+        <p className="sidebar-section-label">Presentations</p>
 
-        <nav className="presentation-list" aria-label="Presentations">
-          {filtered.map((presentation) => (
-            <div className={`presentation-row ${presentation.id === activeId ? "is-active" : ""}`} key={presentation.id}>
-              <button
-                className="presentation-row__main"
-                aria-label={collapsed ? presentation.title : undefined}
-                title={collapsed ? presentation.title : undefined}
-                onClick={() => {
-                  onSelect(presentation.id);
-                  onCloseMobile();
-                }}
-              >
-                <span className="presentation-row__dot" />
-                <span>
-                  <strong>{presentation.title}</strong>
-                  <small>{presentation.updated}</small>
-                </span>
-              </button>
+        {/* Nav list */}
+        <nav className="sidebar-nav" aria-label="Presentations">
+          {presentations.map((p) => (
+            <div key={p.id} style={{ position: "relative" }}>
+              <div className={`sidebar-row ${p.id === activeId ? "is-active" : ""}`}>
                 <button
-                  className="presentation-row__menu"
-                  aria-label={`Actions for ${presentation.title}`}
-                  aria-expanded={menuId === presentation.id}
-                  onClick={(event) => {
-                    if (menuId === presentation.id) {
-                      closeMenu();
-                      return;
-                    }
-                    const anchor = event.currentTarget.getBoundingClientRect();
-                    const menuWidth = 178;
-                    const menuHeight = 150;
-                    const left = Math.min(Math.max(8, anchor.right - menuWidth), window.innerWidth - menuWidth - 8);
-                    const top = anchor.bottom + menuHeight > window.innerHeight - 8
-                      ? Math.max(8, anchor.top - menuHeight - 4)
-                      : anchor.bottom + 4;
-                    setMenuPosition({ top, left });
-                    setMenuId(presentation.id);
-                  }}
+                  className="sidebar-row-main"
+                  title={collapsed ? p.title : undefined}
+                  aria-label={collapsed ? p.title : undefined}
+                  onClick={() => { onSelect(p.id); onCloseMobile(); }}
                 >
-                <MoreHorizontal size={17} />
-              </button>
-              {menuId === presentation.id && (
-                <div className="project-menu glass-popover" ref={menuRef} style={menuPosition ?? undefined}>
-                  <button onClick={() => { onDuplicate(presentation.id); closeMenu(); }}><Copy /> Duplicate</button>
-                  <button onClick={() => { onAdd(); closeMenu(); }}><Upload /> Replace slides</button>
-                  <button className="is-danger" onClick={() => { onDelete(presentation.id); closeMenu(); }}><Trash2 /> Delete</button>
+                  <span className="sidebar-item-dot" />
+                  <span className="sidebar-item-text">
+                    <span className="sidebar-item-title">{p.title}</span>
+                    <span className="sidebar-item-meta">{p.updated}</span>
+                  </span>
+                </button>
+                <button
+                  className="sidebar-item-menu"
+                  aria-label={`Actions for ${p.title}`}
+                  aria-expanded={menuId === p.id}
+                  onClick={() => setMenuId(menuId === p.id ? null : p.id)}
+                >
+                  <MoreHorizontal size={13} />
+                </button>
+              </div>
+              {menuId === p.id && (
+                <div className="sidebar-popover" ref={menuRef}>
+                  <button onClick={() => { onDuplicate(p.id); setMenuId(null); }}>
+                    <Copy /> Duplicate
+                  </button>
+                  <button onClick={() => { onAdd(); setMenuId(null); }}>
+                    <Upload /> Replace slides
+                  </button>
+                  <button className="is-danger" onClick={() => { onDelete(p.id); setMenuId(null); }}>
+                    <Trash2 /> Delete
+                  </button>
                 </div>
               )}
             </div>
           ))}
         </nav>
 
+        {/* Footer */}
         <div className="sidebar-footer">
-          <button className="profile-chip" onClick={onAccount} aria-label="Open your account settings">
-            <span>GD</span>
-            <div><strong>Your Account</strong></div>
-            <Settings2 size={16} />
+          <button
+            className="sidebar-account"
+            onClick={onAccount}
+            aria-label="Account settings"
+            title={collapsed ? "Account settings" : undefined}
+          >
+            <span className="sidebar-account-avatar">GD</span>
+            <span className="sidebar-account-label">Your account</span>
           </button>
         </div>
       </aside>

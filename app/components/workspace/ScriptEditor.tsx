@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, Bold, Clock3, Eye, Italic, Menu, Mic2, Redo2, Sparkles, Undo2 } from "lucide-react";
+import { ArrowLeft, ArrowRight, Bold, Check, ChevronLeft, Clock3, Eye, Italic, Mic2, Redo2, Sparkles, Undo2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   $createTextNode,
@@ -22,12 +22,15 @@ import { RichTextPlugin } from "@lexical/react/LexicalRichTextPlugin";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { HistoryPlugin } from "@lexical/react/LexicalHistoryPlugin";
 import type { Presentation, Slide } from "./types";
+import { SlideVisual } from "./SlideVisual";
+import { TeleprompterText } from "./TeleprompterText";
 import { CueNode, ScriptParagraphNode, $createCueNode } from "./script-nodes";
 import { documentFromLexicalState, loadScriptDocument } from "./script-lexical";
 import {
   documentFromLegacy,
   documentToDuration,
   documentToSpokenText,
+  documentToWordCount,
   makeId,
   parseScriptDocument,
   type ScriptDocument,
@@ -37,7 +40,6 @@ type Props = {
   presentation: Presentation;
   onBack: () => void;
   onSave: (slides: Slide[]) => void;
-  onOpenSidebar: () => void;
   onDirtyChange?: (dirty: boolean) => void;
 };
 
@@ -173,9 +175,9 @@ function ElasticOverscroll({
   layerRef: React.RefObject<HTMLDivElement | null>;
 }) {
   useEffect(() => {
-    const scroll = scrollRef.current;
-    const layer = layerRef.current;
-    if (!scroll || !layer) return;
+    if (!scrollRef.current || !layerRef.current) return;
+    const scroll = scrollRef.current as HTMLDivElement;
+    const layer = layerRef.current as HTMLDivElement;
 
     let current = 0;
     let target = 0;
@@ -263,45 +265,54 @@ function ElasticOverscroll({
 
 function EditorDocumentPlugin({ document, onChange }: { document: ScriptDocument; onChange: (state: EditorState) => void }) {
   const [editor] = useLexicalComposerContext();
-  const loaded = useRef(false);
+  const initialDocument = useRef(document);
+  const onChangeRef = useRef(onChange);
+
+  useEffect(() => { onChangeRef.current = onChange; }, [onChange]);
 
   useEffect(() => {
-    if (loaded.current) return;
-    loaded.current = true;
-    loadScriptDocument(editor, document);
+    loadScriptDocument(editor, initialDocument.current);
     const hydratedState = JSON.stringify(editor.getEditorState().toJSON());
     const unregister = editor.registerUpdateListener(({ editorState }) => {
-      if (JSON.stringify(editorState.toJSON()) !== hydratedState) onChange(editorState);
+      if (JSON.stringify(editorState.toJSON()) !== hydratedState) onChangeRef.current(editorState);
     });
     return unregister;
-  }, [document, editor, onChange]);
+  }, [editor]);
 
   return null;
 }
 
-export function ScriptEditor({ presentation, onBack, onSave, onOpenSidebar, onDirtyChange }: Props) {
+export function ScriptEditor({ presentation, onBack, onSave, onDirtyChange }: Props) {
   const [slides, setSlides] = useState(() => presentation.slides.map((slide) => ({
     ...slide,
-    script: slide.script ?? parseScriptDocument(undefined, slide.body, slide.cue),
+    script: parseScriptDocument(slide.script, slide.body, slide.cue),
   })));
   const [activeIndex, setActiveIndex] = useState(0);
   const [saved, setSaved] = useState(true);
+  const [previewOpen, setPreviewOpen] = useState(true);
   const [, setPendingCue] = useState(false);
   const editorRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const elasticLayerRef = useRef<HTMLDivElement>(null);
   const autosave = useRef<number | undefined>(undefined);
   const active = slides[activeIndex];
+  const totalWords = slides.reduce((sum, slide) => sum + documentToWordCount(slide.script ?? documentFromLegacy(slide.body, slide.cue)), 0);
 
   useEffect(() => onDirtyChange?.(!saved), [onDirtyChange, saved]);
 
   const updateScript = useCallback((state: EditorState) => {
     const script = documentFromLexicalState(state);
+    const firstCue = script.paragraphs.flatMap((paragraph) => paragraph.children).find((child) => child.type === "cue");
     setSlides((current) => current.map((slide) => slide.id === active?.id
-      ? { ...slide, script, body: documentToSpokenText(script), duration: documentToDuration(script) }
+      ? { ...slide, script, body: documentToSpokenText(script), cue: firstCue?.type === "cue" ? firstCue.label : "", duration: documentToDuration(script) }
       : slide));
     setSaved(false);
   }, [active?.id]);
+
+  function updateSlide(patch: Partial<Slide>) {
+    setSlides((current) => current.map((slide, index) => index === activeIndex ? { ...slide, ...patch } : slide));
+    setSaved(false);
+  }
 
   const startCue = useCallback((editor: LexicalEditor, label = "") => {
     let inserted = false;
@@ -377,51 +388,73 @@ export function ScriptEditor({ presentation, onBack, onSave, onOpenSidebar, onDi
   }
 
   return (
-    <main className="editor-workspace">
+    <main className="editor" onKeyDown={(event) => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") {
+        event.preventDefault();
+        save();
+      }
+    }}>
       <header className="editor-header">
-        <div className="editor-header__left">
-          <button type="button" className="icon-button mobile-menu" onClick={onOpenSidebar} aria-label="Open presentation sidebar"><Menu /></button>
-          <button type="button" className="back-button" onClick={leave} aria-label="Back to presentation"><ArrowLeft /></button>
-          <strong>{presentation.title}</strong>
-        </div>
+        <button className="editor-back" onClick={leave} aria-label="Back to presentation"><ArrowLeft size={18} /></button>
+        <div className="editor-heading"><strong>{presentation.title}</strong><span>Script editor</span></div>
+        <div className="editor-header-right"><span className="editor-save-state" role="status">{saved ? <><Check size={14} /> Saved</> : "Saving…"}</span></div>
       </header>
 
-      <div className="editor-layout">
-        <section className="editor-slide-list glass-panel" aria-label="Presentation slides">
-          <div className="panel-label"><span className="sr-only">Slides</span><small>{slides.length}</small></div>
-          {slides.map((slide, index) => (
-            <button type="button" className={activeIndex === index ? "is-active" : ""} onClick={() => setActiveSlide(index)} key={slide.id}>
-              <span>{String(index + 1).padStart(2, "0")}</span>
-              <div><strong>{slide.title}</strong><small>{slide.duration} · {slide.marker}</small></div>
-            </button>
-          ))}
-        </section>
-
-        <section className="editor-canvas glass-panel">
-          <div className="editor-canvas__top">
-            <div><h1>{active.title}</h1></div>
+      <div className={`editor-body ${previewOpen ? "" : "editor-body--no-preview"}`}>
+        <nav className="editor-slide-list" aria-label="Slides">
+          <div className="editor-list-header"><strong>Slides</strong><span>{slides.length}</span></div>
+          <div className="editor-list-items">
+            {slides.map((slide, index) => {
+              const words = documentToWordCount(slide.script ?? documentFromLegacy(slide.body, slide.cue));
+              return <button key={slide.id} className={`editor-slide-item ${index === activeIndex ? "is-active" : ""}`} aria-current={index === activeIndex ? "step" : undefined} onClick={() => setActiveSlide(index)}>
+                <span className="editor-item-num">{String(index + 1).padStart(2, "0")}</span>
+                <span className="editor-item-content"><strong>{slide.title || `Slide ${index + 1}`}</strong><span>{words} words · {documentToDuration(slide.script ?? documentFromLegacy(slide.body, slide.cue))}</span></span>
+              </button>;
+            })}
           </div>
+          <div className="editor-list-footer">{totalWords} words · about {documentToDuration({ version: 1, paragraphs: slides.flatMap((slide) => (slide.script ?? documentFromLegacy(slide.body, slide.cue)).paragraphs) })} total</div>
+        </nav>
 
-          <LexicalComposer initialConfig={config} key={active.id}>
-            <ToolbarPlugin onCue={startCue} />
-            <EditorDocumentPlugin document={script} onChange={updateScript} />
-            <CueKeyboardPlugin startCue={startCue} onCueState={setPendingCue} />
-            <HistoryPlugin />
-            <div className="script-editor-surface" aria-label="Spoken script editing surface">
-              <div className="script-editor-scroll" ref={scrollRef}>
-                <div className="script-editor-elastic-layer" ref={elasticLayerRef}>
-                  <RichTextPlugin
-                    contentEditable={<div ref={editorRef} className="script-editor-input"><ContentEditable aria-label="Script editor" /></div>}
-                    placeholder={<div className="script-editor-placeholder">Start writing your script…</div>}
-                    ErrorBoundary={LexicalErrorBoundary}
-                  />
+        <section className="editor-canvas" aria-label={`Edit slide ${activeIndex + 1}`}>
+          <div className="editor-canvas-inner">
+            <div className="editor-slide-meta"><span>Slide {activeIndex + 1} of {slides.length}</span><button onClick={() => setPreviewOpen((open) => !open)} aria-expanded={previewOpen}>{previewOpen ? "Hide preview" : "Show preview"}</button></div>
+            <label className="editor-title-label" htmlFor="editor-slide-title">Slide title</label>
+            <input id="editor-slide-title" className="editor-title-input" value={active.title} onChange={(event) => updateSlide({ title: event.target.value })} placeholder="Slide title" />
+            <div className="editor-script-heading"><label id="editor-script-label">Spoken script</label><span>{documentToWordCount(script)} words · about {documentToDuration(script)}</span></div>
+
+            <LexicalComposer initialConfig={config} key={active.id}>
+              <ToolbarPlugin onCue={startCue} />
+              <EditorDocumentPlugin document={script} onChange={updateScript} />
+              <CueKeyboardPlugin startCue={startCue} onCueState={setPendingCue} />
+              <HistoryPlugin />
+              <div className="script-editor-surface" aria-labelledby="editor-script-label">
+                <div className="script-editor-scroll" ref={scrollRef}>
+                  <div className="script-editor-elastic-layer" ref={elasticLayerRef}>
+                    <RichTextPlugin
+                      contentEditable={<div ref={editorRef} className="script-editor-input"><ContentEditable aria-label="Script editor" /></div>}
+                      placeholder={<div className="script-editor-placeholder">Start writing your script…</div>}
+                      ErrorBoundary={LexicalErrorBoundary}
+                    />
+                  </div>
+                  <ElasticOverscroll scrollRef={scrollRef} layerRef={elasticLayerRef} />
                 </div>
-                <ElasticOverscroll scrollRef={scrollRef} layerRef={elasticLayerRef} />
               </div>
+            </LexicalComposer>
+            <p className="editor-script-help">Cue chips are private presenter reminders. They are excluded from spoken timing and audience slides.</p>
+            <div className="editor-slide-nav">
+              <button onClick={() => setActiveSlide(activeIndex - 1)} disabled={activeIndex === 0}><ChevronLeft size={16} /> Previous</button>
+              <button onClick={() => setActiveSlide(activeIndex + 1)} disabled={activeIndex === slides.length - 1}>Next slide <ArrowRight size={16} /></button>
             </div>
-          </LexicalComposer>
+          </div>
         </section>
 
+        {previewOpen && <aside className="editor-preview" aria-label="Live preview">
+          <div className="editor-preview-head"><strong>Preview</strong><span>Updates as you type</span></div>
+          <div className="editor-preview-body">
+            <div className="editor-preview-slide"><SlideVisual slide={active} compact /></div>
+            <div className="editor-preview-script"><span>Presenter view</span><TeleprompterText script={script} /></div>
+          </div>
+        </aside>}
       </div>
     </main>
   );
