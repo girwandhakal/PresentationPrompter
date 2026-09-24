@@ -562,16 +562,6 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .prompt-line { height: 2px; background: color-mix(in srgb, white 9%, transparent); margin: 20px 0; }
 .prompt-line i { display: block; width: 28%; height: 100%; background: var(--blue); box-shadow: 0 0 16px var(--blue); border-radius: 99px; }
 
-.live-cue-bar {
-  margin-top: 20px; display: flex; align-items: center; gap: 9px;
-  padding: 10px 13px; border-radius: 11px; max-width: 560px;
-  background: color-mix(in srgb, var(--blue) 12%, transparent);
-  border: 1px solid color-mix(in srgb, var(--blue) 20%, transparent);
-}
-.live-cue-bar svg { width: 15px; color: var(--blue); flex: 0 0 auto; }
-.live-cue-type { font-size: 9px; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; color: var(--blue); }
-.live-cue-text { font-size: 11px; margin-top: 2px; }
-
 .next-hint { margin-top: 24px; opacity: 0.38; font-size: clamp(13px, 1.3vw, 18px); }
 
 .presenter-context { display: flex; flex-direction: column; gap: 9px; }

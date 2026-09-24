@@ -12,54 +12,54 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useRef, useState } from "react";
+import { documentFirstCueLabel, documentToDuration, documentToSpokenText } from "./script-types";
 import { SlideVisual } from "./SlideVisual";
+import { usePresentations } from "./use-presentations";
 import type { Presentation } from "./types";
 
 type Props = {
   presentation: Presentation;
-  isEditingTitle: boolean;
-  onStartTitleEdit: () => void;
-  onCommitTitle: (title: string) => void;
-  onCancelTitleEdit: () => void;
-  onEdit: () => void;
-  onOpenSidebar: () => void;
 };
 
-export function PresentationWorkspace({
-  presentation,
-  isEditingTitle,
-  onStartTitleEdit,
-  onCommitTitle,
-  onCancelTitleEdit,
-  onEdit,
-}: Props) {
+function durationToSeconds(duration: string) {
+  const [m, sec] = duration.split(":").map(Number);
+  return m * 60 + sec;
+}
+
+export function PresentationWorkspace({ presentation }: Props) {
+  const { renamePresentation } = usePresentations();
   const [activeIndex, setActiveIndex] = useState(0);
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState(presentation.title);
   const cancelledRef = useRef(false);
   const slide = presentation.slides[activeIndex] ?? presentation.slides[0];
 
-  const totalSeconds = presentation.slides.reduce((sum, s) => {
-    const [m, sec] = s.duration.split(":").map(Number);
-    return sum + m * 60 + sec;
-  }, 0);
+  const totalSeconds = presentation.slides.reduce(
+    (sum, s) => sum + durationToSeconds(documentToDuration(s.script)),
+    0,
+  );
 
   function beginEdit() {
     cancelledRef.current = false;
     setTitleDraft(presentation.title);
-    onStartTitleEdit();
+    setIsEditingTitle(true);
   }
 
   function commitEdit() {
-    if (cancelledRef.current) return;
-    onCommitTitle(titleDraft);
+    if (!cancelledRef.current) renamePresentation(presentation.id, titleDraft);
+    setIsEditingTitle(false);
   }
 
   function cancelEdit() {
     cancelledRef.current = true;
-    onCancelTitleEdit();
+    setIsEditingTitle(false);
   }
 
   if (!slide) return null;
+
+  const slideBody = documentToSpokenText(slide.script);
+  const slideCue = documentFirstCueLabel(slide.script);
+  const slideDuration = documentToDuration(slide.script);
 
   return (
     <main className="workspace">
@@ -94,11 +94,11 @@ export function PresentationWorkspace({
         )}
 
         <div className="workspace-actions">
-          <button className="btn btn-secondary" onClick={onEdit} aria-label="Edit script">
+          <Link className="btn btn-secondary" href={`/p/${presentation.id}/edit`} aria-label="Edit script">
             <PenLine size={14} />
             Edit script
-          </button>
-          <Link className="btn btn-primary" href="/presenter" aria-label="Start presentation">
+          </Link>
+          <Link className="btn btn-primary" href={`/p/${presentation.id}/present`} aria-label="Start presentation">
             <Play size={14} fill="currentColor" />
             Present
           </Link>
@@ -156,27 +156,29 @@ export function PresentationWorkspace({
               <p className="script-panel-eyebrow">Script</p>
               <h2 className="script-panel-title">{slide.title}</h2>
             </div>
-            <button className="btn-icon" onClick={onEdit} aria-label="Edit slide script">
+            <Link className="btn-icon" href={`/p/${presentation.id}/edit`} aria-label="Edit slide script">
               <PenLine size={15} />
-            </button>
+            </Link>
           </div>
 
           <div className="script-panel-body">
-            <p className="script-body">{slide.body}</p>
+            <p className="script-body">{slideBody}</p>
 
-            <div className="cue-block">
-              <div className="cue-block-label">
-                <Sparkles size={11} /> {slide.cueType}
+            {slideCue && (
+              <div className="cue-block">
+                <div className="cue-block-label">
+                  <Sparkles size={11} /> Cue
+                </div>
+                <p className="cue-block-text">{slideCue}</p>
               </div>
-              <p className="cue-block-text">{slide.cue}</p>
-            </div>
+            )}
 
             <div className="timing-row">
               <div className="timing-chip">
                 <Clock3 size={13} />
                 <div>
                   <span className="timing-chip-label">Slide</span>
-                  <span className="timing-chip-value">{slide.duration}</span>
+                  <span className="timing-chip-value">{slideDuration}</span>
                 </div>
               </div>
               <div className="timing-chip">
@@ -195,8 +197,8 @@ export function PresentationWorkspace({
                 <Eye size={11} /> Presenter view
               </div>
               <p className="peek-card-text">
-                {slide.body.split(".")[0]}
-                <span className="peek-card-highlight"> {slide.body.split(" ").slice(5, 9).join(" ")}</span>
+                {slideBody.split(".")[0]}
+                <span className="peek-card-highlight"> {slideBody.split(" ").slice(5, 9).join(" ")}</span>
               </p>
               <div className="peek-progress">
                 <i style={{ width: `${presentation.progress}%` }} />

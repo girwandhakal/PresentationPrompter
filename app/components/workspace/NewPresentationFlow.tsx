@@ -10,6 +10,7 @@ import {
   X,
 } from "lucide-react";
 import { useMemo, useRef, useState } from "react";
+import { documentFromLegacy } from "./script-types";
 import type { Presentation, Slide } from "./types";
 
 type Props = {
@@ -61,10 +62,7 @@ export function NewPresentationFlow({ onGenerated }: Props) {
         id: `generated-${i + 1}`,
         eyebrow: s.eyebrow || `SLIDE ${i + 1}`,
         title: s.title,
-        body: s.body,
-        cue: s.cue,
-        cueType: "Pause",
-        duration: s.duration,
+        script: documentFromLegacy(s.body, s.cue),
         marker: s.speakerNote || "Speaker note",
         accent: (["petal", "blue", "ink"] as const)[i % 3],
       }));

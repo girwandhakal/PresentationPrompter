@@ -12,47 +12,39 @@ import {
   X,
 } from "lucide-react";
 import Link from "next/link";
-import { useCallback, useEffect, useRef, useState } from "react";
-import { initialPresentations } from "../components/workspace/mock-data";
-import { SlideVisual } from "../components/workspace/SlideVisual";
-import { TeleprompterText } from "../components/workspace/TeleprompterText";
-import { documentToSpokenText, parseScriptDocument } from "../components/workspace/script-types";
-import type { Presentation } from "../components/workspace/types";
+import { useRouter } from "next/navigation";
+import { use, useCallback, useEffect, useRef, useState } from "react";
+import { SlideVisual } from "../../../components/workspace/SlideVisual";
+import { TeleprompterText } from "../../../components/workspace/TeleprompterText";
+import { documentToSpokenText } from "../../../components/workspace/script-types";
+import { usePresentations } from "../../../components/workspace/use-presentations";
 
-const STORAGE_KEY = "cueframe-presentations-v2";
-const ACTIVE_STORAGE_KEY = "cueframe-active-presentation-v1";
+export default function PresenterPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params);
+  const router = useRouter();
+  const { getPresentation, ready } = usePresentations();
+  const deck = getPresentation(id);
 
-export default function PresenterPage() {
-  const [deck, setDeck] = useState<Presentation>(initialPresentations[0]);
   const [index, setIndex] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const [popupBlocked, setPopupBlocked] = useState(false);
   const channelRef = useRef<BroadcastChannel | null>(null);
-  const slide = deck.slides[index];
-  const script = parseScriptDocument(slide.script, slide.body, slide.cue);
 
   useEffect(() => {
-    try {
-      const stored = window.localStorage.getItem(STORAGE_KEY);
-      const activeId = window.localStorage.getItem(ACTIVE_STORAGE_KEY);
-      if (!stored) return;
-      const presentations = JSON.parse(stored) as Presentation[];
-      const selected = presentations.find((presentation) => presentation.id === activeId) ?? presentations[0];
-      if (selected?.slides.length) queueMicrotask(() => setDeck(selected));
-    } catch { /* use the sample deck when local storage is unavailable */ }
-  }, []);
+    if (ready && !deck) router.replace("/");
+  }, [ready, deck, router]);
 
   const broadcast = useCallback((nextIndex = index) => {
-    channelRef.current?.postMessage({ type: "snapshot", index: nextIndex, title: deck.title });
-  }, [deck.title, index]);
+    channelRef.current?.postMessage({ type: "snapshot", index: nextIndex });
+  }, [index]);
 
   useEffect(() => {
-    const ch = new BroadcastChannel("cueframe-presenter-session");
+    const ch = new BroadcastChannel(`cueframe-presenter-session-${id}`);
     channelRef.current = ch;
     ch.onmessage = (e) => { if (e.data?.type === "ready") broadcast(); };
     return () => ch.close();
-  }, [broadcast]);
+  }, [id, broadcast]);
 
   useEffect(() => { broadcast(); }, [index, broadcast]);
 
@@ -62,13 +54,18 @@ export default function PresenterPage() {
     return () => window.clearInterval(t);
   }, [playing]);
 
+  if (!deck) return null;
+
+  const slide = deck.slides[index];
+  const script = slide.script;
+
   function move(next: number) {
-    setIndex(Math.max(0, Math.min(deck.slides.length - 1, next)));
+    setIndex(Math.max(0, Math.min(deck!.slides.length - 1, next)));
     setElapsed(0);
   }
 
   function openAudience() {
-    const win = window.open("/audience", "cueframe-audience", "popup,width=1280,height=720");
+    const win = window.open(`/p/${id}/audience`, "cueframe-audience", "popup,width=1280,height=720");
     setPopupBlocked(!win);
     win?.focus();
     window.setTimeout(() => broadcast(), 400);
@@ -81,7 +78,7 @@ export default function PresenterPage() {
     <main className="presenter-shell">
       <header className="presenter-header">
         <div className="presenter-header-left">
-          <Link href="/" className="btn-icon" aria-label="Close presenter" style={{ color: "var(--powder)", borderColor: "color-mix(in srgb, white 14%, transparent)" }}>
+          <Link href={`/p/${id}`} className="btn-icon" aria-label="Close presenter" style={{ color: "var(--powder)", borderColor: "color-mix(in srgb, white 14%, transparent)" }}>
             <X size={16} />
           </Link>
           <div>
@@ -120,16 +117,8 @@ export default function PresenterPage() {
 
           <div className="prompt-line"><i /></div>
 
-          <div className="live-cue-bar">
-            <Play size={15} />
-            <div>
-              <p className="live-cue-type">{slide.cueType}</p>
-              <p className="live-cue-text">{slide.cue}</p>
-            </div>
-          </div>
-
           <p className="next-hint">
-            {deck.slides[index + 1] ? documentToSpokenText(parseScriptDocument(deck.slides[index + 1].script, deck.slides[index + 1].body, deck.slides[index + 1].cue)).split(".")[0] : "End of presentation — leave room for questions."}
+            {deck.slides[index + 1] ? documentToSpokenText(deck.slides[index + 1].script).split(".")[0] : "End of presentation — leave room for questions."}
           </p>
         </section>
 
