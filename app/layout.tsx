@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Bricolage_Grotesque } from "next/font/google";
 import { headers } from "next/headers";
 import "./globals.css";
+import "./editor.css";
 
 const bricolage = Bricolage_Grotesque({
   variable: "--font-cueframe",
