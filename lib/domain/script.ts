@@ -166,10 +166,18 @@ export function emptyDocument(): ScriptDocument {
   return { version: 1, paragraphs: [{ id: makeId("paragraph"), children: [{ type: "text", text: "" }] }] };
 }
 
-/** Splits spoken prose into sentences, keeping terminal punctuation with each sentence. */
+/**
+ * Splits spoken prose into sentences, keeping terminal punctuation with each sentence. A boundary is
+ * terminal punctuation, whitespace, then a capital, digit, or opening quote — so "74.5%" and
+ * "e.g. this" stay intact.
+ */
 export function splitSentences(text: string): string[] {
-  const matches = text.replace(/\s+/g, " ").trim().match(/[^.!?…]+(?:[.!?…]+["'”’)\]]*|$)/g);
-  return (matches ?? []).map((sentence) => sentence.trim()).filter(Boolean);
+  const normalized = text.replace(/\s+/g, " ").trim();
+  if (!normalized) return [];
+  return normalized
+    .split(/(?<=[.!?…]["'”’)\]]*)\s+(?=["“‘(\[]?[A-Z0-9])/u)
+    .map((sentence) => sentence.trim())
+    .filter(Boolean);
 }
 
 export type AiCuePlacement = { paragraph: number; afterSentence: number; label: string };

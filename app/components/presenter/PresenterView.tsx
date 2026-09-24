@@ -64,8 +64,6 @@ export function PresenterView({ project }: { project: Project }) {
   const session = useRef<{ id: string; startedAt: number } | null>(null);
   const channel = useRef<BroadcastChannel | null>(null);
   const seq = useRef(0);
-  // Unique per page load so a reloaded presenter is never mistaken for a stale sender.
-  const channelSession = useRef(`c-${Math.random().toString(36).slice(2, 12)}`);
   const lastHeartbeat = useRef(0);
   const audienceWindow = useRef<Window | null>(null);
   const ended = useRef(false);
@@ -86,8 +84,9 @@ export function PresenterView({ project }: { project: Project }) {
     const message: AudienceState = {
       v: 1,
       type: "state",
-      seq: ++seq.current,
-      session: channelSession.current,
+      // Time-based so a reloaded presenter tab always outranks messages from before the reload.
+      seq: Date.now() * 1000 + (seq.current++ % 1000),
+      session: "presenter",
       index: current,
       total: slides.length,
       slideId: slides[current]?.id ?? "",
@@ -98,6 +97,8 @@ export function PresenterView({ project }: { project: Project }) {
   }, [blank, index, slides]);
 
   const commandRef = useRef<(command: "next" | "previous") => void>(() => {});
+  const broadcastRef = useRef(broadcast);
+  useEffect(() => { broadcastRef.current = broadcast; }, [broadcast]);
 
   useEffect(() => {
     if (typeof BroadcastChannel === "undefined") return;
@@ -128,8 +129,6 @@ export function PresenterView({ project }: { project: Project }) {
     };
   }, [project.id]);
 
-  const broadcastRef = useRef(broadcast);
-  useEffect(() => { broadcastRef.current = broadcast; }, [broadcast]);
   useEffect(() => { broadcast(); }, [broadcast]);
 
   const openAudience = useCallback(() => {
@@ -218,12 +217,14 @@ export function PresenterView({ project }: { project: Project }) {
   // Auto-advance countdown
   useEffect(() => {
     if (countdown == null) return;
-    if (countdown <= 0) {
-      setCountdown(null);
-      go(index + 1);
-      return;
-    }
-    const timer = window.setTimeout(() => setCountdown((value) => (value == null ? null : value - 1)), 1000);
+    const timer = window.setTimeout(() => {
+      if (countdown <= 1) {
+        setCountdown(null);
+        go(index + 1);
+      } else {
+        setCountdown(countdown - 1);
+      }
+    }, 1000);
     return () => window.clearTimeout(timer);
   }, [countdown, go, index]);
 
@@ -347,10 +348,7 @@ export function PresenterView({ project }: { project: Project }) {
 
   // Dim the controls while scrolling and the pointer is still.
   useEffect(() => {
-    if (!playing) {
-      setIdle(false);
-      return;
-    }
+    if (!playing) return;
     let timer = window.setTimeout(() => setIdle(true), 2500);
     const wake = () => {
       setIdle(false);
@@ -435,7 +433,7 @@ export function PresenterView({ project }: { project: Project }) {
   const timerPaused = live && !total.running();
 
   return (
-    <div className="presenter theme-dark" data-idle={idle} data-phase={phase}>
+    <div className="presenter theme-dark" data-idle={idle && playing} data-phase={phase}>
       <header className="presenter__bar">
         <IconButton label={live ? "End presentation" : "Close presenter"} onClick={exit} tooltip="bottom"><X /></IconButton>
         <Menu

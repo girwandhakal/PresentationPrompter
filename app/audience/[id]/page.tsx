@@ -21,7 +21,7 @@ export default function AudiencePage({ params }: { params: Promise<{ id: string 
   const [state, setState] = useState<AudienceState | null>(null);
   const [chrome, setChrome] = useState(true);
   const channel = useRef<BroadcastChannel | null>(null);
-  const windowId = useRef(`w-${Math.random().toString(36).slice(2, 10)}`);
+  const windowId = useRef("");
   const lastSeq = useRef<{ session: string; seq: number } | null>(null);
 
   useEffect(() => {
@@ -42,6 +42,7 @@ export default function AudiencePage({ params }: { params: Promise<{ id: string 
 
   useEffect(() => {
     if (typeof BroadcastChannel === "undefined") return;
+    windowId.current ||= `w-${Math.random().toString(36).slice(2, 10)}`;
     const bc = new BroadcastChannel(channelName(id));
     channel.current = bc;
     const send = (message: AudienceMessage) => bc.postMessage(message);

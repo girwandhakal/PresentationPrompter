@@ -1,10 +1,9 @@
-/** Cloudflare Worker entry point for the vinext-starter template. */
+/** Cloudflare Worker entry point: image optimization, the vinext app, and security headers. */
 import { handleImageOptimization, DEFAULT_DEVICE_SIZES, DEFAULT_IMAGE_SIZES } from "vinext/server/image-optimization";
 import handler from "vinext/server/app-router-entry";
 
 interface Env {
   ASSETS: Fetcher;
-  DB: D1Database;
   IMAGES: {
     input(stream: ReadableStream): {
       transform(options: Record<string, unknown>): {
@@ -19,11 +18,42 @@ interface ExecutionContext {
   passThroughOnException(): void;
 }
 
-// Image security config. SVG sources with .svg extension auto-skip the
-// optimization endpoint on the client side (served directly, no proxy).
-// To route SVGs through the optimizer (with security headers), set
-// dangerouslyAllowSVG: true in next.config.js and uncomment below:
-// const imageConfig: ImageConfig = { dangerouslyAllowSVG: true };
+/**
+ * Everything the app needs is same-origin: slide images are blob: URLs from IndexedDB, pdf.js runs
+ * its worker from our own assets, and the browser only talks to our /api/ai routes. Inline scripts
+ * are required for React Server Components payloads and the theme bootstrap.
+ */
+const CONTENT_SECURITY_POLICY = [
+  "default-src 'self'",
+  "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'",
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' blob: data:",
+  "font-src 'self'",
+  "connect-src 'self' blob: data:",
+  "worker-src 'self' blob:",
+  "media-src 'self' blob:",
+  "object-src 'none'",
+  "base-uri 'self'",
+  "form-action 'self'",
+  "frame-ancestors 'none'",
+].join("; ");
+
+const SECURITY_HEADERS: Record<string, string> = {
+  "x-content-type-options": "nosniff",
+  "referrer-policy": "strict-origin-when-cross-origin",
+  "x-frame-options": "DENY",
+  "cross-origin-opener-policy": "same-origin-allow-popups",
+  "permissions-policy": "camera=(), microphone=(), geolocation=(), payment=(), usb=()",
+};
+
+function withSecurityHeaders(response: Response) {
+  const secured = new Response(response.body, response);
+  for (const [name, value] of Object.entries(SECURITY_HEADERS)) secured.headers.set(name, value);
+  const type = secured.headers.get("content-type") ?? "";
+  // The dev server injects its own inline modules and HMR client; enforce CSP on production builds.
+  if (type.includes("text/html") && !import.meta.env.DEV) secured.headers.set("content-security-policy", CONTENT_SECURITY_POLICY);
+  return secured;
+}
 
 const worker = {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
@@ -40,7 +70,7 @@ const worker = {
       }, allowedWidths);
     }
 
-    return handler.fetch(request, env, ctx);
+    return withSecurityHeaders(await handler.fetch(request, env, ctx));
   },
 };
 

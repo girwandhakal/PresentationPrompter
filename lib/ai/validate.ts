@@ -1,3 +1,4 @@
+import { splitSentences } from "../domain/script";
 import type { BriefInput, WriteSlideInput, WrittenSlideOutput } from "./schemas";
 
 /**
@@ -34,7 +35,7 @@ function clean(value: string, max: number) {
 }
 
 export function sentenceCount(paragraph: string) {
-  return (paragraph.match(/[^.!?…]+(?:[.!?…]+|$)/g) ?? []).filter((part) => part.trim()).length;
+  return splitSentences(paragraph).length;
 }
 
 type Cue = WrittenSlideOutput["cues"][number];
@@ -53,7 +54,12 @@ export function sanitizeCues(cues: Cue[], paragraphs: string[], density: BriefIn
 
 export function sanitizeParagraphs(paragraphs: string[]) {
   return paragraphs
-    .map((paragraph) => paragraph.replace(/\s+/g, " ").replace(/^["“]|["”]$/g, "").trim())
+    .map((paragraph) => {
+      const text = paragraph.replace(/\s+/g, " ").trim();
+      // Models sometimes wrap a whole paragraph in quotes; a quotation inside prose is kept intact.
+      const wrapped = /^["“].*["”]$/.test(text) && !/["“”]/.test(text.slice(1, -1));
+      return wrapped ? text.slice(1, -1).trim() : text;
+    })
     .filter(Boolean)
     .slice(0, 8);
 }

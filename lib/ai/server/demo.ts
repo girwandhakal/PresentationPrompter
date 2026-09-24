@@ -127,7 +127,7 @@ export function createDemoProvider(): AiProvider {
           id: slide.id,
           role: index === 0 ? "Opens the talk" : index === included.length - 1 ? "Closes the talk" : "Develops the argument",
           keyIdea: slide.mainPoint || slide.title,
-          transition: index === included.length - 1 ? (request.brief.qaMinutes ? "I'd be glad to take your questions." : "Thank you.") : `That leads us to ${included[index + 1].title}.`,
+          transition: index === included.length - 1 ? (request.brief.qaMinutes ? "I'd be glad to take your questions." : "Thank you.") : `That leads us to ${included[index + 1].title.replace(/[.!?…]+$/, "")}.`,
         })),
       };
     },
@@ -154,7 +154,7 @@ export function createDemoProvider(): AiProvider {
             concise: sentences.slice(0, 2).join(" "),
             keywords: keywords(`${slide.title} ${slide.text} ${slide.notes}`),
             recovery: `The point here is simple: ${slide.keyIdea || slide.title}`,
-            transition: slide.transition || (slide.nextTitle ? `Next, ${slide.nextTitle}.` : "Thank you."),
+            transition: slide.transition || (slide.nextTitle ? `Next, ${slide.nextTitle.replace(/[.!?…]+$/, "")}.` : "Thank you."),
             questions: request.brief.includeQuestions ? [{ question: `What does ${slide.title.toLowerCase()} mean for us?`, answer: "I'd want to confirm the specifics before answering precisely — let's follow up after." }] : [],
             flags: slide.text.trim() ? [] : [{ kind: "needs-context" as const, message: "Demo mode can't read slide images. Add a sentence about what this slide shows." }],
           };

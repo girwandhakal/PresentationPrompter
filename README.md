@@ -1,98 +1,123 @@
-# vinext-starter
+# Cueframe
 
-A clean full-stack starter running on
-[vinext](https://github.com/cloudflare/vinext), with optional Cloudflare D1 and
-Drizzle support.
+A private, slide-aware teleprompter. Bring the deck you already made, get a script that sounds like
+you, and present with notes only you can see while the audience sees only your slides.
 
-## Prerequisites
+**The loop:** import slides → describe your talk → AI writes a timed script → edit it in a
+teleprompter-specific editor → present with a synchronized audience window → review your timing.
 
-- Node.js `>=22.13.0`
-
-## Quick Start
+## Quick start
 
 ```bash
 npm install
-npm run dev
-npm run build
+cp .env.example .env.local   # then add your OpenAI key
+npm run dev                  # http://localhost:3000
 ```
 
-This starter does not use `wrangler.jsonc`.
+No key yet? Run `npm run dev:demo` to use the built-in **demo AI**. It builds scripts from your
+slide text, so you can try every screen without a key or network access. The app labels this
+mode everywhere it applies.
 
-## Included Shape
+Requires Node.js 22.13 or newer.
 
-- edit site code under `app/`
-- `.openai/hosting.json` declares optional Sites D1 and R2 bindings
-- `vite.config.ts` simulates declared bindings for local development
-- `db/schema.ts` starts intentionally empty
-- `examples/d1/` contains an optional D1 example surface
-- `drizzle.config.ts` supports local migration generation when needed
+## Configuration
 
-## Workspace Auth Headers
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `OPENAI_API_KEY` | For AI writing | Server-side key for the OpenAI Responses API. Never sent to the browser. |
+| `OPENAI_MODEL` | No | Model used for analysis and writing (default `gpt-5.6-sol`). Must support structured outputs and image input. |
+| `OPENAI_BASE_URL` | No | Point at an OpenAI-compatible proxy or gateway. |
+| `AI_PROVIDER` | No | `demo` forces the keyless demo provider (development and tests). |
 
-OpenAI workspace sites can read the current user's email from
-`oai-authenticated-user-email`.
+With no key and no `AI_PROVIDER`, a production build shows a calm "AI isn't set up" state. People
+can still import, write scripts by hand, and present.
 
-SIWC-authenticated workspace sites may also receive
-`oai-authenticated-user-full-name` when the user's SIWC profile has a non-empty
-`name` claim. The full-name value is percent-encoded UTF-8 and is accompanied by
-`oai-authenticated-user-full-name-encoding: percent-encoded-utf-8`.
+## How it works
 
-Treat the full name as optional and fall back to email when it is absent:
-
-```tsx
-import { headers } from "next/headers";
-
-export default async function Home() {
-  const requestHeaders = await headers();
-  const email = requestHeaders.get("oai-authenticated-user-email");
-  const encodedFullName = requestHeaders.get("oai-authenticated-user-full-name");
-  const fullName =
-    encodedFullName &&
-    requestHeaders.get("oai-authenticated-user-full-name-encoding") ===
-      "percent-encoded-utf-8"
-      ? decodeURIComponent(encodedFullName)
-      : null;
-
-  const displayName = fullName ?? email;
-  // ...
-}
+```text
+Browser (everything the user creates lives here)
+ ├─ Import: pdf.js renders PDFs; PPTX is parsed from OOXML; images are normalized
+ ├─ IndexedDB: projects, slide images (Blobs), script versions, presenter sessions
+ ├─ Orchestrator: analyze → deck context → plan (local) → outline → write, in bounded batches
+ ├─ Editor (Lexical), Presenter, Review
+ └─ Audience window ◀── BroadcastChannel (slide index, blank, ended — never script text)
+                │
+                ▼  /api/ai/*  (Cloudflare Worker via vinext)
+AI gateway: schema-validated requests → OpenAI structured outputs → validation & repair
 ```
 
-## Optional Dispatch-Owned ChatGPT Sign-In
+- **Local-first.** Decks, scripts and history are stored in the browser's IndexedDB, and all storage
+  goes through [`lib/store/db.ts`](lib/store/db.ts) so a sync backend can be added later. Settings has
+  backup/restore (`.cueframe` files) and delete-everything.
+- **AI pipeline.** [`lib/ai/orchestrator.tsx`](lib/ai/orchestrator.tsx):
+  - Analysis starts as soon as slides are imported. It reads each slide's image and text and
+    prefills the setup form with suggestions.
+  - Generation plans a word budget per slide ([`lib/domain/planner.ts`](lib/domain/planner.ts)),
+    outlines the narrative arc, then writes slides in parallel batches.
+  - Every response is validated ([`lib/ai/validate.ts`](lib/ai/validate.ts)): cue anchors, figures
+    that aren't in the source (flagged, never removed), and word budget (one automatic repair pass).
+  - A draft is saved only when every slide came back valid, and earlier versions are kept in History.
+- **Rewrites.** Actions work on a slide or on selected text (shorten, simplify, clearer transition,
+  add example, and so on). They always show a proposal to accept or discard, and never overwrite
+  silently.
+- **Presenter.**
+  - Scrolling speed comes from your words per minute, with a reading line at eye level.
+  - Auto-advance uses a countdown you can cancel. Reading modes are full script, short, keywords
+    and cues only.
+  - "I lost my place" recovery, per-slide timers, marks for review, blanking the audience screen,
+    and a keep-awake lock.
+  - Clicker keys work in both windows.
+- **Privacy.** The audience window loads only slide images. Scripts and cues never cross the sync
+  channel, and an end-to-end test checks this. AI requests contain slide images, slide text and the
+  brief, only when the user asks for a script or rewrite. The server doesn't log content.
 
-Import the ready-to-use helpers from `app/chatgpt-auth.ts` when the site needs
-optional or required ChatGPT sign-in:
+## Scripts
 
-- Use `getChatGPTUser()` for optional signed-in UI.
-- Use `requireChatGPTUser(returnTo)` for server-rendered pages that should send
-  anonymous visitors through Sign in with ChatGPT.
-- Use `chatGPTSignInPath(returnTo)` and `chatGPTSignOutPath(returnTo)` for
-  browser links or actions.
-- Pass a same-origin relative `returnTo` path for the destination after sign-in
-  or sign-out. The helper validates and safely encodes it.
-- Mark protected pages with `export const dynamic = "force-dynamic"` because
-  they depend on per-request identity headers.
+| Command | What it does |
+| --- | --- |
+| `npm run dev` / `npm run dev:demo` | Development server (real AI / demo AI) |
+| `npm run build` | Production build (Cloudflare Worker + static assets) |
+| `npm run preview` | Serve the production build locally in workerd, including security headers |
+| `npm run lint` · `npm run typecheck` | ESLint · TypeScript |
+| `npm test` | Unit and API integration tests (demo provider, no network) |
+| `npm run test:e2e` | Playwright end-to-end tests. They use your installed Chrome; set `PLAYWRIGHT_CHANNEL=msedge` or `""` for bundled Chromium |
+| `npm run check` | Lint, typecheck, unit tests, and build |
+| `npm run sample-deck` | Regenerate `public/sample-deck.pdf` (the first-run sample, also a test fixture) |
 
-Dispatch owns `/signin-with-chatgpt`, `/signout-with-chatgpt`, `/callback`, the
-OAuth cookies, and identity header injection. Do not implement app routes for
-those reserved paths. Routes that do not import and call the helper remain
-anonymous-compatible.
+## Deployment
 
-SIWC establishes identity only; it does not prove workspace membership. Use the
-Sites hosting platform's access policy controls for workspace-wide restrictions,
-or enforce explicit server-side membership or allowlist checks.
+The app builds to a Cloudflare Worker (`worker/index.ts`) with static assets, and is configured for
+the hosting described in `.openai/hosting.json`.
 
-Use SIWC for account pages, user-specific dashboards, saved records, and write
-actions tied to the current ChatGPT user. Leave public content anonymous.
+1. Set `OPENAI_API_KEY` (and optionally `OPENAI_MODEL`) as secrets in the hosting environment.
+2. Run `npm run check`, then deploy the `dist/` output.
 
-## Useful Commands
+The Worker adds a strict Content Security Policy and security headers to every response. No
+database, bucket, or queue is required.
 
-- `npm run dev`: start local development
-- `npm run build`: verify the vinext build output
-- `npm test`: build the starter and verify its rendered loading skeleton
-- `npm run db:generate`: generate Drizzle migrations after schema changes
+## Supported files and limits
 
-## Learn More
+- **PDF** gives exact visuals and is the recommended format. Keynote and Google Slides should be
+  exported to PDF first.
+- **PowerPoint (.pptx)** is read in the browser: order, text, speaker notes, and the largest picture
+  per slide. Slides appear as simplified previews. Charts, SmartArt, animations and video are
+  flagged, and the fix is to export a PDF and use **Replace slides** (scripts carry over by content).
+- **Images** (PNG, JPEG, WebP): multiple files are ordered by name and can be reordered in setup.
+- Up to 100 MB per file and 120 slides per presentation. Legacy `.ppt` is not supported.
 
-- [vinext Documentation](https://github.com/cloudflare/vinext)
-- [Drizzle D1 Guide](https://orm.drizzle.team/docs/get-started/d1-new)
+## Keyboard shortcuts (Presenter)
+
+`Space` scroll · `→`/`PageDown` next · `←`/`PageUp` previous · `↑`/`↓` nudge · `Home`/`End` start or
+end of slide · `R` lost my place · `B` blank audience · `C` cues · `M` mark slide · `+`/`−` pace ·
+`F` full screen · `Esc` cancel or end · `?` all shortcuts
+
+Editor: `Ctrl/⌘ K` add cue · `Ctrl/⌘ B`/`I` bold/italic · `Alt ↑`/`↓` switch slides · `Ctrl/⌘ S` save now.
+
+## Known limitations
+
+- The presenter and audience windows sync through `BroadcastChannel`, so they must be in the same
+  browser profile on the same computer. That is the usual projector or screen-share setup.
+- Browsers can't choose which monitor a window opens on or hide a window from screen capture. The
+  preflight checklist walks through sharing only the audience window.
+- On Windows, `vinext start` (vinext 0.0.50) fails to serve static assets. Use `npm run preview` to
+  check production builds locally; deployed Workers aren't affected.

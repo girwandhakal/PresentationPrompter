@@ -71,8 +71,14 @@ function paragraphText(paragraph: Element) {
   return byLocal(paragraph, "t").map((node) => node.textContent ?? "").join("").replace(/\s+/g, " ").trim();
 }
 
+/**
+ * Reads a relationship attribute such as `r:id` or `r:embed`. Only namespaced attributes count:
+ * `<p:sldId id="256" r:id="rId2">` carries a plain `id` too, which must not be mistaken for it.
+ */
 function relAttr(element: Element, name: string) {
-  for (const attribute of Array.from(element.attributes)) if (attribute.localName === name) return attribute.value;
+  for (const attribute of Array.from(element.attributes)) {
+    if (attribute.localName === name && attribute.namespaceURI) return attribute.value;
+  }
   return null;
 }
 

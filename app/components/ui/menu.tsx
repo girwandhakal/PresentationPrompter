@@ -27,18 +27,18 @@ export function Menu({ trigger, items, align = "start", label }: {
   const id = useId();
   const [open, setOpen] = useState(false);
   const [position, setPosition] = useState<{ top: number; left: number; origin: string } | null>(null);
-  const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const [triggerElement, setTrigger] = useState<HTMLButtonElement | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
-  const focusTarget = useRef<"first" | "last">("first");
+  const [focusTarget, setFocusTarget] = useState<"first" | "last">("first");
 
   const close = useCallback((restoreFocus = true) => {
     setOpen(false);
-    if (restoreFocus) triggerRef.current?.focus();
-  }, []);
+    if (restoreFocus) triggerElement?.focus();
+  }, [triggerElement]);
 
   useLayoutEffect(() => {
-    if (!open || !triggerRef.current || !menuRef.current) return;
-    const rect = triggerRef.current.getBoundingClientRect();
+    if (!open || !triggerElement || !menuRef.current) return;
+    const rect = triggerElement.getBoundingClientRect();
     const menu = menuRef.current.getBoundingClientRect();
     const gap = 6;
     const below = rect.bottom + gap + menu.height <= window.innerHeight - 8;
@@ -46,23 +46,21 @@ export function Menu({ trigger, items, align = "start", label }: {
     let left = align === "end" ? rect.right - menu.width : rect.left;
     left = Math.min(Math.max(8, left), window.innerWidth - menu.width - 8);
     // Measuring the rendered menu is the only way to place it; this runs before paint.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setPosition({ top, left, origin: `${align === "end" ? "right" : "left"} ${below ? "top" : "bottom"}` });
-  }, [open, align]);
+  }, [open, align, triggerElement]);
 
   useEffect(() => {
     if (!open || !position) return;
     const buttons = menuItems(menuRef.current);
-    if (focusTarget.current === "last") buttons.at(-1)?.focus();
+    if (focusTarget === "last") buttons.at(-1)?.focus();
     else buttons[0]?.focus();
-    focusTarget.current = "first";
-  }, [open, position]);
+  }, [open, position, focusTarget]);
 
   useEffect(() => {
     if (!open) return;
     const onPointer = (event: PointerEvent) => {
       const target = event.target as Node;
-      if (!menuRef.current?.contains(target) && !triggerRef.current?.contains(target)) close(false);
+      if (!menuRef.current?.contains(target) && !triggerElement?.contains(target)) close(false);
     };
     const onViewport = (event: Event) => {
       if (event.type === "scroll" && menuRef.current?.contains(event.target as Node)) return;
@@ -76,7 +74,7 @@ export function Menu({ trigger, items, align = "start", label }: {
       window.removeEventListener("resize", onViewport);
       window.removeEventListener("scroll", onViewport, true);
     };
-  }, [open, close]);
+  }, [open, close, triggerElement]);
 
   function onMenuKeyDown(event: React.KeyboardEvent) {
     const buttons = menuItems(menuRef.current);
@@ -99,15 +97,16 @@ export function Menu({ trigger, items, align = "start", label }: {
   return (
     <>
       {trigger({
-        ref: (node) => { triggerRef.current = node; },
+        ref: setTrigger,
         onClick: () => {
           setPosition(null);
+          setFocusTarget("first");
           setOpen((value) => !value);
         },
         onKeyDown: (event) => {
           if (event.key === "ArrowDown" || event.key === "ArrowUp") {
             event.preventDefault();
-            focusTarget.current = event.key === "ArrowUp" ? "last" : "first";
+            setFocusTarget(event.key === "ArrowUp" ? "last" : "first");
             setPosition(null);
             setOpen(true);
           }

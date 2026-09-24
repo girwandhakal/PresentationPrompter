@@ -38,6 +38,7 @@ export function useImporter({ onImported, onBackup }: {
         setState({ status: "idle" });
         return;
       }
+      if (!(error instanceof ImportError)) console.error("[cueframe] import failed", error);
       const message = error instanceof ImportError || (error instanceof Error && error.message && !(error instanceof TypeError))
         ? error.message
         : "This file couldn't be imported. Try exporting it again as PDF.";

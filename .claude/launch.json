@@ -4,14 +4,37 @@
     {
       "name": "cueframe-dev",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev"],
+      "runtimeArgs": [
+        "run",
+        "dev"
+      ],
       "port": 3000
     },
     {
       "name": "cueframe-demo",
       "runtimeExecutable": "npx",
-      "runtimeArgs": ["cross-env", "AI_PROVIDER=demo", "npm", "run", "dev"],
+      "runtimeArgs": [
+        "cross-env",
+        "AI_PROVIDER=demo",
+        "npm",
+        "run",
+        "dev"
+      ],
       "port": 3000
+    },
+    {
+      "name": "cueframe-prod",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": [
+        "cross-env",
+        "AI_PROVIDER=demo",
+        "vite",
+        "preview",
+        "--port",
+        "3200",
+        "--strictPort"
+      ],
+      "port": 3200
     }
   ]
 }
