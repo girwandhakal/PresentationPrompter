@@ -6,6 +6,7 @@ test("flags label-and-colon openers", () => {
   assert.ok(spokenProblems(["Keep: small PRs, peer review."]).length);
   assert.ok(spokenProblems(["Short version: the form failed."]).length);
   assert.ok(spokenProblems(["We did well. Fix: project fields fell behind."]).length);
+  assert.ok(spokenProblems(["Second, external dependencies: EmailJS configuration blocks live submission."]).length);
 });
 
 test("flags clipped notes and ticket recitals", () => {

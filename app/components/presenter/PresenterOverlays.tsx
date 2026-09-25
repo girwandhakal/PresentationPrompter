@@ -91,7 +91,7 @@ export function PresenterSettings({ open, prefs, onChange, onClose }: {
         <Group title="Scrolling">
           <Slider label="Pace" min={0.6} max={1.6} step={0.05} value={prefs.paceMultiplier} onChange={(value) => set("paceMultiplier", Number(value.toFixed(2)))} format={(value) => `${Math.round(value * 100)}%`} />
           <Switch checked={prefs.autoAdvance} onChange={(value) => set("autoAdvance", value)} label="Advance at end of script" description="Moves to the next slide after a short countdown you can cancel." />
-          {prefs.autoAdvance && <Slider label="Countdown" min={2} max={10} step={1} value={prefs.advanceDelay} onChange={(value) => set("advanceDelay", value)} format={(value) => `${value} s`} />}
+          {prefs.autoAdvance && <Slider label="Countdown" min={1} max={10} step={1} value={prefs.advanceDelay} onChange={(value) => set("advanceDelay", value)} format={(value) => `${value} s`} />}
           <Switch checked={prefs.focusLine} onChange={(value) => set("focusLine", value)} label="Reading line" description="A guide at eye level showing where to read." />
         </Group>
         <Group title="What to show">

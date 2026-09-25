@@ -61,10 +61,11 @@ test("cue anchors are clamped to real paragraphs and sentences, and capped by de
     { paragraph: 5, afterSentence: 9, type: "pause", text: "Pause" },
     { paragraph: 1, afterSentence: 0, type: "look", text: "Look up" },
     { paragraph: 1, afterSentence: 1, type: "gesture", text: "Point" },
-  ], paragraphs, "light");
-  assert.equal(cues.length, 2);
+  ], paragraphs, "detailed");
+  assert.equal(cues.length, 3);
   assert.deepEqual(cues[0], { paragraph: 2, afterSentence: 1, type: "pause", text: "Pause" });
   assert.deepEqual(cues[1], { paragraph: 1, afterSentence: 1, type: "look", text: "Look up" });
+  assert.equal(sanitizeCues(cues, paragraphs, "light").length, 1);
   assert.equal(sanitizeCues(cues, paragraphs, "none").length, 0);
 });
 

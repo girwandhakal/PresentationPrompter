@@ -79,7 +79,7 @@
 .presenter__card figcaption { font-size: var(--t-2xs); font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-2); }
 .presenter__thumb { position: relative; }
 .presenter__thumb[data-blank="true"]::after { content: "Blanked for audience"; position: absolute; inset: 0; display: grid; place-items: center; background: rgb(0 0 0 / 0.78); color: var(--powder); font-size: var(--t-xs); font-weight: 600; border-radius: var(--r-md); }
-.presenter__card--next { opacity: 0.8; margin-top: var(--s-2); }
+.presenter__card--next { margin-top: var(--s-2); }
 .presenter__end-card { display: grid; place-items: center; aspect-ratio: 16 / 9; border-radius: var(--r-sm); border: 1px dashed var(--line-strong); color: var(--text-2); font-size: var(--t-xs); }
 .presenter__slide-time { display: flex; justify-content: space-between; font-size: var(--t-xs); color: var(--text-2); }
 .presenter__slide-time strong { color: var(--text); font-weight: 600; }
@@ -113,8 +113,7 @@
 .presenter__deck-progress span[data-state="current"] { background: var(--bluebell); box-shadow: 0 0 12px var(--bluebell); }
 
 .presenter[data-idle="true"] .presenter__bar,
-.presenter[data-idle="true"] .presenter__controls,
-.presenter[data-idle="true"] .presenter__context { opacity: 0.18; }
+.presenter[data-idle="true"] .presenter__controls { opacity: 0.18; }
 .presenter[data-idle="true"] { cursor: none; }
 .presenter:not([data-idle="true"]) :is(.presenter__bar, .presenter__controls, .presenter__context) { transition-duration: 200ms; }
 
