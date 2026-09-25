@@ -5,7 +5,8 @@
  */
 
 // One to three words then a colon, at the start of a sentence: "Keep:", "Short version:", "Iteration 1 goal:".
-const LABEL_OPENER = /(^|[.!?]\s+)[A-Z][A-Za-z0-9’']*(?: [A-Za-z0-9’']+){0,2}:\s+\S/;
+// A signpost ahead of the label doesn't make it speech: "Second, external dependencies: …".
+const LABEL_OPENER = /(^|[.!?]\s+)(?:(?:First|Second|Third|Next|Then|Finally|Also|Lastly),\s+)?[A-Za-z][A-Za-z0-9’']*(?: [A-Za-z0-9’']+){0,2}:\s+\S/;
 // A real spoken sentence with a colon ("Here's the thing: …", "We did it: …") contains one of these.
 const SPOKEN_WORDS = /\b(?:the|we|i|it|is|was|are|were|here's|that's|so|and|to)\b/i;
 const ID_REFERENCE = /(?:#|PR\s?#?)\d+/gi;

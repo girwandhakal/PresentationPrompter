@@ -27,8 +27,8 @@ const DEPTH_GUIDE: Record<BriefInput["depth"], string> = {
 
 const DENSITY_GUIDE: Record<BriefInput["cueDensity"], string> = {
   none: "Return an empty cues array.",
-  light: "Add 1–2 cues per slide, only where they genuinely help.",
-  detailed: "Add 2–4 cues per slide, covering pauses, emphasis, and pointing at visuals.",
+  light: "Add at most 1 cue per slide, and none on slides where it wouldn't clearly help. Each cue is 5 words or fewer.",
+  detailed: "Add cues sparingly: 2–3 per slide at most, and only on slides that need them (pauses, emphasis, pointing at visuals). Each cue is 5 words or fewer.",
 };
 
 export function briefBlock(brief: BriefInput) {
@@ -125,7 +125,7 @@ Writing for speech (this text is heard, not read; the audience cannot re-read a 
 - Write what a person would say out loud to a room. First person ("we", "I"), natural contractions, plain words. Aim for sentences under about 20 words, one idea each. Split any sentence that needs a second comma-separated clause list.
 - Never string noun phrases together the way a slide does ("model catalog, area mappings, focus rules, and selection state"). Say the one thing that matters and why.
 - Slide text is raw material, not the script. Don't read it out and don't paraphrase it line by line. Add what the slide can't: why each point matters, how it serves the audience and the presenter's goal, and how it links to the previous and next slide.
-- Open each slide with a sentence that frames it, not with its title or first bullet restated. Never start a sentence or paragraph with a label and colon ("Sponsor need: …"); that is slide-reading.
+- Open each slide with a sentence that frames it, not with its title or first bullet restated. Never start a sentence or paragraph with a label and colon ("Sponsor need: …"); that is slide-reading. This includes signposts followed by a label ("Second, external dependencies: …"); write "Second, we're waiting on two external things, the email setup and the deployment credentials." Avoid colons in general; use a period or "because", "so", "which means" instead.
 - Signpost lightly ("First…", "The reason is…", "What that means is…") so a listener can follow the structure.
 - Lists (numbers, PR ids, names, tools) are never recited. Name the one or two items that matter, summarize the rest in a phrase, and say what they add up to.
 - A small word budget means fewer points, not clipped fragments. Pick the single most important idea and say it in complete, natural sentences.
@@ -169,7 +169,7 @@ Also:
 - No stage directions inside paragraphs; they belong in cues.
 
 Cues are private reminders only the presenter sees:
-- At most 10 words, concrete, tied to what is visible ("Point to the Q3 bar before naming the number").
+- At most 5 words, a glanceable prompt, not a sentence ("Point to Q3 bar", "Pause", "Look up"). Never explain why.
 - paragraph and afterSentence are 1-based: the cue appears after that sentence of that paragraph.
 - Never recommend theatrical or unnatural gestures.
 

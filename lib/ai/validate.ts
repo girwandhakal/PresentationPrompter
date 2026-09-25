@@ -27,7 +27,7 @@ export function needsRepair(words: number, target: number, depth: BriefInput["de
   return Math.abs(fitRatio(words, target) - 1) > FIT_TOLERANCE[depth];
 }
 
-const MAX_CUES: Record<BriefInput["cueDensity"], number> = { none: 0, light: 2, detailed: 4 };
+const MAX_CUES: Record<BriefInput["cueDensity"], number> = { none: 0, light: 1, detailed: 3 };
 
 function clean(value: string, max: number) {
   const trimmed = value.replace(/\s+/g, " ").trim();
@@ -48,7 +48,7 @@ export function sanitizeCues(cues: Cue[], paragraphs: string[], density: BriefIn
     .map((cue) => {
       const paragraph = Math.min(Math.max(1, Math.round(cue.paragraph) || 1), paragraphs.length);
       const sentences = Math.max(1, sentenceCount(paragraphs[paragraph - 1]));
-      return { ...cue, paragraph, afterSentence: Math.min(Math.max(1, Math.round(cue.afterSentence) || 1), sentences), text: clean(cue.text, 90) };
+      return { ...cue, paragraph, afterSentence: Math.min(Math.max(1, Math.round(cue.afterSentence) || 1), sentences), text: clean(cue.text, 40) };
     });
 }
 

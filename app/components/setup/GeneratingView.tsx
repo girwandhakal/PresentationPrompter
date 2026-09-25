@@ -1,7 +1,6 @@
 "use client";
 
 import type { Project } from "@/lib/domain/types";
-import { pluralize } from "@/lib/domain/format";
 import { Button } from "../ui/button";
 
 /** Script lines for the miniature teleprompter: widths in %, and which lines are private cues. */
@@ -33,10 +32,6 @@ export function GeneratingView({ project, onCancel }: { project: Project; onCanc
         <span className="prompter__focus" />
       </div>
       <h1 className="generating__title"><span className="shimmer-text">Writing your script</span></h1>
-      <p className="generating__text">
-        {pluralize(project.slides.length, "slide")}, {project.brief.minutes} minutes. This usually takes a minute or two.
-        You can move around the app while it works. Keep this tab open.
-      </p>
       <Button variant="ghost" onClick={onCancel}>Cancel</Button>
     </div>
   );
