@@ -57,11 +57,24 @@
   --r-xl: 20px;
   --r-full: 999px;
 
-  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
-  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  /*
+   * Motion. Enter and exit use ease-out (quint), things moving on screen use ease-in-out, hover
+   * uses plain ease. --spring is a critically-damped-plus-a-little spring sampled into linear(),
+   * for toggles, pops, and icons, where a hint of overshoot reads as "physical". UI motion stays
+   * under 300ms; --dur-4 is reserved for one-off orchestrated entrances.
+   */
+  --ease: cubic-bezier(0.25, 0.1, 0.25, 1);
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in: cubic-bezier(0.55, 0, 1, 0.45);
+  --ease-in-out: cubic-bezier(0.645, 0.045, 0.355, 1);
+  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+  --spring: linear(0, 0.009, 0.035 2.1%, 0.141, 0.281 6.7%, 0.723 12.9%, 0.938 16.7%, 1.017, 1.077, 1.121, 1.149 24.3%, 1.159, 1.163, 1.161, 1.154 29.9%, 1.129 32.8%, 1.051 39.6%, 1.017 43.1%, 0.991, 0.977 51%, 0.974 53.8%, 0.975 57.1%, 0.997 69.8%, 1.003 76.9%, 1.004 83.8%, 1);
+  --spring-soft: linear(0, 0.006, 0.025 2.8%, 0.101 6.1%, 0.539 18.9%, 0.721 25.3%, 0.849 31.5%, 0.937 38.1%, 0.968 41.8%, 0.991 45.7%, 1.006 50.1%, 1.015 55%, 1.017 63.9%, 1.001 85.3%, 1);
   --dur-1: 120ms;
   --dur-2: 200ms;
-  --dur-3: 320ms;
+  --dur-3: 300ms;
+  --dur-4: 520ms;
+  --stagger: 45ms;
 
   --sidebar-w: 256px;
   --header-h: 56px;

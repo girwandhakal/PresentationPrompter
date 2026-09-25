@@ -14,6 +14,7 @@ import { Button, ButtonLink } from "../ui/button";
 import { Callout, Segmented, Spinner, Switch } from "../ui/controls";
 import { Dialog } from "../ui/dialog";
 import { Field, Input, Select, Textarea } from "../ui/field";
+import { RevealWords, RollingText } from "../ui/motion";
 import { useToast } from "../ui/toast";
 import { GeneratingView } from "./GeneratingView";
 import { RebalanceDialog } from "./RebalanceDialog";
@@ -185,7 +186,7 @@ export function SetupView({ project }: { project: Project }) {
             {project.context?.summary && (
               <div className="deck-understanding">
                 <Sparkles aria-hidden="true" />
-                <p><span className="deck-understanding__label">What Cueframe sees in your slides:</span> {project.context.summary}</p>
+                <p><span className="deck-understanding__label">What Cueframe sees in your slides:</span> <RevealWords text={project.context.summary} /></p>
               </div>
             )}
             <div className="form-stack">
@@ -201,6 +202,7 @@ export function SetupView({ project }: { project: Project }) {
               </Field>
               <Field
                 label="Goal"
+                className={suggested.goal ? "field--suggested" : undefined}
                 hint={suggested.goal ? "Suggested from your slides. Edit it so it's in your words." : "What should this presentation achieve? For example, “Get approval for a one-month pilot.”"}
                 error={attempted ? errors.goal : null}
               >
@@ -208,12 +210,13 @@ export function SetupView({ project }: { project: Project }) {
               </Field>
               <Field
                 label="Audience"
+                className={suggested.audience ? "field--suggested" : undefined}
                 hint={suggested.audience ? "Suggested from your slides." : "Who's in the room, and how much do they already know?"}
                 error={attempted ? errors.audience : null}
               >
                 <Input value={brief.audience} maxLength={400} onChange={(event) => patch({ audience: event.target.value })} placeholder="e.g. Product leads who know the roadmap but not the research" />
               </Field>
-              <Field label="Key message" optional hint={suggested.keyMessage ? "Suggested from your slides." : "The one thing they should remember."}>
+              <Field label="Key message" optional className={suggested.keyMessage ? "field--suggested" : undefined} hint={suggested.keyMessage ? "Suggested from your slides." : "The one thing they should remember."}>
                 <Input value={brief.keyMessage} maxLength={600} onChange={(event) => patch({ keyMessage: event.target.value })} />
               </Field>
             </div>
@@ -278,10 +281,10 @@ export function SetupView({ project }: { project: Project }) {
           <div className="plan-card">
             <h2 className="plan-card__title">Your plan</h2>
             <dl className="plan-card__rows">
-              <div><dt>Speaking time</dt><dd className="tabular">{formatDuration(plan.speakingSeconds)}{brief.qaMinutes > 0 && <span className="faint"> + {brief.qaMinutes} min Q&amp;A</span>}</dd></div>
-              <div><dt>Spoken words</dt><dd className="tabular">~{plan.range[0].toLocaleString()}–{plan.range[1].toLocaleString()}</dd></div>
-              <div><dt>Per slide</dt><dd className="tabular">{plan.includedSlides ? `~${Math.round(plan.usableWords / plan.includedSlides)} words` : "—"}</dd></div>
-              <div><dt>Slides</dt><dd className="tabular">{plan.includedSlides} included{project.slides.length > plan.includedSlides && <span className="faint"> · {project.slides.length - plan.includedSlides} optional</span>}</dd></div>
+              <div><dt>Speaking time</dt><dd className="tabular"><RollingText value={formatDuration(plan.speakingSeconds)} />{brief.qaMinutes > 0 && <span className="faint"> + {brief.qaMinutes} min Q&amp;A</span>}</dd></div>
+              <div><dt>Spoken words</dt><dd className="tabular"><RollingText value={`~${plan.range[0].toLocaleString()}–${plan.range[1].toLocaleString()}`} /></dd></div>
+              <div><dt>Per slide</dt><dd className="tabular"><RollingText value={plan.includedSlides ? `~${Math.round(plan.usableWords / plan.includedSlides)} words` : "—"} /></dd></div>
+              <div><dt>Slides</dt><dd className="tabular"><RollingText value={`${plan.includedSlides} included`} />{project.slides.length > plan.includedSlides && <span className="faint"> · {project.slides.length - plan.includedSlides} optional</span>}</dd></div>
             </dl>
             <p className="plan-card__note">Longer, denser slides get more time; title slides get less. You can adjust any slide later.</p>
             {plan.warnings.map((warning) => (
@@ -350,7 +353,7 @@ export function SetupView({ project }: { project: Project }) {
 function AnalysisStatus({ project, aiReady, onRetry }: { project: Project; aiReady: boolean | null; onRetry: () => void }) {
   if (!aiReady || hasScript(project)) return null;
   const { status } = project.analysis;
-  if (status === "running" || status === "idle") return <p className="analysis-status" role="status"><Spinner size={14} label="" /> Reading your slides…</p>;
+  if (status === "running" || status === "idle") return <p className="analysis-status" role="status"><Spinner size={14} label="" /> <span className="shimmer-text">Reading your slides…</span></p>;
   if (status === "failed") return <p className="analysis-status">Couldn&apos;t read the slides for suggestions. <button type="button" className="suggest-link" onClick={onRetry}>Retry</button></p>;
   return <p className="analysis-status analysis-status--done"><Check aria-hidden="true" /> Read {pluralize(project.slides.filter((slide) => slide.analysis).length, "slide")}</p>;
 }

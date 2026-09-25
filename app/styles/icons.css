@@ -1,0 +1,119 @@
+/*
+ * Living icons. lucide-react stamps every icon with `lucide-<name>`, so each icon gets a small,
+ * specific gesture when the control around it is hovered or keyboard-focused: arrows lean the way
+ * they point, the gear turns, the bin lid lifts, the pen writes. No component knows about this.
+ *
+ * Rules of the layer:
+ * - Only transform (and stroke-dashoffset for "drawing"); never layout.
+ * - Hover gestures only on fine pointers, and never when reduced motion is requested.
+ * - A gesture says what the control does. Icons that only label content (alerts, info) stay still.
+ */
+
+.lucide { transform-origin: 50% 50%; transition: transform 460ms var(--spring); }
+.lucide > * { transform-box: fill-box; transform-origin: 50% 50%; transition: transform 460ms var(--spring); }
+
+/* Always on (not hover): confirmations draw themselves in. */
+.lucide-check path { stroke-dasharray: 24; animation: draw 380ms var(--ease-out) both; }
+
+@media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
+  /* Direction */
+  :where(a[href], button:not(:disabled), [role="menuitem"]:not(:disabled)):is(:hover, :focus-visible) .lucide-arrow-right { transform: translateX(3px); }
+  :where(a[href], button:not(:disabled), [role="menuitem"]:not(:disabled)):is(:hover, :focus-visible) .lucide-arrow-left { transform: translateX(-3px); }
+  :where(a[href], button:not(:disabled), [role="menuitem"]:not(:disabled)):is(:hover, :focus-visible) .lucide-arrow-up { transform: translateY(-2px); }
+  :where(a[href], button:not(:disabled), [role="menuitem"]:not(:disabled)):is(:hover, :focus-visible) .lucide-arrow-down { transform: translateY(2px); }
+  :where(a[href], button:not(:disabled)):is(:hover, :focus-visible) .lucide-chevron-down { transform: translateY(1.5px); }
+  :where(a[href], button:not(:disabled)):is(:hover, :focus-visible) .lucide-skip-forward { transform: translateX(2px); }
+  :where(a[href], button:not(:disabled)):is(:hover, :focus-visible) .lucide-play { transform: translateX(1px) scale(1.08); }
+
+  /* Create and close */
+  :where(a[href], button:not(:disabled), [role="menuitem"]:not(:disabled)):is(:hover, :focus-visible) .lucide-plus,
+  :where(a[href], button:not(:disabled)):is(:hover, :focus-visible) .lucide-x { transform: rotate(90deg); }
+  :where(a[href], button:not(:disabled)):is(:hover, :focus-visible) .lucide-message-square-plus path:nth-child(-n + 2) { transform: rotate(90deg); }
+  :where(a[href], button:not(:disabled)):is(:hover, :focus-visible) .lucide-minus { transform: scaleX(0.7); }
+
+  /* Settings and adjustments */
+  :where(a[href], button:not(:disabled)):is(:hover, :focus-visible) .lucide-settings { transform: rotate(90deg); transition-duration: 700ms; }
+  :where(a[href], button:not(:disabled)):is(:hover, :focus-visible) .lucide-settings-2 circle:nth-of-type(1) { transform: translateX(-3px); }
+  :where(a[href], button:not(:disabled)):is(:hover, :focus-visible) .lucide-settings-2 circle:nth-of-type(2) { transform: translateX(3px); }
+  :where(a[href], button:not(:disabled), [role="menuitem"]:not(:disabled)):is(:hover, :focus-visible) .lucide-sliders-horizontal path:nth-child(3) { transform: translateX(-3px); }
+  :where(a[href], button:not(:disabled), [role="menuitem"]:not(:disabled)):is(:hover, :focus-visible) .lucide-sliders-horizontal path:nth-child(4) { transform: translateX(-4px); }
+  :where(a[href], button:not(:disabled), [role="menuitem"]:not(:disabled)):is(:hover, :focus-visible) .lucide-sliders-horizontal path:nth-child(8) { transform: translateX(4px); }
+
+  /* AI */
+  :where(a[href], button:not(:disabled), [role="menuitem"]:not(:disabled)):is(:hover, :focus-visible) .lucide-sparkles { transform: rotate(-8deg) scale(1.06); }
+  :where(a[href], button:not(:disabled), [role="menuitem"]:not(:disabled)):is(:hover, :focus-visible) .lucide-sparkles > :nth-child(n + 2) { animation: twinkle 900ms var(--ease-in-out) infinite; }
+  :where(a[href], button:not(:disabled), [role="menuitem"]:not(:disabled)):is(:hover, :focus-visible) .lucide-sparkles > circle { animation-delay: 300ms; }
+
+  /* Writing */
+  :where(a[href], button:not(:disabled), [role="menuitem"]:not(:disabled)):is(:hover, :focus-visible) .lucide-pen-line path:nth-child(2) { transform-origin: 0% 100%; animation: scribble 620ms var(--ease-in-out); }
+  :where(a[href], button:not(:disabled), [role="menuitem"]:not(:disabled)):is(:hover, :focus-visible) .lucide-pen-line path:nth-child(1) { transform-origin: 0% 50%; animation: underline 620ms var(--ease-out); }
+  :where(a[href], button:not(:disabled), [role="menuitem"]:not(:disabled)):is(:hover, :focus-visible) .lucide-file-text path:nth-child(n + 2) { transform-origin: 100% 50%; animation: underline 520ms var(--ease-out) both; }
+  :where(a[href], button:not(:disabled), [role="menuitem"]:not(:disabled)):is(:hover, :focus-visible) .lucide-file-text path:nth-child(3) { animation-delay: 60ms; }
+  :where(a[href], button:not(:disabled), [role="menuitem"]:not(:disabled)):is(:hover, :focus-visible) .lucide-file-text path:nth-child(4) { animation-delay: 120ms; }
+
+  /* Files in and out */
+  :where(a[href], button:not(:disabled), [role="menuitem"]:not(:disabled)):is(:hover, :focus-visible) .lucide-download path:nth-child(odd) { animation: nudge-down 700ms var(--ease-in-out); }
+  :where(a[href], button:not(:disabled)):is(:hover, :focus-visible) .lucide-upload path:nth-child(-n + 2),
+  :where(a[href], button:not(:disabled), .dropzone):is(:hover, :focus-visible) .lucide-file-up path:nth-child(n + 2),
+  :where(a[href], button:not(:disabled)):is(:hover, :focus-visible) .lucide-monitor-up path:nth-child(-n + 2) { animation: nudge-up 700ms var(--ease-in-out); }
+  :where(a[href], button:not(:disabled), [role="menuitem"]:not(:disabled)):is(:hover, :focus-visible) .lucide-printer rect { animation: print 700ms var(--ease-in-out); }
+  :where(a[href], button:not(:disabled), [role="menuitem"]:not(:disabled)):is(:hover, :focus-visible) .lucide-archive rect { transform: translateY(-2px); }
+  :where(a[href], button:not(:disabled), [role="menuitem"]:not(:disabled)):is(:hover, :focus-visible) .lucide-copy rect { transform: translate(1.5px, 1.5px); }
+  :where(a[href], button:not(:disabled), [role="menuitem"]:not(:disabled)):is(:hover, :focus-visible) .lucide-copy path { transform: translate(-1.5px, -1.5px); }
+  :where(a[href], button:not(:disabled), [role="menuitem"]:not(:disabled)):is(:hover, :focus-visible) .lucide-replace { transform: rotate(-12deg); }
+
+  /* Destructive */
+  :where(a[href], button:not(:disabled), [role="menuitem"]:not(:disabled)):is(:hover, :focus-visible) .lucide-trash-2 path:nth-child(n + 4) { transform: translateY(-2px); }
+  :where(a[href], button:not(:disabled), [role="menuitem"]:not(:disabled)):is(:hover, :focus-visible) .lucide-trash-2 path:nth-child(-n + 2) { transform: scaleY(0.8); }
+
+  /* Time and history */
+  :where(a[href], button:not(:disabled)):is(:hover, :focus-visible) .lucide-history { transform: rotate(-45deg); }
+  :where(a[href], button:not(:disabled)):is(:hover, :focus-visible) .lucide-rotate-ccw { transform: rotate(-150deg); transition-duration: 700ms; }
+  :where(a[href], button:not(:disabled)):is(:hover, :focus-visible) .lucide-undo-2 { transform: translateX(-2px) rotate(-8deg); }
+  :where(a[href], button:not(:disabled)):is(:hover, :focus-visible) .lucide-redo-2 { transform: translateX(2px) rotate(8deg); }
+  :where(a[href], button:not(:disabled)):is(:hover, :focus-visible) .lucide-repeat { transform: rotate(180deg); transition-duration: 700ms; }
+
+  /* Looking and showing */
+  :where(a[href], button:not(:disabled), [role="menuitem"]:not(:disabled)):is(:hover, :focus-visible) :is(.lucide-eye, .lucide-eye-off) { animation: blink 520ms var(--ease-in-out); }
+  :where(a[href], button:not(:disabled)):is(:hover, :focus-visible) .lucide-search { transform: translate(-1px, -1px) rotate(-12deg); }
+  :where(a[href], button:not(:disabled)):is(:hover, :focus-visible) .lucide-maximize > :nth-child(1) { transform: translate(-1.5px, -1.5px); }
+  :where(a[href], button:not(:disabled)):is(:hover, :focus-visible) .lucide-maximize > :nth-child(2) { transform: translate(1.5px, -1.5px); }
+  :where(a[href], button:not(:disabled)):is(:hover, :focus-visible) .lucide-maximize > :nth-child(3) { transform: translate(-1.5px, 1.5px); }
+  :where(a[href], button:not(:disabled)):is(:hover, :focus-visible) .lucide-maximize > :nth-child(4) { transform: translate(1.5px, 1.5px); }
+  :where(a[href], button:not(:disabled), [role="menuitem"]:not(:disabled)):is(:hover, :focus-visible) .lucide-chart-column path:nth-child(n + 2) { transform-origin: 50% 100%; animation: bar-grow 600ms var(--spring) both; }
+  :where(a[href], button:not(:disabled), [role="menuitem"]:not(:disabled)):is(:hover, :focus-visible) .lucide-chart-column path:nth-child(3) { animation-delay: 70ms; }
+  :where(a[href], button:not(:disabled), [role="menuitem"]:not(:disabled)):is(:hover, :focus-visible) .lucide-chart-column path:nth-child(2) { animation-delay: 140ms; }
+
+  /* Presenter */
+  :where(a[href], button:not(:disabled)):is(:hover, :focus-visible) .lucide-flag { transform-origin: 15% 90%; animation: wave 700ms var(--ease-in-out); }
+  :where(a[href], button:not(:disabled)):is(:hover, :focus-visible) .lucide-life-buoy { transform: rotate(90deg); transition-duration: 700ms; }
+  :where(a[href], button:not(:disabled)):is(:hover, :focus-visible) .lucide-keyboard path:nth-child(-n + 8) { animation: key-press 600ms var(--ease-in-out); }
+  :where(a[href], button:not(:disabled)):is(:hover, :focus-visible) .lucide-keyboard path:nth-child(odd) { animation-delay: 90ms; }
+
+  /* Layout */
+  :where(a[href], button:not(:disabled)):is(:hover, :focus-visible) .lucide-panel-left-close path:last-child,
+  :where(a[href], button:not(:disabled)):is(:hover, :focus-visible) .lucide-panel-right-open path:last-child { transform: translateX(-2px); }
+  :where(a[href], button:not(:disabled)):is(:hover, :focus-visible) .lucide-panel-left-open path:last-child,
+  :where(a[href], button:not(:disabled)):is(:hover, :focus-visible) .lucide-panel-right-close path:last-child { transform: translateX(2px); }
+  :where(a[href], button:not(:disabled)):is(:hover, :focus-visible) .lucide-menu path:nth-child(2) { transform: scaleX(0.6); transform-origin: 0% 50%; }
+  :where(a[href], button:not(:disabled)):is(:hover, :focus-visible) .lucide-ellipsis circle { animation: dot-wave 640ms var(--ease-in-out); }
+  :where(a[href], button:not(:disabled)):is(:hover, :focus-visible) .lucide-ellipsis circle:nth-child(1) { animation-delay: 80ms; }
+  :where(a[href], button:not(:disabled)):is(:hover, :focus-visible) .lucide-ellipsis circle:nth-child(2) { animation-delay: 160ms; }
+}
+
+/* An open menu keeps its chevron turned, whatever the pointer. */
+[aria-expanded="true"] > .lucide-chevron-down,
+[aria-expanded="true"] .btn__label + .lucide-chevron-down { transform: rotate(180deg); }
+
+@keyframes twinkle { 50% { transform: scale(0.4); opacity: 0.5; } }
+@keyframes scribble { 25% { transform: rotate(-10deg) translateX(-1px); } 55% { transform: rotate(6deg) translateX(1px); } 80% { transform: rotate(-3deg); } }
+@keyframes underline { from { transform: scaleX(0); } }
+@keyframes nudge-down { 40% { transform: translateY(3px); } 70% { transform: translateY(-0.5px); } }
+@keyframes nudge-up { 40% { transform: translateY(-3px); } 70% { transform: translateY(0.5px); } }
+@keyframes print { 45% { transform: translateY(2.5px); } }
+@keyframes blink { 45% { transform: scaleY(0.1); } }
+@keyframes bar-grow { from { transform: scaleY(0.2); } }
+@keyframes wave { 25% { transform: rotate(-10deg) skewY(-4deg); } 60% { transform: rotate(5deg) skewY(2deg); } }
+@keyframes key-press { 40% { transform: translateY(1px); opacity: 0.4; } }
+@keyframes dot-wave { 40% { transform: translateY(-2.5px); } }
+@keyframes attention { 20% { transform: rotate(-12deg); } 45% { transform: rotate(9deg); } 70% { transform: rotate(-4deg); } }

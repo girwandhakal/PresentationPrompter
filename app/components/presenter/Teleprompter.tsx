@@ -10,8 +10,6 @@ export type TeleprompterHandle = {
   restart: () => void;
   toEnd: () => void;
   nudge: (direction: 1 | -1) => void;
-  /** Text of the line currently at the focus line, for "I lost my place". */
-  currentLine: () => string;
 };
 
 /** Where the reading line sits, as a fraction of the viewport height. */
@@ -133,17 +131,6 @@ export const Teleprompter = memo(forwardRef<TeleprompterHandle, Props>(function 
       const step = prefs.fontSize * prefs.lineHeight * 2;
       element.scrollBy({ top: direction * step, behavior: "smooth" });
       position.current = Math.max(0, Math.min(maxScroll(), element.scrollTop + direction * step));
-    },
-    currentLine() {
-      const element = scroller.current;
-      if (!element) return "";
-      const focusY = element.getBoundingClientRect().top + element.clientHeight * FOCUS_LINE;
-      const lines = Array.from(element.querySelectorAll<HTMLElement>(".st-line"));
-      const hit = lines.find((line) => {
-        const rect = line.getBoundingClientRect();
-        return rect.top <= focusY + 4 && rect.bottom >= focusY - 4;
-      }) ?? lines.find((line) => line.getBoundingClientRect().top > focusY) ?? lines.at(-1);
-      return hit?.textContent?.trim() ?? "";
     },
   }), [prefs.fontSize, prefs.lineHeight]);
 

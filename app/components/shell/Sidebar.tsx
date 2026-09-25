@@ -1,6 +1,7 @@
 "use client";
 
 import { PanelLeftClose, PanelLeftOpen, Plus, Search, Settings, X } from "lucide-react";
+import { AnimatePresence, LayoutGroup, m } from "motion/react";
 import Link from "next/link";
 import { useParams, usePathname } from "next/navigation";
 import { useMemo, useState } from "react";
@@ -11,6 +12,7 @@ import { useProjects } from "@/lib/store/projects";
 import { ProjectMenu } from "../project/ProjectMenu";
 import { IconButton } from "../ui/button";
 import { Skeleton } from "../ui/controls";
+import { GLIDE } from "../ui/motion";
 import { BrandMark } from "./BrandMark";
 
 export function projectStatus(project: Project) {
@@ -19,6 +21,9 @@ export function projectStatus(project: Project) {
   if (project.status === "setup") return project.analysis.status === "running" ? "Reading slides…" : "Needs setup";
   return `${pluralize(project.slides.length, "slide")} · ${formatDuration(projectSpokenSeconds(project))}`;
 }
+
+const busy = (project: Project) =>
+  project.generation.status === "running" || (project.status === "setup" && project.analysis.status === "running");
 
 function groupByRecency(projects: Project[]) {
   const startOfToday = new Date().setHours(0, 0, 0, 0);
@@ -46,7 +51,9 @@ export function Sidebar({ collapsed, onToggleCollapsed, mobileOpen, onCloseMobil
   const params = useParams<{ id?: string }>();
   const pathname = usePathname();
   const [query, setQuery] = useState("");
+  const [hovered, setHovered] = useState<string | null>(null);
   const activeId = params?.id;
+  const writing = projects.some((project) => project.generation.status === "running");
 
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -60,7 +67,7 @@ export function Sidebar({ collapsed, onToggleCollapsed, mobileOpen, onCloseMobil
       <aside className="sidebar" data-collapsed={collapsed} data-mobile-open={mobileOpen} aria-label="Presentations">
         <div className="sidebar__top">
           <Link href="/" className="sidebar__brand" aria-label="Cueframe home" onClick={onCloseMobile}>
-            <BrandMark />
+            <BrandMark writing={writing} />
             <span className="sidebar__brand-name">Cueframe</span>
           </Link>
           <IconButton
@@ -98,7 +105,7 @@ export function Sidebar({ collapsed, onToggleCollapsed, mobileOpen, onCloseMobil
           )}
         </div>
 
-        <nav className="sidebar__list" aria-label="Your presentations">
+        <nav className="sidebar__list" aria-label="Your presentations" onPointerLeave={() => setHovered(null)}>
           {!ready && (
             <div className="sidebar__loading">
               {[72, 56, 64].map((width) => <Skeleton key={width} width={`${width}%`} height={12} />)}
@@ -106,12 +113,33 @@ export function Sidebar({ collapsed, onToggleCollapsed, mobileOpen, onCloseMobil
           )}
           {ready && !projects.length && <p className="sidebar__empty">Your presentations will appear here.</p>}
           {ready && projects.length > 0 && !filtered.length && <p className="sidebar__empty">No presentations match “{query}”.</p>}
+          <LayoutGroup id="sidebar">
           {groups.map((group) => (
             <section key={group.label} className="sidebar__group">
               <h2 className="sidebar__group-label">{group.label}</h2>
               <ul>
                 {group.items.map((project) => (
-                  <li key={project.id} className="sidebar__item" data-active={project.id === activeId}>
+                  <li
+                    key={project.id}
+                    className="sidebar__item"
+                    data-active={project.id === activeId}
+                    style={{ "--i": Math.min(projects.indexOf(project), 12) } as React.CSSProperties}
+                    onPointerEnter={() => setHovered(project.id)}
+                  >
+                    {project.id === activeId && <m.span layoutId="active" className="sidebar__active" transition={GLIDE} aria-hidden="true" />}
+                    <AnimatePresence>
+                      {hovered === project.id && (
+                        <m.span
+                          layoutId="hover"
+                          className="sidebar__hover"
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          exit={{ opacity: 0, transition: { duration: 0.18 } }}
+                          transition={GLIDE}
+                          aria-hidden="true"
+                        />
+                      )}
+                    </AnimatePresence>
                     <Link
                       href={`/p/${project.id}`}
                       className="sidebar__link"
@@ -121,7 +149,7 @@ export function Sidebar({ collapsed, onToggleCollapsed, mobileOpen, onCloseMobil
                       <span className="sidebar__item-title">{project.title}</span>
                       <span className="sidebar__item-meta">
                         {project.generation.status === "running" && <span className="sidebar__pulse" aria-hidden="true" />}
-                        {projectStatus(project)}
+                        <span className={busy(project) ? "shimmer-text" : undefined}>{projectStatus(project)}</span>
                       </span>
                     </Link>
                     <div className="sidebar__item-menu">
@@ -132,6 +160,7 @@ export function Sidebar({ collapsed, onToggleCollapsed, mobileOpen, onCloseMobil
               </ul>
             </section>
           ))}
+          </LayoutGroup>
         </nav>
 
         <div className="sidebar__footer">

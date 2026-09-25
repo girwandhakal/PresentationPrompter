@@ -33,7 +33,9 @@ a, button { -webkit-tap-highlight-color: transparent; }
 ::selection { background: color-mix(in srgb, var(--bluebell) 28%, transparent); }
 
 :focus { outline: none; }
-:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: var(--r-xs); }
+/* The ring settles in from a little further out, so keyboard focus reads as arriving, not blinking. */
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: var(--r-xs); animation: focus-ring var(--dur-2) var(--ease-out); }
+@keyframes focus-ring { from { outline-offset: 6px; outline-color: transparent; } }
 
 .sr-only {
   position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
@@ -55,18 +57,56 @@ a, button { -webkit-tap-highlight-color: transparent; }
 .spin { animation: spin 0.9s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 @keyframes fade-in { from { opacity: 0; } }
-@keyframes rise-in { from { opacity: 0; transform: translateY(6px); } }
-@keyframes pop-in { from { opacity: 0; transform: translateY(4px) scale(0.98); } }
+@keyframes fade-out { to { opacity: 0; } }
+@keyframes rise-in { from { opacity: 0; transform: translateY(8px); } }
+@keyframes pop-in { from { opacity: 0; transform: translateY(4px) scale(0.96); } }
+@keyframes pop-out { to { opacity: 0; transform: translateY(2px) scale(0.97); } }
+/* Rack focus: how AI output and freshly-loaded content arrives. */
+@keyframes focus-in { from { opacity: 0; filter: blur(6px); transform: translateY(4px); } }
+@keyframes draw { from { stroke-dashoffset: var(--draw-length, 24); } }
 
+/*
+ * Page choreography. Direct children of a `.stagger` container rise in one after another; set
+ * --i on a child to place it explicitly. Only for content that mounts once per navigation.
+ */
+.stagger > * { animation: rise-in var(--dur-4) var(--ease-out) backwards; animation-delay: calc(var(--i, 0) * var(--stagger)); }
+.stagger > :nth-child(2) { --i: 1; }
+.stagger > :nth-child(3) { --i: 2; }
+.stagger > :nth-child(4) { --i: 3; }
+.stagger > :nth-child(5) { --i: 4; }
+.stagger > :nth-child(6) { --i: 5; }
+.stagger > :nth-child(7) { --i: 6; }
+.stagger > :nth-child(n + 8) { --i: 7; }
+
+/* "Working on it" text: a highlight sweeps through the words. Used for AI and loading states. */
+.shimmer-text {
+  color: transparent;
+  background: linear-gradient(90deg, var(--shimmer-base, var(--text-2)) 0 38%, var(--shimmer-peak, var(--text)) 50%, var(--shimmer-base, var(--text-2)) 62% 100%) 0 0 / 250% 100%;
+  -webkit-background-clip: text; background-clip: text;
+  animation: shimmer-text 2.2s linear infinite;
+}
+@keyframes shimmer-text { from { background-position: 100% 0; } to { background-position: -150% 0; } }
+
+/* Words revealed one after another; see <RevealWords>. */
+.reveal-word { display: inline-block; white-space: pre; animation: focus-in 520ms var(--ease-out) both; animation-delay: calc(var(--reveal-start, 0ms) + var(--w) * var(--reveal-step, 18ms)); }
+
+/* Reduced motion: every transition and animation completes instantly; loops stop after one pass. */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 1ms !important;
+    animation-delay: 0ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 1ms !important;
     scroll-behavior: auto !important;
   }
+  .shimmer-text { color: var(--text-2); background: none; }
 }
 
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-thumb { background: var(--line-strong); border-radius: 10px; border: 3px solid transparent; background-clip: content-box; }
 ::-webkit-scrollbar-track { background: transparent; }
+
+/* <RollingText>: each character sits in its own slot so changed ones can roll independently. */
+.rolling { display: inline-flex; white-space: pre; }
+.rolling__slot { position: relative; display: inline-block; }
+.rolling__char { display: inline-block; }

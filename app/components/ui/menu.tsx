@@ -1,7 +1,9 @@
 "use client";
 
+import { AnimatePresence, LayoutGroup, m, useIsPresent } from "motion/react";
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
+import { EXIT, GLIDE } from "./motion";
 
 export type MenuEntry =
   | { type?: "item"; label: string; icon?: ReactNode; onSelect: () => void; disabled?: boolean; hint?: string; tone?: "default" | "danger" }
@@ -30,6 +32,12 @@ export function Menu({ trigger, items, align = "start", label }: {
   const [triggerElement, setTrigger] = useState<HTMLButtonElement | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const [focusTarget, setFocusTarget] = useState<"first" | "last">("first");
+  // Which item the highlight sits under: follows the pointer and keyboard focus alike.
+  const [active, setActive] = useState<number | null>(null);
+  const [portal, setPortal] = useState<HTMLElement | null>(null);
+  // The portal target only exists in the browser; resolving it after mount keeps SSR output stable.
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => setPortal(document.body), []);
 
   const close = useCallback((restoreFocus = true) => {
     setOpen(false);
@@ -115,43 +123,85 @@ export function Menu({ trigger, items, align = "start", label }: {
         "aria-expanded": open,
         "aria-controls": open ? id : undefined,
       })}
-      {open && createPortal(
-        <div
-          ref={menuRef}
-          id={id}
-          role="menu"
-          aria-label={label}
-          className="menu"
-          data-placed={position ? "true" : "false"}
-          style={position ? { top: position.top, left: position.left, transformOrigin: position.origin } : { top: 0, left: 0, visibility: "hidden" }}
-          onKeyDown={onMenuKeyDown}
-        >
-          {items.map((item, index) => {
-            if (item.type === "separator") return <div key={index} className="menu__separator" role="separator" />;
-            if (item.type === "label") return <div key={index} className="menu__label" role="presentation">{item.label}</div>;
-            return (
-              <button
-                key={index}
-                type="button"
-                role="menuitem"
-                tabIndex={-1}
-                className={`menu__item${item.tone === "danger" ? " menu__item--danger" : ""}`}
-                disabled={item.disabled}
-                onClick={() => {
-                  close();
-                  item.onSelect();
-                }}
-              >
-                {item.icon && <span className="menu__icon" aria-hidden="true">{item.icon}</span>}
-                <span className="menu__text">{item.label}</span>
-                {item.hint && <span className="menu__hint">{item.hint}</span>}
-              </button>
-            );
-          })}
-        </div>,
-        document.body,
+      {portal && createPortal(
+        <AnimatePresence onExitComplete={() => setActive(null)}>
+          {open && (
+            <MenuPanel
+              key="menu"
+              ref={menuRef}
+              id={id}
+              label={label}
+              position={position}
+              onKeyDown={onMenuKeyDown}
+              onPointerLeave={() => setActive(null)}
+            >
+              <LayoutGroup id={id}>
+                {items.map((item, index) => {
+                  if (item.type === "separator") return <div key={index} className="menu__separator" role="separator" />;
+                  if (item.type === "label") return <div key={index} className="menu__label" role="presentation">{item.label}</div>;
+                  return (
+                    <button
+                      key={index}
+                      type="button"
+                      role="menuitem"
+                      tabIndex={-1}
+                      className={`menu__item${item.tone === "danger" ? " menu__item--danger" : ""}`}
+                      data-active={active === index || undefined}
+                      disabled={item.disabled}
+                      onPointerEnter={() => !item.disabled && setActive(index)}
+                      onFocus={(event) => { if (event.currentTarget.matches(":focus-visible")) setActive(index); }}
+                      onClick={() => {
+                        close();
+                        item.onSelect();
+                      }}
+                    >
+                      {active === index && <m.span layoutId="highlight" className="menu__highlight" transition={GLIDE} aria-hidden="true" />}
+                      {item.icon && <span className="menu__icon" aria-hidden="true">{item.icon}</span>}
+                      <span className="menu__text">{item.label}</span>
+                      {item.hint && <span className="menu__hint">{item.hint}</span>}
+                    </button>
+                  );
+                })}
+              </LayoutGroup>
+            </MenuPanel>
+          )}
+        </AnimatePresence>,
+        portal,
       )}
     </>
+  );
+}
+
+/** The floating panel. Grows from the corner nearest its trigger; ignores the pointer while leaving. */
+function MenuPanel({ ref, id, label, position, onKeyDown, onPointerLeave, children }: {
+  ref: React.Ref<HTMLDivElement>;
+  id: string;
+  label: string;
+  position: { top: number; left: number; origin: string } | null;
+  onKeyDown: (event: React.KeyboardEvent) => void;
+  onPointerLeave: () => void;
+  children: ReactNode;
+}) {
+  const present = useIsPresent();
+  return (
+    <m.div
+      ref={ref}
+      id={id}
+      role="menu"
+      aria-label={label}
+      className="menu"
+      data-placed={position ? "true" : "false"}
+      style={position
+        ? { top: position.top, left: position.left, transformOrigin: position.origin, pointerEvents: present ? undefined : "none" }
+        : { top: 0, left: 0, visibility: "hidden" }}
+      initial={{ opacity: 0, scale: 0.95, y: -2 }}
+      animate={position ? { opacity: 1, scale: 1, y: 0, transition: { type: "spring", duration: 0.28, bounce: 0.08 } } : undefined}
+      exit={{ opacity: 0, scale: 0.97, transition: EXIT }}
+      onKeyDown={onKeyDown}
+      onPointerLeave={onPointerLeave}
+    >
+      {children}
+    </m.div>
   );
 }
 

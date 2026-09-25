@@ -1,13 +1,16 @@
 "use client";
 
 import { X } from "lucide-react";
-import { useEffect, useId, useRef, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { IconButton } from "./button";
 
 /**
  * Modal dialog built on the native <dialog> element: focus is contained, the page behind is inert,
- * and Escape closes it. `variant="sheet"` slides in from the right edge.
+ * and Escape closes it. `variant="sheet"` slides in from the right edge. Closing plays a short exit
+ * (styled by `.dialog[data-closing]`) before the native element closes.
  */
+const EXIT_MS = { center: 150, sheet: 220 } as const;
+
 export function Dialog({ open, onClose, title, description, children, footer, size = "md", variant = "center", dismissible = true, className }: {
   open: boolean;
   onClose: () => void;
@@ -25,13 +28,28 @@ export function Dialog({ open, onClose, title, description, children, footer, si
   const descriptionId = useId();
   const onCloseRef = useRef(onClose);
   useEffect(() => { onCloseRef.current = onClose; }, [onClose]);
+  // Content stays rendered while the exit animation plays.
+  const [shown, setShown] = useState(open);
+  if (open && !shown) setShown(true);
 
   useEffect(() => {
     const dialog = ref.current;
     if (!dialog) return;
-    if (open && !dialog.open) dialog.showModal();
-    if (!open && dialog.open) dialog.close();
-  }, [open]);
+    if (open) {
+      delete dialog.dataset.closing;
+      if (!dialog.open) dialog.showModal();
+      return;
+    }
+    if (!dialog.open) return;
+    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    dialog.dataset.closing = "";
+    const timer = window.setTimeout(() => {
+      delete dialog.dataset.closing;
+      dialog.close();
+      setShown(false);
+    }, reduced ? 0 : EXIT_MS[variant]);
+    return () => window.clearTimeout(timer);
+  }, [open, variant]);
 
   useEffect(() => {
     const dialog = ref.current;
@@ -54,7 +72,7 @@ export function Dialog({ open, onClose, title, description, children, footer, si
         if (dismissible && event.target === event.currentTarget) onClose();
       }}
     >
-      {open && (
+      {shown && (
         <div className="dialog__panel">
           <header className="dialog__header">
             <div>

@@ -64,8 +64,7 @@ AI gateway: schema-validated requests → OpenAI structured outputs → validati
   - Scrolling speed comes from your words per minute, with a reading line at eye level.
   - Auto-advance uses a countdown you can cancel. Reading modes are full script, short, keywords
     and cues only.
-  - "I lost my place" recovery, per-slide timers, marks for review, blanking the audience screen,
-    and a keep-awake lock.
+  - Per-slide timers, marks for review, blanking the audience screen, and a keep-awake lock.
   - Clicker keys work in both windows.
 - **Privacy.** The audience window loads only slide images. Scripts and cues never cross the sync
   channel, and an end-to-end test checks this. AI requests contain slide images, slide text and the
@@ -108,7 +107,7 @@ database, bucket, or queue is required.
 ## Keyboard shortcuts (Presenter)
 
 `Space` scroll · `→`/`PageDown` next · `←`/`PageUp` previous · `↑`/`↓` nudge · `Home`/`End` start or
-end of slide · `R` lost my place · `B` blank audience · `C` cues · `M` mark slide · `+`/`−` pace ·
+end of slide · `B` blank audience · `C` cues · `M` mark slide · `+`/`−` pace ·
 `F` full screen · `Esc` cancel or end · `?` all shortcuts
 
 Editor: `Ctrl/⌘ K` add cue · `Ctrl/⌘ B`/`I` bold/italic · `Alt ↑`/`↓` switch slides · `Ctrl/⌘ S` save now.

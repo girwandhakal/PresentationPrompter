@@ -1,6 +1,7 @@
 "use client";
 
 import { ArrowLeft, ArrowRight, BarChart3, CircleAlert, PenLine, Play } from "lucide-react";
+import { m } from "motion/react";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { documentCues, documentToWordCount, wordsToSeconds } from "@/lib/domain/script";
@@ -10,6 +11,7 @@ import type { Project } from "@/lib/domain/types";
 import { ScriptText } from "../presenter/ScriptText";
 import { Button, ButtonLink, IconButton } from "../ui/button";
 import { EmptyState, Segmented } from "../ui/controls";
+import { GLIDE, RollingText } from "../ui/motion";
 import { ProjectMenu } from "./ProjectMenu";
 import { SlideImage } from "./SlideImage";
 
@@ -71,10 +73,10 @@ export function Overview({ project }: { project: Project }) {
 
       <div className="overview__body">
         <section className="overview__stage" aria-label="Slides">
-          <SlideImage slide={slide} aspectRatio={project.aspectRatio} priority />
+          <SlideImage key={slide.id} slide={slide} aspectRatio={project.aspectRatio} priority className="overview__slide" />
           <div className="overview__nav">
             <IconButton label="Previous slide" onClick={() => setIndex(Math.max(0, index - 1))} disabled={index === 0}><ArrowLeft /></IconButton>
-            <span className="tabular">{index + 1} / {project.slides.length}</span>
+            <span className="tabular"><RollingText value={String(index + 1)} /> / {project.slides.length}</span>
             <IconButton label="Next slide" onClick={() => setIndex(Math.min(project.slides.length - 1, index + 1))} disabled={index === project.slides.length - 1}><ArrowRight /></IconButton>
           </div>
           <ol className="filmstrip" aria-label="All slides">
@@ -82,6 +84,7 @@ export function Overview({ project }: { project: Project }) {
               <li key={item.id}>
                 <button type="button" className="filmstrip__item" aria-current={position === index ? "true" : undefined} onClick={() => setIndex(position)} aria-label={`Slide ${position + 1}: ${item.title}`}>
                   <SlideImage slide={item} aspectRatio={project.aspectRatio} size="thumb" />
+                  {position === index && <m.span layoutId="filmstrip-current" className="filmstrip__ring" transition={GLIDE} aria-hidden="true" />}
                   <span className="filmstrip__number tabular">{position + 1}</span>
                 </button>
               </li>
@@ -93,7 +96,7 @@ export function Overview({ project }: { project: Project }) {
           <div className="overview__script-head">
             <div>
               <p className="eyebrow tabular">Slide {index + 1}{slide.optional ? " · Optional" : ""}</p>
-              <h2 className="overview__slide-title">{slide.title}</h2>
+              <h2 className="overview__slide-title" key={slide.id}>{slide.title}</h2>
             </div>
             <Segmented size="sm" label="View" value={view} onChange={setView} options={[{ value: "script", label: "Script" }, { value: "presenter", label: "Presenter" }]} />
           </div>
@@ -102,9 +105,9 @@ export function Overview({ project }: { project: Project }) {
           {words === 0 ? (
             <EmptyState title="No script for this slide" action={<Button variant="secondary" size="sm" onClick={() => router.push(`/p/${project.id}/edit?slide=${slide.id}`)}>Write it</Button>} />
           ) : view === "script" ? (
-            <ScriptText className="overview__text" script={slide.script} />
+            <ScriptText key={slide.id} className="overview__text" script={slide.script} />
           ) : (
-            <div className="presenter-preview theme-dark overview__preview"><ScriptText script={slide.script} /></div>
+            <div key={slide.id} className="presenter-preview theme-dark overview__preview"><ScriptText script={slide.script} /></div>
           )}
 
           {flags.length > 0 && (
@@ -112,10 +115,10 @@ export function Overview({ project }: { project: Project }) {
           )}
 
           <dl className="overview__stats tabular">
-            <div><dt>Spoken</dt><dd>{formatClock(slideSeconds)}</dd></div>
-            <div><dt>Plan</dt><dd>{slide.optional ? "—" : formatClock(plan.slides[index]?.seconds ?? 0)}</dd></div>
-            <div><dt>Words</dt><dd>{words}</dd></div>
-            <div><dt>Cues</dt><dd>{cues}</dd></div>
+            <div><dt>Spoken</dt><dd><RollingText value={formatClock(slideSeconds)} /></dd></div>
+            <div><dt>Plan</dt><dd><RollingText value={slide.optional ? "—" : formatClock(plan.slides[index]?.seconds ?? 0)} /></dd></div>
+            <div><dt>Words</dt><dd><RollingText value={String(words)} /></dd></div>
+            <div><dt>Cues</dt><dd><RollingText value={String(cues)} /></dd></div>
           </dl>
           <ButtonLink href={`/p/${project.id}/edit?slide=${slide.id}`} variant="ghost" size="sm" icon={<PenLine />}>Edit this slide</ButtonLink>
         </aside>
