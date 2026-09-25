@@ -35,3 +35,13 @@ yarn-error.log*
 .pnpm-debug.log*
 .agents/
 .agent/*.log
+
+# local tooling
+*.log
+tsconfig.tsbuildinfo
+.claude/settings.local.json
+.claude/settings.json
+
+# test output
+/test-results/
+/playwright-report/

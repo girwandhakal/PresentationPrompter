@@ -1,38 +1,45 @@
-import type { Metadata } from "next";
-import { Bricolage_Grotesque } from "next/font/google";
+import type { Metadata, Viewport } from "next";
 import { headers } from "next/headers";
-import { PresentationsProvider } from "./components/workspace/use-presentations";
+import { THEME_BOOTSTRAP } from "@/lib/theme";
+import { ToastProvider } from "./components/ui/toast";
 import "./globals.css";
-import "./editor.css";
-
-const bricolage = Bricolage_Grotesque({
-  variable: "--font-cueframe",
-  subsets: ["latin"],
-  display: "swap",
-});
 
 const title = "Cueframe";
-const description = "Slide-aware teleprompter.";
+const description = "A private, slide-aware teleprompter. Bring the deck you already made, get a script that sounds like you, and present with notes only you can see.";
 
 export async function generateMetadata(): Promise<Metadata> {
   const requestHeaders = await headers();
   const host = requestHeaders.get("x-forwarded-host") ?? requestHeaders.get("host") ?? "localhost:3000";
   const protocol = requestHeaders.get("x-forwarded-proto") ?? (host.startsWith("localhost") ? "http" : "https");
   const imageUrl = `${protocol}://${host}/og.png`;
-
   return {
-    title,
+    title: { default: title, template: `%s · ${title}` },
     description,
-    openGraph: { title, description, type: "website", images: [{ url: imageUrl, width: 1680, height: 941, alt: "Cueframe" }] },
+    applicationName: title,
+    icons: { icon: "/favicon.svg" },
+    openGraph: { title, description, type: "website", images: [{ url: imageUrl, width: 1680, height: 941, alt: title }] },
     twitter: { card: "summary_large_image", title, description, images: [imageUrl] },
+    robots: { index: true, follow: false },
   };
 }
 
+export const viewport: Viewport = {
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#fef6f2" },
+    { media: "(prefers-color-scheme: dark)", color: "#141210" },
+  ],
+};
+
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" className={bricolage.variable}>
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_BOOTSTRAP }} />
+        <link rel="preload" href="/fonts/instrument-sans-latin.woff2" as="font" type="font/woff2" crossOrigin="" />
+        <link rel="preload" href="/fonts/bricolage-grotesque-latin.woff2" as="font" type="font/woff2" crossOrigin="" />
+      </head>
       <body>
-        <PresentationsProvider>{children}</PresentationsProvider>
+        <ToastProvider>{children}</ToastProvider>
       </body>
     </html>
   );

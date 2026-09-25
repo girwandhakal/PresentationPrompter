@@ -11,9 +11,15 @@ const { d1, r2 } = hostingConfig;
 // macOS Seatbelt blocks FSEvents, so Codex previews need polling for HMR.
 const isCodexSeatbeltSandbox = process.env.CODEX_SANDBOX === "seatbelt";
 
+// Lets `AI_PROVIDER=demo npm run dev` force the keyless demo AI locally without editing .env files.
+const forwardedVars = Object.fromEntries(
+  ["AI_PROVIDER"].flatMap((name) => (process.env[name] ? [[name, process.env[name] as string]] : [])),
+);
+
 const localBindingConfig = {
   main: "./worker/index.ts",
   compatibility_flags: ["nodejs_compat"],
+  vars: forwardedVars,
   d1_databases: d1
     ? [
         {
@@ -44,6 +50,11 @@ export default defineConfig(async () => {
   const { cloudflare } = await import("@cloudflare/vite-plugin");
 
   return {
+    // Pre-bundle browser-only dependencies that load lazily (import, editor), so the dev server
+    // doesn't re-optimize and reload in the middle of the first import.
+    optimizeDeps: {
+      include: ["pdfjs-dist/legacy/build/pdf.mjs", "jszip", "idb", "lexical", "@lexical/react/LexicalComposer", "@lexical/react/LexicalComposerContext", "@lexical/react/LexicalContentEditable", "@lexical/react/LexicalErrorBoundary", "@lexical/react/LexicalHistoryPlugin", "@lexical/react/LexicalRichTextPlugin", "@lexical/react/LexicalAutoFocusPlugin"],
+    },
     server: isCodexSeatbeltSandbox
       ? { watch: { useFsEvents: false, usePolling: true } }
       : undefined,
