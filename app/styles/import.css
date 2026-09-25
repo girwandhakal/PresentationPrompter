@@ -74,15 +74,7 @@
 
 /* ── Home ──────────────────────────────────────────────────────────────── */
 .home-empty { padding-top: clamp(var(--s-10), 10vh, 120px); }
-.home-empty .page-title { margin-top: var(--s-3); font-size: clamp(32px, 5vw, var(--t-4xl)); line-height: 1.05; letter-spacing: -0.045em; max-width: 14ch; --reveal-start: 120ms; --reveal-step: 70ms; }
-.home-steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--s-6); margin-top: var(--s-10); counter-reset: step; }
-.home-steps li { position: relative; display: flex; flex-direction: column; gap: 4px; padding-top: var(--s-3); border-top: 1px solid var(--line-strong); counter-increment: step; animation-delay: calc(400ms + var(--i, 0) * 90ms); }
-/* Each step's rule draws across as it arrives, in reading order. */
-.home-steps li::before { content: ""; position: absolute; left: 0; right: 0; top: -1px; height: 1px; background: var(--text); transform-origin: 0 50%; transform: scaleX(0); animation: rule-draw 900ms var(--ease-in-out) both; animation-delay: calc(500ms + var(--i, 0) * 120ms); }
-@keyframes rule-draw { 0% { transform: scaleX(0); } 60% { transform: scaleX(1); opacity: 1; } 100% { transform: scaleX(1); opacity: 0; } }
-.home-steps strong { font-size: var(--t-sm); font-weight: 600; }
-.home-steps strong::before { content: counter(step) "  "; color: var(--text-3); font-variant-numeric: tabular-nums; }
-.home-steps span { font-size: var(--t-sm); color: var(--text-2); line-height: 1.5; }
+.home-empty .page-title { font-size: clamp(32px, 5vw, var(--t-4xl)); line-height: 1.05; letter-spacing: -0.045em; --reveal-start: 120ms; --reveal-step: 70ms; }
 .new-footnote { margin-top: var(--s-5); font-size: var(--t-xs); color: var(--text-2); line-height: 1.55; }
 
 .home-header { display: flex; align-items: flex-end; justify-content: space-between; gap: var(--s-4); margin-bottom: var(--s-8); }
@@ -101,8 +93,5 @@
 .project-card__meta { display: flex; gap: 6px; margin-top: 2px; font-size: var(--t-xs); color: var(--text-2); white-space: nowrap; overflow: hidden; }
 
 @media (max-width: 700px) {
-  .home-steps { grid-template-columns: 1fr; gap: var(--s-4); margin-top: var(--s-8); }
   .dropzone { min-height: 240px; padding: var(--s-8) var(--s-4); }
 }
-.new-presentation__sample { text-align: center; font-size: var(--t-sm); color: var(--text-2); }
-.new-presentation__sample .suggest-link { font-size: var(--t-sm); }

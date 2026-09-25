@@ -161,7 +161,6 @@ export const WrittenSlideOutput = z.object({
   recovery: z.string(),
   transition: z.string(),
   questions: z.array(z.object({ question: z.string(), answer: z.string() })),
-  flags: z.array(z.object({ kind: z.enum(["unsupported-claim", "uncertain-visual", "needs-context"]), message: z.string() })),
 });
 export type WrittenSlideOutput = z.infer<typeof WrittenSlideOutput>;
 export const WriteOutput = z.object({ slides: z.array(WrittenSlideOutput) });

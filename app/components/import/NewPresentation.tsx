@@ -15,7 +15,7 @@ import { ImportProgressCard } from "./ImportProgressCard";
 import { useImporter } from "./use-importer";
 
 /** Import step of the create flow: file → slides saved locally → setup form. */
-export function NewPresentation({ compact, offerSample }: { compact?: boolean; offerSample?: boolean }) {
+export function NewPresentation({ compact }: { compact?: boolean }) {
   const router = useRouter();
   const toast = useToast();
   const { create, projects } = useProjects();
@@ -53,22 +53,6 @@ export function NewPresentation({ compact, offerSample }: { compact?: boolean; o
         </Callout>
       )}
       <DeckDropzone onFiles={start} compact={compact} />
-      {offerSample && (
-        <p className="new-presentation__sample">
-          No deck handy?{" "}
-          <button
-            type="button"
-            className="suggest-link"
-            onClick={async () => {
-              const response = await fetch("/sample-deck.pdf");
-              const blob = await response.blob();
-              void start([new File([blob], "A quieter way to launch.pdf", { type: "application/pdf" })]);
-            }}
-          >
-            Try the sample deck
-          </button>
-        </p>
-      )}
     </div>
   );
 }

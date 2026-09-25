@@ -4,15 +4,15 @@ import path from "node:path";
 
 const SAMPLE = path.join(process.cwd(), "tests/fixtures/sample-deck.pdf");
 
-/** The sidebar's empty state only renders once the app has hydrated and opened local storage. */
+/** The sidebar list is marked ready once the app has hydrated and opened local storage. */
 async function ready(page: Page, url: string) {
   await page.goto(url);
-  await expect(page.getByText("Your presentations will appear here.")).toBeVisible();
+  await expect(page.locator('nav[aria-label="Your presentations"][data-ready]')).toBeAttached();
 }
 
 async function importSample(page: Page) {
   await ready(page, "/");
-  await expect(page.getByRole("heading", { name: "Bring the deck you already made." })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Import your slides" })).toBeVisible();
   await page.locator("input[type=file]").first().setInputFiles(SAMPLE);
   await page.waitForURL(/\/p\/[a-z0-9]+\/setup$/);
   return page.url().match(/\/p\/([a-z0-9]+)\//)![1];
@@ -23,7 +23,6 @@ test("import, brief, generate, edit, present, and review a deck", async ({ page,
 
   // Setup: slides rendered from the PDF, analysis runs in the background and suggests a goal.
   await expect(page.getByText("6 slides from sample-deck.pdf")).toBeVisible();
-  await expect(page.getByText(/Read 6 slides/)).toBeVisible();
   await expect(page.getByLabel("Goal")).not.toHaveValue("");
   await page.getByLabel("Audience").fill("Product and go-to-market leads");
   await expect(page.getByText(/8 min · 130 wpm/)).toBeVisible();
@@ -38,7 +37,7 @@ test("import, brief, generate, edit, present, and review a deck", async ({ page,
   await editor.click();
   await page.keyboard.press("Control+End");
   await page.keyboard.type(" One more line for the room.");
-  await expect(page.getByRole("status").filter({ hasText: "Saved" })).toBeVisible();
+  await expect(page.locator('.editor[data-save-state="saved"]')).toBeAttached();
 
   // A targeted AI rewrite is proposed, reviewed, and accepted.
   await page.getByRole("button", { name: "Improve" }).click();
@@ -73,12 +72,13 @@ test("import, brief, generate, edit, present, and review a deck", async ({ page,
   await page.keyboard.press("Escape");
   await page.getByRole("button", { name: "End and review" }).click();
   await page.waitForURL(new RegExp(`/p/${id}/review`));
-  await expect(page.getByRole("heading", { name: "How it went" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Session review" })).toBeVisible();
   await expect(audience.getByText("Thank you")).toBeVisible();
 
   // Work persists across a reload.
   await page.goto(`/p/${id}`);
-  await expect(page.getByRole("heading", { name: "sample deck", level: 1 })).toBeVisible();
+  // The title suggested from the slides replaced the file name automatically.
+  await expect(page.getByRole("heading", { name: "A quieter way to launch", level: 1 })).toBeVisible();
   // The accepted "More conversational" rewrite (which opens with "So,") was saved.
   await expect(page.getByLabel("Script for slide 1").getByText(/^So, thanks for being here/)).toBeVisible();
   await expect(page.getByLabel("Script for slide 1")).toContainText("One more line for the room.");
@@ -116,8 +116,8 @@ test("PowerPoint files import with titles and speaker notes", async ({ page }) =
   await page.keyboard.type("Churn stayed flat.");
   await page.keyboard.press("Enter");
   await page.keyboard.type("That is the headline.");
-  await expect(page.getByText(/^12 words/)).toBeVisible();
-  await expect(page.getByRole("status").filter({ hasText: "Saved" })).toBeVisible();
+  await expect(page.getByRole("textbox", { name: "Script for slide 1" })).toContainText("That is the headline.");
+  await expect(page.locator('.editor[data-save-state="saved"]')).toBeAttached();
   await page.reload();
   const editor = page.getByRole("textbox", { name: "Script for slide 1" });
   await expect(editor).toContainText("Revenue grew in every region.");
@@ -135,13 +135,14 @@ test("unsupported files get a clear, actionable message", async ({ page }) => {
   await expect(page.getByText(/Older .ppt files aren't supported/)).toBeVisible();
 });
 
-test("settings switch the theme and show demo AI status", async ({ page }) => {
-  await page.goto("/settings");
-  await expect(page.getByText("Demo mode")).toBeVisible();
-  await page.getByRole("radio", { name: "Dark" }).click();
+test("the theme toggle switches light and dark, and remembers the choice", async ({ page }) => {
+  await ready(page, "/settings");
+  // Follows the system (light in tests) until the presenter picks.
+  await expect(page.locator("html")).not.toHaveAttribute("data-theme", /.+/);
+  await page.getByRole("button", { name: "Switch to dark theme" }).click();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
   await page.reload();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
-  await page.getByRole("radio", { name: "Match system" }).click();
-  await expect(page.locator("html")).not.toHaveAttribute("data-theme", /.+/);
+  await page.getByRole("button", { name: "Switch to light theme" }).click();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
 });

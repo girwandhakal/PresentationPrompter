@@ -1,11 +1,11 @@
 "use client";
 
-import { ArrowLeft, ArrowRight, Check, ChevronDown, CircleAlert, History, LoaderCircle, PanelRightClose, PanelRightOpen, Play, SlidersHorizontal, Sparkles, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, ChevronDown, History, LoaderCircle, PanelRightClose, PanelRightOpen, Play, SlidersHorizontal, Sparkles, X } from "lucide-react";
 import { m } from "motion/react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AiRequestError, rewriteScript, rewriteSelection, useAiStatus, type ScriptAction, type SelectionAction } from "@/lib/ai/client";
-import { documentFromAi, documentToWordCount, wordsToSeconds, type ScriptDocument } from "@/lib/domain/script";
+import { documentFromAi, documentToWordCount, type ScriptDocument } from "@/lib/domain/script";
 import { formatClock } from "@/lib/domain/format";
 import { planPresentation, USABLE_FACTOR, DEPTH_FACTOR } from "@/lib/domain/planner";
 import type { Project, Slide, SlideScript } from "@/lib/domain/types";
@@ -14,7 +14,6 @@ import { useProjects } from "@/lib/store/projects";
 import { ScriptText } from "../presenter/ScriptText";
 import { SlideImage } from "../project/SlideImage";
 import { Button, ButtonLink, IconButton } from "../ui/button";
-import { Meter } from "../ui/controls";
 import { Menu, type MenuEntry } from "../ui/menu";
 import { GLIDE, RevealWords } from "../ui/motion";
 import { useToast } from "../ui/toast";
@@ -32,7 +31,7 @@ const SELECTION_LABELS: Record<SelectionAction, string> = { shorter: "Shorter", 
 
 export function ScriptEditor({ project, initialSlideId }: { project: Project; initialSlideId?: string | null }) {
   const router = useRouter();
-  const { update, saveVersion } = useProjects();
+  const { update } = useProjects();
   const toast = useToast();
   const aiStatus = useAiStatus();
   const aiEnabled = Boolean(aiStatus && aiStatus.provider !== "none");
@@ -50,6 +49,22 @@ export function ScriptEditor({ project, initialSlideId }: { project: Project; in
   const controller = useRef<AbortController | null>(null);
 
   const index = Math.max(0, slides.findIndex((slide) => slide.id === activeId));
+  const rail = useRef<HTMLOListElement>(null);
+
+  // Keep the current slide in view in the rail (vertical, or horizontal on narrow layouts). Only the
+  // rail scrolls, never the page.
+  useEffect(() => {
+    const list = rail.current;
+    const item = list?.children[index] as HTMLElement | undefined;
+    if (!list || !item) return;
+    const edge = 8;
+    const box = list.getBoundingClientRect();
+    const rect = item.getBoundingClientRect();
+    const behavior = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth";
+    const top = rect.top < box.top + edge ? rect.top - box.top - edge : rect.bottom > box.bottom - edge ? rect.bottom - box.bottom + edge : 0;
+    const left = rect.left < box.left + edge ? rect.left - box.left - edge : rect.right > box.right - edge ? rect.right - box.right + edge : 0;
+    if (top || left) list.scrollBy({ top, left, behavior });
+  }, [index]);
   const active = slides[index];
   const working = useMemo(() => ({ ...project, slides }), [project, slides]);
   const plan = useMemo(() => planPresentation(project.brief, slides), [project.brief, slides]);
@@ -199,14 +214,13 @@ export function ScriptEditor({ project, initialSlideId }: { project: Project; in
       return;
     }
     await flush();
-    await saveVersion(project.id, `Before “${proposal.label}” on slide ${index + 1}`);
     patchSlide(proposal.slideId, (slide) => ({
       ...slide,
-      script: { ...slide.script, document: proposal.document, origin: "mixed", flags: slide.script.flags.filter((flag) => flag.kind === "needs-context") },
+      script: { ...slide.script, document: proposal.document, origin: "mixed" },
     }));
     setRevision((value) => value + 1);
     setProposal(null);
-    toast("Rewrite applied. The previous version is in History.");
+    toast("Rewrite applied.");
   }
 
   function cancelPending() {
@@ -233,22 +247,16 @@ export function ScriptEditor({ project, initialSlideId }: { project: Project; in
 
   if (!active) return null;
 
-  const spoken = wordsToSeconds(words, wpm);
-  const targetSeconds = slidePlan?.seconds ?? 0;
-  const totalSpoken = slides.filter((slide) => !slide.optional).reduce((sum, slide) => sum + wordsToSeconds(documentToWordCount(slide.script.document), wpm), 0);
-  const reviewFlags = active.script.flags.filter((flag) => flag.kind !== "over-budget" && flag.kind !== "under-budget");
   const empty = words === 0 && active.script.origin === "empty";
   const locked = Boolean(pending || proposal);
 
   return (
-    <div className="editor">
+    <div className="editor" data-save-state={saveState}>
       <header className="page-header editor__header">
         <IconButton label="Back to overview" tooltip="bottom" onClick={() => { void flush(); router.push(`/p/${project.id}`); }}><ArrowLeft /></IconButton>
         <div className="page-header__titles">
           <span className="page-header__title">{project.title}</span>
-          <span className="page-header__subtitle" role="status" aria-live="polite">
-            {saveState === "saving" ? <span className="shimmer-text">Saving…</span> : saveState === "error" ? "Not saved. Retrying when you edit again." : <><Check className="inline-icon" aria-hidden="true" /> Saved</>}
-          </span>
+          {saveState === "error" && <span className="page-header__subtitle" role="alert">Not saved. Retrying when you edit again.</span>}
         </div>
         <div className="page-header__actions">
           <IconButton label="History" onClick={async () => { await flush(); setHistoryOpen(true); }}><History /></IconButton>
@@ -262,11 +270,8 @@ export function ScriptEditor({ project, initialSlideId }: { project: Project; in
 
       <div className="editor__body" data-inspector={inspectorOpen}>
         <nav className="editor-rail" aria-label="Slides">
-          <ol className="editor-rail__list">
+          <ol ref={rail} className="editor-rail__list">
             {slides.map((slide, position) => {
-              const count = documentToWordCount(slide.script.document);
-              const planned = plan.slides[position];
-              const flagged = slide.script.flags.some((flag) => flag.kind !== "over-budget" && flag.kind !== "under-budget");
               return (
                 <li key={slide.id}>
                   <button
@@ -282,21 +287,13 @@ export function ScriptEditor({ project, initialSlideId }: { project: Project; in
                     <span className="rail-item__thumb"><SlideImage slide={slide} aspectRatio={project.aspectRatio} size="thumb" /></span>
                     <span className="rail-item__text">
                       <span className="rail-item__title">{slide.title}</span>
-                      <span className="rail-item__meta tabular">
-                        {slide.optional ? "Optional" : `${formatClock(wordsToSeconds(count, wpm))} / ${formatClock(planned?.seconds ?? 0)}`}
-                        {flagged && <span className="rail-item__flag" aria-label="Has review notes"><CircleAlert /></span>}
-                      </span>
-                      {!slide.optional && <Meter value={count} target={planned?.words ?? 0} label={`${count} of ${planned?.words ?? 0} planned words`} />}
+                      {slide.optional && <span className="rail-item__meta">Optional</span>}
                     </span>
                   </button>
                 </li>
               );
             })}
           </ol>
-          <div className="editor-rail__footer tabular">
-            <span>Total</span>
-            <strong>{formatClock(totalSpoken)} / {formatClock(plan.speakingSeconds)}</strong>
-          </div>
         </nav>
 
         <main className="editor-main" aria-label={`Slide ${index + 1} script`}>
@@ -309,7 +306,6 @@ export function ScriptEditor({ project, initialSlideId }: { project: Project; in
                 value={active.title}
                 onChange={(event) => patchSlide(active.id, (slide) => ({ ...slide, title: event.target.value }))}
               />
-              {active.script.purpose && <p className="editor-slide-head__purpose">{active.script.purpose}</p>}
             </div>
 
             {pending && (
@@ -370,37 +366,12 @@ export function ScriptEditor({ project, initialSlideId }: { project: Project; in
               />
             )}
 
-            <div className="editor-stats tabular" aria-live="off">
-              <span>{words} words</span>
-              <span aria-hidden="true">·</span>
-              <span>about {formatClock(spoken)} spoken</span>
-              {!active.optional && targetSeconds > 0 && (
-                <>
-                  <span aria-hidden="true">·</span>
-                  <span className={spoken > targetSeconds * 1.15 ? "is-over" : undefined}>
-                    plan {formatClock(targetSeconds)}{spoken > targetSeconds * 1.15 ? ` (${formatClock(spoken - targetSeconds)} over)` : ""}
-                  </span>
-                </>
-              )}
-            </div>
 
-            {reviewFlags.length > 0 && (
-              <ul className="review-flags" aria-label="Review notes">
-                {reviewFlags.map((flag) => (
-                  <li key={flag.message} className="review-flag">
-                    <CircleAlert aria-hidden="true" />
-                    <span>{flag.message}</span>
-                    <button type="button" className="review-flag__dismiss" onClick={() => patchScript({ flags: active.script.flags.filter((item) => item !== flag) })}>Dismiss</button>
-                  </li>
-                ))}
-              </ul>
-            )}
 
-            <p className="editor-hint">Select text for quick rewrites. <kbd className="kbd">Ctrl</kbd> <kbd className="kbd">K</kbd> adds a cue. <kbd className="kbd">Alt</kbd> <kbd className="kbd">↑</kbd><kbd className="kbd">↓</kbd> moves between slides.</p>
 
             <nav className="editor-pager" aria-label="Slide navigation">
-              <Button variant="ghost" size="sm" icon={<ArrowLeft />} disabled={index === 0 || locked} onClick={() => select(slides[index - 1].id)}>Previous</Button>
-              <Button variant="ghost" size="sm" trailing={<ArrowRight />} disabled={index === slides.length - 1 || locked} onClick={() => select(slides[index + 1].id)}>Next slide</Button>
+              <Button variant="ghost" size="sm" icon={<ArrowLeft />} disabled={index === 0 || locked} onClick={() => select(slides[index - 1].id)} data-tooltip="Alt+↑" data-tooltip-side="top" aria-keyshortcuts="Alt+ArrowUp">Previous</Button>
+              <Button variant="ghost" size="sm" trailing={<ArrowRight />} disabled={index === slides.length - 1 || locked} onClick={() => select(slides[index + 1].id)} data-tooltip="Alt+↓" data-tooltip-side="top" aria-keyshortcuts="Alt+ArrowDown">Next</Button>
             </nav>
           </div>
         </main>

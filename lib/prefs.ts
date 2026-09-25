@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useSyncExternalStore } from "react";
-import { DEFAULT_BRIEF } from "./domain/planner";
+import { DEFAULT_BRIEF, withoutQaTime } from "./domain/planner";
 import type { Brief } from "./domain/types";
 
 /**
@@ -78,6 +78,7 @@ function read<K extends keyof PrefMap>(key: K): PrefMap[K] {
       value = isPlainObject(DEFAULTS[key]) && isPlainObject(parsed) ? { ...DEFAULTS[key] as object, ...parsed } as PrefMap[K] : parsed;
     }
   } catch { /* storage unavailable: defaults */ }
+  if (key === "defaultBrief") value = withoutQaTime(value as PrefMap["defaultBrief"]) as PrefMap[K];
   cache.set(key, value);
   return value;
 }

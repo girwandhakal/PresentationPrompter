@@ -1,11 +1,11 @@
 "use client";
 
-import { ArrowLeft, ArrowRight, BarChart3, CircleAlert, PenLine, Play } from "lucide-react";
+import { ArrowLeft, ArrowRight, BarChart3, PenLine, Play } from "lucide-react";
 import { m } from "motion/react";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
-import { documentCues, documentToWordCount, wordsToSeconds } from "@/lib/domain/script";
-import { formatClock, formatDuration, formatRelative, pluralize } from "@/lib/domain/format";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { documentToWordCount } from "@/lib/domain/script";
+import { formatDuration, formatRelative, pluralize } from "@/lib/domain/format";
 import { hasScript, planPresentation, projectSpokenSeconds } from "@/lib/domain/planner";
 import type { Project } from "@/lib/domain/types";
 import { ScriptText } from "../presenter/ScriptText";
@@ -22,6 +22,20 @@ export function Overview({ project }: { project: Project }) {
   const [index, setIndex] = useState(0);
   const [view, setView] = useState<"script" | "presenter">("script");
   const plan = useMemo(() => planPresentation(project.brief, project.slides), [project]);
+  const strip = useRef<HTMLOListElement>(null);
+
+  // Keep the selected thumbnail (and its ring) fully in view. Only the strip scrolls, never the page.
+  useEffect(() => {
+    const list = strip.current;
+    const item = list?.children[index] as HTMLElement | undefined;
+    if (!list || !item) return;
+    const edge = 8;
+    const box = list.getBoundingClientRect();
+    const rect = item.getBoundingClientRect();
+    const behavior = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth";
+    if (rect.left < box.left + edge) list.scrollBy({ left: rect.left - box.left - edge, behavior });
+    else if (rect.right > box.right - edge) list.scrollBy({ left: rect.right - box.right + edge, behavior });
+  }, [index]);
   const slide = project.slides[Math.min(index, project.slides.length - 1)];
 
   useEffect(() => {
@@ -44,9 +58,6 @@ export function Overview({ project }: { project: Project }) {
 
   const spoken = projectSpokenSeconds(project);
   const words = documentToWordCount(slide.script.document);
-  const slideSeconds = wordsToSeconds(words, project.brief.wpm);
-  const cues = documentCues(slide.script.document).length;
-  const flags = slide.script.flags.filter((flag) => flag.kind !== "over-budget" && flag.kind !== "under-budget");
   const generating = project.generation.status === "running";
 
   return (
@@ -75,11 +86,11 @@ export function Overview({ project }: { project: Project }) {
         <section className="overview__stage" aria-label="Slides">
           <SlideImage key={slide.id} slide={slide} aspectRatio={project.aspectRatio} priority className="overview__slide" />
           <div className="overview__nav">
-            <IconButton label="Previous slide" onClick={() => setIndex(Math.max(0, index - 1))} disabled={index === 0}><ArrowLeft /></IconButton>
+            <IconButton label="Previous slide" tooltip={false} onClick={() => setIndex(Math.max(0, index - 1))} disabled={index === 0}><ArrowLeft /></IconButton>
             <span className="tabular"><RollingText value={String(index + 1)} /> / {project.slides.length}</span>
-            <IconButton label="Next slide" onClick={() => setIndex(Math.min(project.slides.length - 1, index + 1))} disabled={index === project.slides.length - 1}><ArrowRight /></IconButton>
+            <IconButton label="Next slide" tooltip={false} onClick={() => setIndex(Math.min(project.slides.length - 1, index + 1))} disabled={index === project.slides.length - 1}><ArrowRight /></IconButton>
           </div>
-          <ol className="filmstrip" aria-label="All slides">
+          <ol ref={strip} className="filmstrip" aria-label="All slides">
             {project.slides.map((item, position) => (
               <li key={item.id}>
                 <button type="button" className="filmstrip__item" aria-current={position === index ? "true" : undefined} onClick={() => setIndex(position)} aria-label={`Slide ${position + 1}: ${item.title}`}>
@@ -100,7 +111,6 @@ export function Overview({ project }: { project: Project }) {
             </div>
             <Segmented size="sm" label="View" value={view} onChange={setView} options={[{ value: "script", label: "Script" }, { value: "presenter", label: "Presenter" }]} />
           </div>
-          {slide.script.purpose && <p className="overview__purpose">{slide.script.purpose}</p>}
 
           {words === 0 ? (
             <EmptyState title="No script for this slide" action={<Button variant="secondary" size="sm" onClick={() => router.push(`/p/${project.id}/edit?slide=${slide.id}`)}>Write it</Button>} />
@@ -110,17 +120,7 @@ export function Overview({ project }: { project: Project }) {
             <div key={slide.id} className="presenter-preview theme-dark overview__preview"><ScriptText script={slide.script} /></div>
           )}
 
-          {flags.length > 0 && (
-            <p className="overview__flag"><CircleAlert aria-hidden="true" /> {flags.length === 1 ? flags[0].message : `${flags.length} notes to review on this slide.`}</p>
-          )}
 
-          <dl className="overview__stats tabular">
-            <div><dt>Spoken</dt><dd><RollingText value={formatClock(slideSeconds)} /></dd></div>
-            <div><dt>Plan</dt><dd><RollingText value={slide.optional ? "—" : formatClock(plan.slides[index]?.seconds ?? 0)} /></dd></div>
-            <div><dt>Words</dt><dd><RollingText value={String(words)} /></dd></div>
-            <div><dt>Cues</dt><dd><RollingText value={String(cues)} /></dd></div>
-          </dl>
-          <ButtonLink href={`/p/${project.id}/edit?slide=${slide.id}`} variant="ghost" size="sm" icon={<PenLine />}>Edit this slide</ButtonLink>
         </aside>
       </div>
     </div>

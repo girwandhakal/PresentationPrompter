@@ -15,11 +15,16 @@ import { Skeleton } from "../ui/controls";
 import { GLIDE } from "../ui/motion";
 import { BrandMark } from "./BrandMark";
 
-export function projectStatus(project: Project) {
+/** Work in progress or needing attention; null once a presentation is ready. */
+function projectState(project: Project) {
   if (project.generation.status === "running") return "Writing script…";
   if (project.generation.status === "failed" && !hasScript(project)) return "Script not finished";
   if (project.status === "setup") return project.analysis.status === "running" ? "Reading slides…" : "Needs setup";
-  return `${pluralize(project.slides.length, "slide")} · ${formatDuration(projectSpokenSeconds(project))}`;
+  return null;
+}
+
+export function projectStatus(project: Project) {
+  return projectState(project) ?? `${pluralize(project.slides.length, "slide")} · ${formatDuration(projectSpokenSeconds(project))}`;
 }
 
 const busy = (project: Project) =>
@@ -105,13 +110,13 @@ export function Sidebar({ collapsed, onToggleCollapsed, mobileOpen, onCloseMobil
           )}
         </div>
 
-        <nav className="sidebar__list" aria-label="Your presentations" onPointerLeave={() => setHovered(null)}>
+        {/* data-ready marks when saved presentations have loaded (the e2e suite waits on it). */}
+        <nav className="sidebar__list" aria-label="Your presentations" data-ready={ready || undefined} onPointerLeave={() => setHovered(null)}>
           {!ready && (
             <div className="sidebar__loading">
               {[72, 56, 64].map((width) => <Skeleton key={width} width={`${width}%`} height={12} />)}
             </div>
           )}
-          {ready && !projects.length && <p className="sidebar__empty">Your presentations will appear here.</p>}
           {ready && projects.length > 0 && !filtered.length && <p className="sidebar__empty">No presentations match “{query}”.</p>}
           <LayoutGroup id="sidebar">
           {groups.map((group) => (
@@ -147,10 +152,12 @@ export function Sidebar({ collapsed, onToggleCollapsed, mobileOpen, onCloseMobil
                       onClick={onCloseMobile}
                     >
                       <span className="sidebar__item-title">{project.title}</span>
-                      <span className="sidebar__item-meta">
-                        {project.generation.status === "running" && <span className="sidebar__pulse" aria-hidden="true" />}
-                        <span className={busy(project) ? "shimmer-text" : undefined}>{projectStatus(project)}</span>
-                      </span>
+                      {projectState(project) && (
+                        <span className="sidebar__item-meta">
+                          {project.generation.status === "running" && <span className="sidebar__pulse" aria-hidden="true" />}
+                          <span className={busy(project) ? "shimmer-text" : undefined}>{projectState(project)}</span>
+                        </span>
+                      )}
                     </Link>
                     <div className="sidebar__item-menu">
                       <ProjectMenu project={project} />

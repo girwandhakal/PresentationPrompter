@@ -95,8 +95,6 @@ test("the full pipeline returns grounded, budgeted scripts for every slide", asy
     for (const cue of entry.script.cues) assert.ok(cue.paragraph >= 1 && cue.paragraph <= entry.script.paragraphs.length);
     assert.ok(entry.script.questions.length >= 1);
   }
-  // The demo copies "61%" and "74%" from the slide, so no grounding flag should appear for slide 2.
-  assert.ok(!written.slides[1].script.flags.some((flag: { kind: string }) => flag.kind === "unsupported-claim"));
 });
 
 test("rewrite supports script, selection, support, and questions requests", async () => {

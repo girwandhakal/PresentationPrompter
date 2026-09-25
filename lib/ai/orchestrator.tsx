@@ -1,6 +1,7 @@
 "use client";
 
-import { createContext, useCallback, useContext, useMemo, useRef, type ReactNode } from "react";
+import { useCallback, useContext, useMemo, useRef, type ReactNode } from "react";
+import { stableContext } from "../stable-context";
 import { planPresentation, hasScript } from "../domain/planner";
 import type { DeckContext, Project, Slide, SlideAnalysis } from "../domain/types";
 import { useProjects } from "../store/projects";
@@ -29,7 +30,7 @@ type Orchestrator = {
   cancel: (projectId: string) => void;
 };
 
-const OrchestratorContext = createContext<Orchestrator | null>(null);
+const OrchestratorContext = stableContext<Orchestrator | null>("orchestrator", null);
 
 function chunk<T>(items: T[], size: number) {
   const chunks: T[][] = [];
@@ -218,11 +219,11 @@ export function OrchestratorProvider({ children }: { children: ReactNode }) {
       }, signal);
       const planned = new Map(outline.slides.map((entry) => [entry.id, entry]));
 
-      const written = new Map<string, WrittenSlideOutput & { flags: { kind: string; message: string }[] }>();
+      const written = new Map<string, WrittenSlideOutput>();
       const batches = chunk(project.slides.map((slide, index) => ({ slide, index })), WRITE_BATCH);
       await runLimited(batches, CONCURRENCY, async (batch) => {
         if (signal.aborted) return;
-        const result = await aiFetch<{ slides: { id: string; script: (WrittenSlideOutput & { flags: { kind: string; message: string }[] }) | null }[] }>("write", {
+        const result = await aiFetch<{ slides: { id: string; script: WrittenSlideOutput | null }[] }>("write", {
           brief,
           context,
           title,

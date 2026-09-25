@@ -105,6 +105,40 @@
 [data-tooltip-side="right"]:focus-visible::after, [data-tooltip-side="left"]:focus-visible::after { transform: translate(0, -50%) scale(1); }
 .theme-dark [data-tooltip]::after, :root[data-theme="dark"] [data-tooltip]::after { background: var(--powder); color: var(--pitch); }
 
+/* ── Theme toggle ──────────────────────────────────────────────────────── */
+/*
+ * Sun eclipses into moon (adapted from Adam Argyle's theme switch on web.dev). Transitions only run
+ * after a click (data-animate), so the icon never animates while the page settles on load.
+ */
+.theme-toggle {
+  display: inline-grid; place-items: center; flex: 0 0 auto;
+  width: 40px; height: 40px; border-radius: var(--r-full); color: var(--text);
+  transition: background-color 160ms var(--ease), transform 160ms var(--ease-out);
+  touch-action: manipulation;
+}
+.theme-toggle:hover { background: var(--hover); }
+.theme-toggle:active { transform: scale(0.9); }
+.theme-toggle svg { width: 22px; height: 22px; stroke-linecap: round; }
+.sun-and-moon :is(.sun, .sun-beams, .moon > circle) { transform-origin: center center; }
+.sun-and-moon .sun-beams { stroke-width: 2px; }
+.theme-toggle[data-dark] .sun { transform: scale(1.75); }
+.theme-toggle[data-dark] .sun-beams { opacity: 0; transform: rotate(-25deg); }
+.theme-toggle[data-dark] .moon > circle { transform: translateX(-7px); }
+@supports (cx: 1) {
+  .theme-toggle[data-dark] .moon > circle { transform: none; cx: 17px; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .theme-toggle[data-animate] .sun { transition: transform 500ms cubic-bezier(0.5, 1.25, 0.75, 1.25); }
+  .theme-toggle[data-animate] .sun-beams { transition: transform 500ms cubic-bezier(0.5, 1.5, 0.75, 1.25), opacity 500ms cubic-bezier(0.25, 0, 0.3, 1); }
+  .theme-toggle[data-animate] .moon > circle { transition: transform 250ms cubic-bezier(0, 0, 0, 1); }
+  @supports (cx: 1) {
+    .theme-toggle[data-animate] .moon > circle { transition: cx 250ms cubic-bezier(0, 0, 0, 1); }
+  }
+  .theme-toggle[data-animate][data-dark] .sun { transition-timing-function: cubic-bezier(0.25, 0, 0.3, 1); transition-duration: 250ms; }
+  .theme-toggle[data-animate][data-dark] .sun-beams { transition-duration: 150ms; }
+  .theme-toggle[data-animate][data-dark] .moon > circle { transition-delay: 250ms; transition-duration: 500ms; }
+}
+
 /* ── Fields ────────────────────────────────────────────────────────────── */
 .field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
 .field__head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--s-2); }
@@ -309,4 +343,5 @@ input[type="number"]::-webkit-inner-spin-button { opacity: 0.35; }
 .badge--strong { background: var(--primary); color: var(--on-primary); border-color: transparent; }
 
 .divider { height: 1px; background: var(--line); border: 0; margin: 0; }
-.eyebrow { font-size: var(--t-2xs); font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; color: var(--text-2); }
+/* Small context label ("Slide 3 of 16"): plain app text, not tracked capitals. */
+.eyebrow { font-size: var(--t-sm); font-weight: 500; color: var(--text-2); }

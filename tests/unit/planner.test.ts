@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { clampBrief, DEFAULT_BRIEF, planPresentation, planSummary } from "../../lib/domain/planner";
+import { clampBrief, DEFAULT_BRIEF, planPresentation, planSummary, withoutQaTime } from "../../lib/domain/planner";
 import type { Brief, SlideAnalysis } from "../../lib/domain/types";
 
 type PlanSlide = Parameters<typeof planPresentation>[1][number];
@@ -80,4 +80,15 @@ test("the plan summary reads like the setup review line", () => {
   const value = brief({ qaMinutes: 2 });
   const summary = planSummary(value, planPresentation(value, [slide("a", 20), slide("b", 20)]));
   assert.match(summary, /^8 min · 130 wpm · ~[\d,]+–[\d,]+ spoken words · 2 slides · 2 min Q&A$/);
+});
+
+test("folding old Q&A time into the total keeps speaking time unchanged", () => {
+  const before = brief({ minutes: 10, qaMinutes: 2 });
+  const after = withoutQaTime(before);
+  assert.equal(after.minutes, 8);
+  assert.equal(after.qaMinutes, 0);
+  assert.equal(planPresentation(after, [slide("a", 30)]).speakingSeconds, planPresentation(before, [slide("a", 30)]).speakingSeconds);
+  // Nothing to fold: the same object comes back.
+  const plain = brief({ minutes: 10, qaMinutes: 0 });
+  assert.equal(withoutQaTime(plain), plain);
 });

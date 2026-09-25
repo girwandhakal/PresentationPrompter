@@ -1,7 +1,6 @@
 "use client";
 
-import { BarChart3, Flag, PenLine, Play, Repeat, SkipForward } from "lucide-react";
-import Link from "next/link";
+import { BarChart3, PenLine, Play } from "lucide-react";
 import { useEffect, useState } from "react";
 import { formatClock } from "@/lib/domain/format";
 import type { PresenterSession, Project } from "@/lib/domain/types";
@@ -13,9 +12,12 @@ function when(timestamp: number) {
   return new Date(timestamp).toLocaleString(undefined, { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 }
 
+/** A slide within this many seconds of its plan counts as on plan. */
+const ON_PLAN = 3;
+
 /**
- * Post-session review: time per slide against plan and a short list of things worth a look.
- * Framed as observations, never as a score.
+ * Post-session review: how each slide's time compared with its plan. Framed as observations,
+ * never as a score.
  */
 export function SessionReview({ project, sessionId }: { project: Project; sessionId: string | null }) {
   const [sessions, setSessions] = useState<PresenterSession[] | null>(null);
@@ -41,30 +43,15 @@ export function SessionReview({ project, sessionId }: { project: Project; sessio
   const session = sessions.find((item) => item.id === selected) ?? sessions[0];
   const titles = new Map(project.slides.map((slide, index) => [slide.id, { title: slide.title, number: index + 1 }]));
   const rows = session.slides.filter((row) => titles.has(row.slideId));
-  const scale = Math.max(1, ...rows.map((row) => Math.max(row.seconds, row.targetSeconds)));
   const difference = session.totalSeconds - session.targetSeconds;
-
-  const long = rows.filter((row) => row.targetSeconds >= 15 && row.seconds > row.targetSeconds * 1.25 && row.seconds - row.targetSeconds >= 10);
-  const repeated = rows.filter((row) => row.visits > 1);
-  const skipped = session.skipped.filter((id) => titles.has(id));
-  const marked = session.marked.filter((id) => titles.has(id));
-
-  const notes: { icon: React.ReactNode; text: React.ReactNode }[] = [
-    ...long.map((row) => ({
-      icon: <BarChart3 />,
-      text: <>Slide {titles.get(row.slideId)!.number}, <Link href={`/p/${project.id}/edit?slide=${row.slideId}`}>{titles.get(row.slideId)!.title}</Link>, ran {formatClock(row.seconds - row.targetSeconds)} over its plan. The editor&apos;s <em>Improve → Shorten</em> can trim it.</>,
-    })),
-    ...marked.map((id) => ({ icon: <Flag />, text: <>You marked slide {titles.get(id)!.number}, <Link href={`/p/${project.id}/edit?slide=${id}`}>{titles.get(id)!.title}</Link>, for review.</> })),
-    ...repeated.map((row) => ({ icon: <Repeat />, text: <>You returned to slide {titles.get(row.slideId)!.number} {row.visits - 1 === 1 ? "once" : `${row.visits - 1} times`}. A clearer transition into it might help.</> })),
-    ...skipped.map((id) => ({ icon: <SkipForward />, text: <>Slide {titles.get(id)!.number}, {titles.get(id)!.title}, wasn&apos;t shown. Mark it optional if that&apos;s intended.</> })),
-  ];
+  // Diverging scale: the centre is the plan; each half spans the largest miss (at least 10s).
+  const scale = Math.max(10, ...rows.filter((row) => row.visits > 0 && row.targetSeconds > 0).map((row) => Math.abs(row.seconds - row.targetSeconds)));
 
   return (
     <div className="page review">
       <header className="review__header">
         <div>
-          <p className="eyebrow">Session review</p>
-          <h1 className="page-title">How it went</h1>
+          <h1 className="page-title">Session review</h1>
           <p className="review__when">{when(session.startedAt)}{session.completed ? "" : " · ended early"}</p>
         </div>
         <div className="review__actions">
@@ -75,45 +62,50 @@ export function SessionReview({ project, sessionId }: { project: Project; sessio
 
       <dl className="review__summary tabular">
         <div><dt>Total time</dt><dd>{formatClock(session.totalSeconds)}</dd><p>{Math.abs(difference) < 15 ? "Right on your plan" : difference > 0 ? `${formatClock(difference)} over the ${formatClock(session.targetSeconds)} plan` : `${formatClock(-difference)} under the ${formatClock(session.targetSeconds)} plan`}</p></div>
-        <div><dt>Slides shown</dt><dd>{rows.filter((row) => row.visits > 0).length} of {rows.length}</dd></div>
-        <div><dt>Marked for review</dt><dd>{marked.length}</dd></div>
       </dl>
 
       <section className="review__section" aria-labelledby="review-timing">
         <div className="review__section-head">
-          <h2 id="review-timing" className="section-title">Time on each slide</h2>
-          <p className="review__legend"><span className="review__legend-tick" aria-hidden="true" /> Planned time</p>
+          <h2 id="review-timing" className="section-title">Time against plan</h2>
+          <ul className="review__legend" aria-label="Legend">
+            <li><span className="review__swatch review__swatch--under" aria-hidden="true" /> Under plan</li>
+            <li><span className="review__swatch review__swatch--over" aria-hidden="true" /> Over plan</li>
+          </ul>
         </div>
-        <ol className="timing-chart">
+        <ol className="plan-chart">
+          <li className="plan-chart__scale" aria-hidden="true">
+            <span />
+            <span className="plan-chart__axis-labels tabular"><span>−{formatClock(scale)}</span><span>Plan</span><span>+{formatClock(scale)}</span></span>
+            <span />
+          </li>
           {rows.map((row) => {
             const info = titles.get(row.slideId)!;
-            const over = row.targetSeconds > 0 && row.seconds > row.targetSeconds;
-            const within = Math.min(row.seconds, row.targetSeconds || row.seconds);
+            const reached = row.visits > 0;
+            const planned = row.targetSeconds > 0;
+            const delta = row.seconds - row.targetSeconds;
+            const state = !reached ? "unreached" : !planned ? "unplanned" : Math.abs(delta) <= ON_PLAN ? "on" : delta > 0 ? "over" : "under";
+            const width = `${Math.min(50, (Math.abs(delta) / scale) * 50)}%`;
+            const value = state === "unreached" ? "Not reached"
+              : state === "unplanned" ? formatClock(row.seconds)
+                : state === "on" ? "On plan"
+                  : `${delta > 0 ? "+" : "−"}${formatClock(Math.abs(delta))}`;
             return (
-              <li key={row.slideId} className="timing-row" data-tooltip={`${formatClock(row.seconds)} spoken · ${row.targetSeconds ? `${formatClock(row.targetSeconds)} planned` : "no plan"}${row.visits > 1 ? ` · ${row.visits} visits` : ""}`} data-tooltip-side="top">
-                <span className="timing-row__label"><span className="tabular faint">{info.number}</span> {info.title}</span>
-                <span className="timing-row__track" aria-hidden="true">
-                  <span className="timing-row__bar" style={{ width: `${(within / scale) * 100}%` }} />
-                  {over && <span className="timing-row__over" style={{ left: `calc(${(row.targetSeconds / scale) * 100}% + 2px)`, width: `calc(${((row.seconds - row.targetSeconds) / scale) * 100}% - 2px)` }} />}
-                  {row.targetSeconds > 0 && <span className="timing-row__target" style={{ left: `${(row.targetSeconds / scale) * 100}%` }} />}
+              <li
+                key={row.slideId}
+                className="plan-row"
+                data-state={state}
+                data-tooltip={reached ? `${formatClock(row.seconds)} spoken · ${planned ? `${formatClock(row.targetSeconds)} planned` : "optional"}${row.visits > 1 ? ` · ${row.visits} visits` : ""}` : "Not shown in this session"}
+                data-tooltip-side="top"
+              >
+                <span className="plan-row__label"><span className="tabular faint">{info.number}</span> {info.title}</span>
+                <span className="plan-row__track" aria-hidden="true">
+                  {(state === "over" || state === "under") && <span className="plan-row__bar" style={{ width }} />}
                 </span>
-                <span className="timing-row__value tabular">
-                  {formatClock(row.seconds)}
-                  {over && <span className="timing-row__delta"> +{formatClock(row.seconds - row.targetSeconds)}</span>}
-                </span>
+                <span className="plan-row__value tabular">{value}</span>
               </li>
             );
           })}
         </ol>
-      </section>
-
-      <section className="review__section" aria-labelledby="review-notes">
-        <h2 id="review-notes" className="section-title">Worth a look</h2>
-        {notes.length ? (
-          <ul className="review__notes">{notes.map((note, index) => <li key={index}><span aria-hidden="true">{note.icon}</span><p>{note.text}</p></li>)}</ul>
-        ) : (
-          <p className="review__calm">Nothing stood out. Your timing stayed close to the plan on every slide.</p>
-        )}
       </section>
 
       {sessions.length > 1 && (

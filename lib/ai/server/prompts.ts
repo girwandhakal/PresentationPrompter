@@ -180,7 +180,6 @@ Support notes for each slide:
 - recovery: one calm sentence to say if the presenter loses their place, restating the point simply.
 - transition: one spoken sentence bridging to the next slide (a closing line on the last slide).
 - questions: ${brief.includeQuestions ? "1–2 likely audience questions with short answers grounded in the material; \"I'd want to confirm that\" is an acceptable answer." : "return an empty array."}
-- flags: "unsupported-claim" when the brief asks for something the slides don't support; "uncertain-visual" when the script depends on a reading of a visual you're unsure of; "needs-context" when the slide can't be explained without information the presenter must add. Empty when none apply.
 
 Return exactly one entry per input slide id, in the same order.
 `.trim();

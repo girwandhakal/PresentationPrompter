@@ -15,7 +15,7 @@ function when(timestamp: number) {
   return new Date(timestamp).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 }
 
-/** Saved script versions: generated drafts and snapshots taken before AI rewrites or restores. */
+/** Saved script versions: taken when a script is written, and before slides are removed or replaced or a version is restored. */
 export function HistorySheet({ project, open, onClose, onRestored }: { project: Project; open: boolean; onClose: () => void; onRestored: () => void }) {
   const { restoreVersion } = useProjects();
   const toast = useToast();
@@ -43,7 +43,7 @@ export function HistorySheet({ project, open, onClose, onRestored }: { project: 
         {!versions ? (
           <div className="center-state"><Spinner label="Loading history" /></div>
         ) : !versions.length ? (
-          <EmptyState icon={<History />} title="No saved versions yet">Versions are saved when a script is written and before AI rewrites.</EmptyState>
+          <EmptyState icon={<History />} title="No saved versions yet">Versions are saved when a script is written, and before slides are removed or replaced.</EmptyState>
         ) : (
           <ol className="history-list">
             {versions.map((version) => {
