@@ -118,6 +118,35 @@ export function outlineText(request: OutlineRequest) {
   ].filter(Boolean).join("\n\n");
 }
 
+// Shared by every action that produces script text, so "clearer", "shorter" and a fresh draft all
+// land in the same spoken voice. A worked example beats adjectives: models imitate demonstrations.
+export const SPOKEN_STYLE = `
+Writing for speech (this text is heard, not read; the audience cannot re-read a sentence):
+- Write what a person would say out loud to a room. First person ("we", "I"), natural contractions, plain words. Aim for sentences under about 20 words, one idea each. Split any sentence that needs a second comma-separated clause list.
+- Never string noun phrases together the way a slide does ("model catalog, area mappings, focus rules, and selection state"). Say the one thing that matters and why.
+- Slide text is raw material, not the script. Don't read it out and don't paraphrase it line by line. Add what the slide can't: why each point matters, how it serves the audience and the presenter's goal, and how it links to the previous and next slide.
+- Open each slide with a sentence that frames it, not with its title or first bullet restated. Never start a sentence or paragraph with a label and colon ("Sponsor need: …"); that is slide-reading.
+- Signpost lightly ("First…", "The reason is…", "What that means is…") so a listener can follow the structure.
+- Lists (numbers, PR ids, names, tools) are never recited. Name the one or two items that matter, summarize the rest in a phrase, and say what they add up to.
+- A small word budget means fewer points, not clipped fragments. Pick the single most important idea and say it in complete, natural sentences.
+- Add no facts beyond the slide, notes, and brief. Explaining why something matters is fine; inventing details is not.
+
+Example of the target voice (invented content, for style only):
+Slide text: "Goal: cut checkout time. Method: fewer form fields. Result: 20% faster. Next: A/B test."
+Bad (slide-reading): "Goal: cut checkout time. Method: fewer fields. Result: 20% faster. Next: A/B test."
+Good (speech): "So the goal was simple: get people through checkout faster. We did that by cutting the form down to the fields people actually need, and it came out about twenty percent quicker. Next, we want to A/B test it, so we know the gain holds up with real customers."
+
+Two more examples of the same rule (invented content):
+Slide text: "Keep: small PRs, code review. Fix: stale docs, slow builds. Next: weekly cleanup."
+Bad: "Keep: small PRs, code review. Fix: stale docs, slow builds. Next: weekly cleanup."
+Good: "Looking back, two habits worked, so we're keeping them: small pull requests and code review. Two things slipped, the docs and the build times, and we'll fix those with a short cleanup every week."
+Slide text: "Blocker: email service credentials expired. Fix: test credentials, verified with temp account."
+Bad: "Summary: credentials expired. Test credentials used; temp account verified."
+Good: "The form stopped sending because our email service credentials had expired. As a stopgap, we swapped in test credentials and checked that submissions went through using a temporary account."
+
+Before returning, check every paragraph: could someone say it aloud without stumbling, and would a listener follow it on one hearing? If it sounds like notes or a list, rewrite it.
+`.trim();
+
 // ── Write ───────────────────────────────────────────────────────────────────
 
 export function writeInstructions(brief: BriefInput) {
@@ -132,9 +161,9 @@ The presenter's plan is a hard constraint:
 - ${STYLE_GUIDE[brief.style]}
 - Cues: ${DENSITY_GUIDE[brief.cueDensity]}
 
-Writing for speech:
-- Short sentences, one idea each, natural contractions.
-- Don't read the slide aloud. Explain it, and point the audience at what they see ("On the right, the blue line shows…") when that helps.
+${SPOKEN_STYLE}
+
+Also:
 - Use the outline's transition as a guide for how each slide hands off to the next.
 - Split the script into 1–4 paragraphs, each a natural breath group.
 - No stage directions inside paragraphs; they belong in cues.
@@ -211,11 +240,11 @@ const SELECTION_ACTIONS: Record<Extract<RewriteRequest, { kind: "selection" }>["
   shorter: "Make the selected passage shorter — about half the words — keeping its meaning.",
   simpler: "Make the selected passage simpler: plainer words, shorter sentences.",
   conversational: "Make the selected passage sound more like natural speech.",
-  clearer: "Make the selected passage clearer and more direct.",
+  clearer: "Make the selected passage clearer for a listener: plain words, short sentences, and the reason behind each point stated, in natural spoken language.",
 };
 
 export function rewriteInstructions(request: RewriteRequest) {
-  const common = `${VOICE}\n\n${briefBlock(request.brief)}`;
+  const common = `${VOICE}\n\n${briefBlock(request.brief)}${request.kind === "script" || request.kind === "selection" ? `\n\n${SPOKEN_STYLE}` : ""}`;
   if (request.kind === "script") {
     return `${common}\n\nTask: ${SCRIPT_ACTIONS[request.action](request.targetWords, request.slide)}\n\nReturn the full revised script as 1–4 paragraphs. Cues: ${DENSITY_GUIDE[request.brief.cueDensity]} Cue paragraph/afterSentence positions are 1-based within your revised paragraphs. ${DEPTH_GUIDE[request.brief.depth]}`;
   }

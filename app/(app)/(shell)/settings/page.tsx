@@ -4,7 +4,7 @@ import { Archive, HardDrive, Trash2, Upload } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "../../../components/ui/button";
-import { Callout, Segmented, Switch } from "../../../components/ui/controls";
+import { Callout, Segmented } from "../../../components/ui/controls";
 import { Dialog } from "../../../components/ui/dialog";
 import { Field, Input, Select } from "../../../components/ui/field";
 import { useToast } from "../../../components/ui/toast";
@@ -101,9 +101,6 @@ export default function SettingsPage() {
               <option value="cues">Keywords</option>
             </Select>
           </Field>
-          <div className="form-grid__full">
-            <Switch checked={defaults.includeQuestions} onChange={(value) => setDefault("includeQuestions", value)} label="Prepare for likely questions" />
-          </div>
         </div>
         <div className="settings__row">
           <Button variant="ghost" size="sm" onClick={() => setPresenter(DEFAULT_PRESENTER_PREFS)}>Reset presenter reading settings</Button>

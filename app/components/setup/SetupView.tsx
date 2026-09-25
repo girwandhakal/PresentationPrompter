@@ -11,7 +11,7 @@ import type { Brief, DeliveryStyle, Project } from "@/lib/domain/types";
 import { setPref } from "@/lib/prefs";
 import { useProjects } from "@/lib/store/projects";
 import { Button, ButtonLink } from "../ui/button";
-import { Callout, Segmented, Spinner, Switch } from "../ui/controls";
+import { Callout, Segmented, Spinner } from "../ui/controls";
 import { Dialog } from "../ui/dialog";
 import { Field, Input, Select, Textarea } from "../ui/field";
 import { RevealWords, RollingText } from "../ui/motion";
@@ -255,9 +255,6 @@ export function SetupView({ project }: { project: Project }) {
               <Field label="Delivery cues" className="form-grid__full" hint="Private reminders like “pause here” or “point to the chart”. Only you see them.">
                 <Segmented label="Delivery cues" value={brief.cueDensity} onChange={(cueDensity) => patch({ cueDensity })} options={[{ value: "none", label: "None" }, { value: "light", label: "A few" }, { value: "detailed", label: "Detailed" }]} />
               </Field>
-              <div className="form-grid__full">
-                <Switch checked={brief.includeQuestions} onChange={(includeQuestions) => patch({ includeQuestions })} label="Prepare for likely questions" description="Adds a few questions the audience might ask, with short answers." />
-              </div>
             </div>
 
             <details className="advanced">
