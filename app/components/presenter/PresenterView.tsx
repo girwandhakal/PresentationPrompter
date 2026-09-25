@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, ArrowRight, ChevronDown, EyeOff, Flag, Keyboard, Minus, MonitorUp, Pause, Play, Plus, Settings2, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, ChevronDown, EyeOff, Keyboard, Minus, MonitorUp, Pause, Play, Plus, Settings2, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { shortId } from "@/lib/domain/factory";
@@ -53,7 +53,6 @@ export function PresenterView({ project }: { project: Project }) {
   const [audience, setAudience] = useState<AudienceStatus>("none");
   const [hint, setHint] = useState<string | null>(null);
   const [idle, setIdle] = useState(false);
-  const [marked, setMarked] = useState<string[]>([]);
   const [, setTick] = useState(0);
 
   const teleprompter = useRef<TeleprompterHandle>(null);
@@ -280,11 +279,9 @@ export function PresenterView({ project }: { project: Project }) {
         visits: times.get(item.id)?.visits ?? 0,
         targetSeconds: plan.slides[position]?.seconds ?? 0,
       })),
-      marked,
-      recoveries: 0,
       skipped: slides.filter((item) => !item.optional && !(times.get(item.id)?.visits)).map((item) => item.id),
     };
-  }, [index, marked, plan.slides, project.id, slideClock, slides, targetTotal, total]);
+  }, [index, plan.slides, project.id, slideClock, slides, targetTotal, total]);
 
   useEffect(() => {
     if (!live) return;
@@ -367,12 +364,6 @@ export function PresenterView({ project }: { project: Project }) {
     return () => window.clearTimeout(timer);
   }, [hint]);
 
-  const toggleMark = useCallback(() => {
-    if (!slide) return;
-    setMarked((current) => current.includes(slide.id) ? current.filter((id) => id !== slide.id) : [...current, slide.id]);
-    setHint(marked.includes(slide.id) ? "Mark removed" : "Marked for review after the talk");
-  }, [marked, slide]);
-
   const setPace = useCallback((delta: number) => {
     setPrefs((current: PresenterPrefs) => ({ ...current, paceMultiplier: Math.min(1.6, Math.max(0.6, Number((current.paceMultiplier + delta).toFixed(2)))) }));
   }, [setPrefs]);
@@ -398,7 +389,6 @@ export function PresenterView({ project }: { project: Project }) {
           case "End": teleprompter.current?.toEnd(); return true;
           case "b": case "B": case ".": setBlank((value) => !value); return true;
           case "c": case "C": setPrefs({ ...prefs, showCues: !prefs.showCues }); return true;
-          case "m": case "M": toggleMark(); return true;
           case "+": case "=": setPace(0.05); return true;
           case "-": case "_": setPace(-0.05); return true;
           case "f": case "F": void toggleFullscreen(); return true;
@@ -414,14 +404,13 @@ export function PresenterView({ project }: { project: Project }) {
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [countdown, exit, go, index, onManualScroll, overlayOpen, prefs, setPace, setPrefs, toggleMark, togglePlay]);
+  }, [countdown, exit, go, index, onManualScroll, overlayOpen, prefs, setPace, setPrefs, togglePlay]);
 
   if (!slide) return null;
 
   const elapsed = Math.round(total.ms() / 1000);
   const remaining = targetTotal - elapsed;
   const slideElapsed = Math.round(slideClock.ms() / 1000);
-  const isMarked = marked.includes(slide.id);
   const timerPaused = live && !total.running();
 
   return (
@@ -430,7 +419,7 @@ export function PresenterView({ project }: { project: Project }) {
         <IconButton label={live ? "End presentation" : "Close presenter"} onClick={exit} tooltip="bottom"><X /></IconButton>
         <Menu
           label="Jump to slide"
-          items={slides.map((item, position) => ({ label: `${position + 1}. ${item.title}`, onSelect: () => go(position), hint: marked.includes(item.id) ? "Marked" : item.optional ? "Optional" : undefined }))}
+          items={slides.map((item, position) => ({ label: `${position + 1}. ${item.title}`, onSelect: () => go(position), hint: item.optional ? "Optional" : undefined }))}
           trigger={(props) => (
             <button {...props} type="button" className="presenter__where">
               <span className="presenter__deck">{project.title}</span>
@@ -520,7 +509,6 @@ export function PresenterView({ project }: { project: Project }) {
           <Segmented size="sm" label="Reading mode" value={prefs.mode} onChange={(mode) => setPrefs({ ...prefs, mode })} options={[{ value: "full", label: "Script" }, { value: "notes", label: "Short" }, { value: "keywords", label: "Keywords" }, { value: "cues", label: "Cues" }]} />
         </div>
         <div className="presenter__controls-group">
-          <IconButton label={isMarked ? "Unmark slide (M)" : "Mark slide for review (M)"} aria-pressed={isMarked} onClick={toggleMark} tooltip="top"><Flag /></IconButton>
           <IconButton label={blank ? "Show slide to audience (B)" : "Blank audience screen (B)"} aria-pressed={blank} onClick={() => setBlank((value) => !value)} tooltip="top"><EyeOff /></IconButton>
         </div>
       </footer>

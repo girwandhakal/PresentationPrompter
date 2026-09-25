@@ -8,7 +8,8 @@
         "run",
         "dev"
       ],
-      "port": 3000
+      "port": 3400,
+      "autoPort": true
     },
     {
       "name": "cueframe-demo",
@@ -18,9 +19,12 @@
         "AI_PROVIDER=demo",
         "npm",
         "run",
-        "dev"
+        "dev",
+        "--",
+        "--port",
+        "3500"
       ],
-      "port": 3000
+      "port": 3500
     },
     {
       "name": "cueframe-demo-alt",

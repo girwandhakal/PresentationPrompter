@@ -15,10 +15,10 @@ import { useToast } from "../ui/toast";
 
 /**
  * Fits an existing script to new timing. Shows current vs planned words per slide first; only
- * slides that are meaningfully off are rewritten, and the prior version is kept in History.
+ * slides that are meaningfully off are rewritten.
  */
 export function RebalanceDialog({ project, onClose }: { project: Project; onClose: () => void }) {
-  const { update, saveVersion } = useProjects();
+  const { update } = useProjects();
   const toast = useToast();
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -45,17 +45,16 @@ export function RebalanceDialog({ project, onClose }: { project: Project; onClos
           const row = changing[next++];
           const result = await rewriteScript(project, row.slide, "fit", row.target);
           const document = documentFromAi(result.paragraphs, result.cues.map((cue) => ({ paragraph: cue.paragraph, afterSentence: cue.afterSentence, label: cue.text })));
-          results.set(row.slide.id, { ...row.slide.script, document, origin: "mixed", flags: row.slide.script.flags.filter((flag) => flag.kind !== "over-budget" && flag.kind !== "under-budget") });
+          results.set(row.slide.id, { ...row.slide.script, document, origin: "mixed" });
           setDone((value) => value + 1);
         }
       }));
-      await saveVersion(project.id, "Before rebalancing");
       await update(project.id, (current) => ({
         ...current,
         generatedWith: { minutes: current.brief.minutes, qaMinutes: current.brief.qaMinutes, wpm: current.brief.wpm, depth: current.brief.depth },
         slides: current.slides.map((slide) => results.get(slide.id) ? { ...slide, script: results.get(slide.id)! } : slide),
       }));
-      toast(`Rebalanced ${changing.length === 1 ? "1 slide" : `${changing.length} slides`}. The previous version is in History.`);
+      toast(`Rebalanced ${changing.length === 1 ? "1 slide" : `${changing.length} slides`}.`);
       onClose();
     } catch (caught) {
       setError(caught instanceof AiRequestError ? caught.message : "Rebalancing stopped before it finished. Nothing was changed.");

@@ -125,7 +125,6 @@ export const SHORTCUTS: [string, string][] = [
   ["Home / End", "Start or end of this slide"],
   ["B", "Blank the audience screen"],
   ["C", "Show or hide cues"],
-  ["M", "Mark slide for review"],
   ["+ / −", "Faster or slower"],
   ["F", "Full screen"],
   ["Esc", "Close panel, cancel countdown, or end"],

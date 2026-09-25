@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { finalizeWrittenSlide, needsRepair, sanitizeCues, ungroundedNumbers } from "../../lib/ai/validate";
+import { finalizeWrittenSlide, needsRepair, sanitizeCues } from "../../lib/ai/validate";
 import type { BriefInput, WriteSlideInput, WrittenSlideOutput } from "../../lib/ai/schemas";
 
 const brief: BriefInput = {
@@ -44,20 +44,7 @@ const output = (values: Partial<WrittenSlideOutput> = {}): WrittenSlideOutput =>
   recovery: "The point: activation is up.",
   transition: "Next, the plan.",
   questions: [{ question: "Why?", answer: "Onboarding got easier." }],
-  flags: [],
   ...values,
-});
-
-test("figures that aren't in the source are flagged; grounded ones are not", () => {
-  assert.deepEqual(ungroundedNumbers(["We grew 74% and then 90%."], ["Activation rose from 61% to 74%."]), ["90%"]);
-  assert.deepEqual(ungroundedNumbers(["Revenue hit $2,400 in 2023."], ["Revenue $2400", "2023 results"]), []);
-  // Single-digit counting words are allowed.
-  assert.deepEqual(ungroundedNumbers(["Three moves, step 2 first."], ["Three deliberate moves"]), []);
-});
-
-test("finalize adds an unsupported-claim flag for invented figures", () => {
-  const result = finalizeWrittenSlide(output({ paragraphs: ["Activation hit 95% this quarter."] }), input, brief);
-  assert.ok(result.flags.some((flag) => flag.kind === "unsupported-claim" && flag.message.includes("95%")));
 });
 
 test("finalize trims, caps, and drops questions when not requested", () => {

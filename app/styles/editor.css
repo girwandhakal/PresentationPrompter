@@ -30,21 +30,20 @@
 .rail-item__text { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .rail-item__title { font-size: var(--t-xs); font-weight: 600; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .rail-item__meta { display: flex; align-items: center; gap: 4px; font-size: var(--t-2xs); color: var(--text-2); }
-.rail-item__flag svg { width: 11px; height: 11px; color: var(--text); animation: pop-in 360ms var(--spring); }
-.editor-rail__footer { display: flex; justify-content: space-between; padding: 12px 16px; border-top: 1px solid var(--line); font-size: var(--t-xs); color: var(--text-2); }
-.editor-rail__footer strong { color: var(--text); font-weight: 600; }
 
 /* Main column */
 .editor-main { min-width: 0; min-height: 0; overflow-y: auto; }
-.editor-main__inner { max-width: 760px; margin: 0 auto; padding: var(--s-8) var(--s-8) var(--s-16); display: flex; flex-direction: column; gap: var(--s-4); }
-.editor-main__inner > * { animation: rise-in var(--dur-4) var(--ease-out) backwards; }
-.editor-main__inner > :nth-child(2) { animation-delay: 50ms; }
-.editor-main__inner > :nth-child(n + 3) { animation-delay: 100ms; }
+/*
+ * The column fills the window exactly. The writing surface (or the empty-slide panel) takes the space
+ * that's left, so its size depends on the window, never on the slide. The toolbar and surface are
+ * rebuilt for each slide, so only the column itself animates in, once, when the editor opens.
+ */
+.editor-main__inner { max-width: 760px; min-height: 100%; margin: 0 auto; padding: var(--s-8) var(--s-8) var(--s-6); display: flex; flex-direction: column; gap: var(--s-4); animation: rise-in var(--dur-4) var(--ease-out) backwards; }
+.editor-main__inner > .script-surface, .editor-main__inner > .editor-empty { flex: 1 1 0; min-height: 240px; }
 .editor-slide-head { display: flex; flex-direction: column; gap: 4px; }
 .editor-slide-head__title { width: 100%; border: 0; background: transparent; padding: 2px 0; font-family: var(--font-display); font-size: clamp(22px, 2.4vw, 30px); font-weight: 650; letter-spacing: -0.03em; color: var(--text); border-radius: var(--r-xs); box-shadow: 0 2px 0 -2px transparent; transition: box-shadow 260ms var(--ease-out); }
 .editor-slide-head__title:hover { box-shadow: 0 1px 0 var(--line-strong); }
 .editor-slide-head__title:focus-visible, .editor-slide-head__title:focus { outline: none; animation: none; box-shadow: 0 2px 0 var(--accent-ink); }
-.editor-slide-head__purpose { color: var(--text-2); font-size: var(--t-sm); }
 
 /* Toolbar */
 .editor-toolbar { position: sticky; top: 0; z-index: 3; display: flex; align-items: center; gap: var(--s-2); padding: 6px; border-radius: var(--r-md); background: color-mix(in srgb, var(--bg) 82%, transparent); backdrop-filter: blur(12px) saturate(1.4); border: 1px solid var(--line); box-shadow: var(--shadow-1); }
@@ -57,17 +56,25 @@
 .cue-button svg { width: 14px; height: 14px; }
 
 /* Writing surface: a prompt book. Cues sit as Bluebell marks in the left margin. */
-.script-surface { position: relative; animation: focus-in 360ms var(--ease-out); }
+/* Grid, not flex: Lexical warns that a flex parent can steal focus from the editable in Chrome. */
+.script-surface { position: relative; display: grid; grid-template-rows: minmax(0, 1fr); }
+/*
+ * The writing surface is a fixed-size box sized to the window, whatever the script's length. Long
+ * scripts scroll inside it; the scroll never hands off to the page.
+ */
 .script-surface__input {
-  min-height: 320px; padding: var(--s-5) var(--s-2) var(--s-8) var(--s-10);
+  min-height: 0;
+  overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent;
+  padding: var(--s-5) var(--s-4) var(--s-8) var(--s-10);
   font-family: var(--font-display); font-size: 20px; line-height: 1.65; letter-spacing: -0.01em; font-weight: 420;
   outline: none; white-space: pre-wrap; overflow-wrap: anywhere; caret-color: var(--bluebell);
-  border-radius: var(--r-md);
+  border-radius: var(--r-lg); border: 1px solid var(--line); background: var(--surface);
+  transition: border-color 200ms var(--ease), box-shadow 260ms var(--ease-out), opacity 300ms var(--ease), filter 300ms var(--ease);
 }
+.script-surface__input:focus { border-color: var(--line-strong); box-shadow: var(--shadow-1); }
 .script-surface__input:focus-visible { outline: none; }
-.script-surface__input { transition: opacity 300ms var(--ease), filter 300ms var(--ease); }
 .script-surface[data-locked="true"] .script-surface__input { opacity: 0.55; filter: saturate(0.6); }
-.script-surface__placeholder { position: absolute; top: var(--s-5); left: var(--s-10); color: var(--text-3); pointer-events: none; font-family: var(--font-display); font-size: 20px; line-height: 1.65; }
+.script-surface__placeholder { position: absolute; top: calc(var(--s-5) + 1px); left: calc(var(--s-10) + 1px); color: var(--text-3); pointer-events: none; font-family: var(--font-display); font-size: 20px; line-height: 1.65; }
 .script-paragraph { position: relative; min-height: 1.65em; margin-bottom: 0.55em; }
 .script-bold { font-weight: 700; }
 .script-italic { font-style: italic; }
@@ -114,20 +121,9 @@
 .proposal__before { color: var(--text-2); text-decoration: line-through; text-decoration-color: var(--line-strong); animation: fade-in 400ms var(--ease-out); }
 .proposal__after { color: var(--text); }
 
-.editor-empty { animation: rise-in 360ms var(--ease-out); display: flex; flex-direction: column; align-items: flex-start; gap: var(--s-3); padding: var(--s-6); border-radius: var(--r-lg); border: 1px dashed var(--line-strong); color: var(--text-2); }
+.editor-empty { display: flex; flex-direction: column; align-items: flex-start; gap: var(--s-3); padding: var(--s-6); border-radius: var(--r-lg); border: 1px dashed var(--line-strong); color: var(--text-2); }
 .editor-empty__actions { display: flex; gap: var(--s-2); }
 
-.editor-stats { display: flex; flex-wrap: wrap; gap: 6px; font-size: var(--t-xs); color: var(--text-2); padding-left: var(--s-10); }
-.editor-stats .is-over { color: var(--text); font-weight: 600; }
-.review-flags { display: flex; flex-direction: column; gap: 6px; }
-.review-flag { animation: rise-in 300ms var(--ease-out) backwards; display: flex; align-items: flex-start; gap: var(--s-2); padding: 10px 12px; border-radius: var(--r-md); background: var(--attention); border: 1px solid var(--attention-line); font-size: var(--t-sm); line-height: 1.45; }
-.review-flag svg { width: 15px; height: 15px; flex: 0 0 auto; margin-top: 2px; }
-.review-flag span { flex: 1; }
-.review-flag__dismiss { font-size: var(--t-xs); font-weight: 600; color: var(--text-2); padding: 2px 6px; border-radius: var(--r-xs); transition: color 120ms var(--ease), background-color 120ms var(--ease); }
-.review-flag__dismiss:hover { background: var(--hover); }
-.review-flag__dismiss:hover { color: var(--text); }
-.editor-hint { font-size: var(--t-xs); color: var(--text-2); padding-left: var(--s-10); line-height: 2; }
-.editor-hint .kbd { margin: 0 1px; }
 .editor-pager { display: flex; justify-content: space-between; padding-top: var(--s-4); border-top: 1px solid var(--line); }
 
 /* Inspector */
@@ -137,6 +133,13 @@
 @keyframes inspector-in { from { opacity: 0; transform: translateX(16px); } }
 .inspector__panel { flex: 1; min-height: 0; overflow-y: auto; padding: var(--s-4); display: flex; flex-direction: column; gap: var(--s-4); outline: none; }
 .inspector__panel > * { flex-shrink: 0; }
+/*
+ * The panel itself doesn't scroll: the preview group takes the height that's left and the
+ * teleprompter preview scrolls inside it. (The panel keeps overflow as a fallback for very short
+ * windows, where even the fixed parts don't fit.)
+ */
+.inspector__panel > .inspector__group:last-child { flex: 1 1 0; min-height: 0; }
+.inspector .presenter-preview { flex: 1 1 0; min-height: 120px; max-height: none; overscroll-behavior: contain; }
 .inspector__facts { margin: 0; display: flex; flex-direction: column; gap: var(--s-3); }
 .inspector__facts dt { font-size: var(--t-2xs); font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-2); margin-bottom: 2px; }
 .inspector__facts dd { margin: 0; font-size: var(--t-sm); line-height: 1.5; }
@@ -183,7 +186,6 @@
   .editor-rail { border-right: 0; border-bottom: 1px solid var(--line); }
   .editor-rail__list { flex-direction: row; overflow-x: auto; overflow-y: hidden; }
   .editor-rail li { flex: 0 0 210px; }
-  .editor-rail__footer { display: none; }
 }
 @container editor (max-width: 760px) {
   .editor__body[data-inspector="true"] { grid-template-columns: minmax(0, 1fr); }
@@ -191,11 +193,9 @@
   .hide-narrow { display: none; }
 }
 @media (max-width: 700px) {
-  .editor-main__inner { padding: var(--s-5) var(--s-4) var(--s-12); }
+  .editor-main__inner { padding: var(--s-5) var(--s-4) var(--s-5); }
   .script-surface__input { padding-left: var(--s-6); font-size: 18px; }
   .script-surface__placeholder { left: var(--s-6); font-size: 18px; }
   .script-paragraph:has(> .script-cue-chip:only-child)::before { left: calc(-1 * var(--s-6) + 4px); width: 12px; }
-  .editor-stats, .editor-hint { padding-left: 0; }
-  .editor-hint { display: none; }
   .editor-toolbar { flex-wrap: wrap; }
 }

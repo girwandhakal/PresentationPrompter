@@ -1,11 +1,11 @@
 "use client";
 
-import { ArrowRight, Check, CircleAlert, Sparkles } from "lucide-react";
+import { ArrowRight, CircleAlert, Sparkles } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAiStatus } from "@/lib/ai/client";
 import { useOrchestrator } from "@/lib/ai/orchestrator";
-import { formatDuration, pluralize } from "@/lib/domain/format";
+import { fileBaseName, formatDuration, pluralize } from "@/lib/domain/format";
 import { clampBrief, hasScript, LIMITS, planPresentation, planSummary } from "@/lib/domain/planner";
 import type { Brief, DeliveryStyle, Project } from "@/lib/domain/types";
 import { setPref } from "@/lib/prefs";
@@ -14,7 +14,7 @@ import { Button, ButtonLink } from "../ui/button";
 import { Callout, Segmented, Spinner } from "../ui/controls";
 import { Dialog } from "../ui/dialog";
 import { Field, Input, Select, Textarea } from "../ui/field";
-import { RevealWords, RollingText } from "../ui/motion";
+import { RollingText } from "../ui/motion";
 import { useToast } from "../ui/toast";
 import { GeneratingView } from "./GeneratingView";
 import { RebalanceDialog } from "./RebalanceDialog";
@@ -36,6 +36,7 @@ const PACES = [
 ];
 
 type TextField = "goal" | "audience" | "keyMessage";
+type Suggestible = TextField | "title";
 
 export function SetupView({ project }: { project: Project }) {
   const router = useRouter();
@@ -49,7 +50,7 @@ export function SetupView({ project }: { project: Project }) {
   const [attempted, setAttempted] = useState(false);
   const [confirmRegenerate, setConfirmRegenerate] = useState(false);
   const [rebalancing, setRebalancing] = useState(false);
-  const [suggested, setSuggested] = useState<Partial<Record<TextField, boolean>>>({});
+  const [suggested, setSuggested] = useState<Partial<Record<Suggestible, boolean>>>({});
   const touched = useRef(new Set<string>());
   const saveTimer = useRef<number | undefined>(undefined);
   const pending = useRef<{ brief: Brief; title: string } | null>(null);
@@ -99,7 +100,7 @@ export function SetupView({ project }: { project: Project }) {
     const context = project.context;
     if (!context) return;
     const fills: Partial<Brief> = {};
-    const marks: Partial<Record<TextField, boolean>> = {};
+    const marks: Partial<Record<Suggestible, boolean>> = {};
     const candidates: [TextField, string][] = [["goal", context.suggestedGoal], ["audience", context.suggestedAudience], ["keyMessage", context.suggestedKeyMessage]];
     for (const [field, value] of candidates) {
       if (value && !brief[field].trim() && !touched.current.has(field)) {
@@ -107,10 +108,20 @@ export function SetupView({ project }: { project: Project }) {
         marks[field] = true;
       }
     }
-    if (Object.keys(fills).length) {
-      // Suggestions arrive asynchronously from analysis; filling empty fields once is intentional.
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      patch(fills, false);
+    // The AI's title replaces the one taken from the file name, never one the presenter chose.
+    const imported = [fileBaseName(project.source.fileName), "Untitled presentation"];
+    const nextTitle = context.title && !touched.current.has("title") && imported.includes(title.trim()) ? context.title : title;
+    if (nextTitle !== title) {
+      marks.title = true;
+      setTitle(nextTitle);
+    }
+    if (Object.keys(fills).length || nextTitle !== title) {
+      // Suggestions arrive asynchronously from analysis; filling fields once is intentional.
+      setBrief((current) => {
+        const next = { ...current, ...fills };
+        schedule(next, nextTitle);
+        return next;
+      });
       setSuggested((current) => ({ ...current, ...marks }));
     }
     // Only react to newly arrived context.
@@ -159,13 +170,7 @@ export function SetupView({ project }: { project: Project }) {
   return (
     <div className="setup">
       <header className="setup__header">
-        <p className="eyebrow">{scripted ? "Presentation setup" : "Step 2 of 2"}</p>
-        <h1 className="page-title">{scripted ? "Setup" : "Tell Cueframe about your talk"}</h1>
-        <p className="page-lede">
-          {scripted
-            ? "Change the brief and timing. Your current script stays as it is unless you choose to rebalance it or write a new draft."
-            : "A few details shape the script: what you want to achieve, who's listening, and how long you have."}
-        </p>
+        <h1 className="page-title">Setup</h1>
       </header>
 
       <div className="setup__layout">
@@ -180,25 +185,21 @@ export function SetupView({ project }: { project: Project }) {
 
           <section className="setup-section" aria-labelledby="setup-about">
             <div className="setup-section__head">
-              <h2 id="setup-about" className="section-title">About this presentation</h2>
+              <h2 id="setup-about" className="section-title">Additional Settings</h2>
               <AnalysisStatus project={project} aiReady={aiReady} onRetry={() => orchestrator.analyze(project.id)} />
             </div>
-            {project.context?.summary && (
-              <div className="deck-understanding">
-                <Sparkles aria-hidden="true" />
-                <p><span className="deck-understanding__label">What Cueframe sees in your slides:</span> <RevealWords text={project.context.summary} /></p>
-              </div>
-            )}
             <div className="form-stack">
-              <Field
-                label="Title"
-                action={project.context?.title && project.context.title !== title ? (
-                  <button type="button" className="suggest-link" onClick={() => { setTitle(project.context!.title); schedule(brief, project.context!.title); }}>
-                    Use “{project.context.title}”
-                  </button>
-                ) : undefined}
-              >
-                <Input value={title} maxLength={160} onChange={(event) => { setTitle(event.target.value); schedule(brief, event.target.value); }} />
+              <Field label="Title" className={suggested.title ? "field--suggested" : undefined} hint={suggested.title ? "Suggested from your slides." : undefined}>
+                <Input
+                  value={title}
+                  maxLength={160}
+                  onChange={(event) => {
+                    touched.current.add("title");
+                    setSuggested((current) => ({ ...current, title: false }));
+                    setTitle(event.target.value);
+                    schedule(brief, event.target.value);
+                  }}
+                />
               </Field>
               <Field
                 label="Goal"
@@ -229,9 +230,6 @@ export function SetupView({ project }: { project: Project }) {
             <div className="form-grid">
               <Field label="Total length">
                 <Input type="number" inputMode="numeric" unit="min" min={LIMITS.minutes.min} max={LIMITS.minutes.max} value={brief.minutes} onChange={(event) => patch({ minutes: Number(event.target.value) })} onBlur={() => patch(clampBrief(brief), false)} />
-              </Field>
-              <Field label="Time for questions" optional>
-                <Input type="number" inputMode="numeric" unit="min" min={0} max={LIMITS.qaMinutes.max} value={brief.qaMinutes} onChange={(event) => patch({ qaMinutes: Number(event.target.value) })} onBlur={() => patch(clampBrief(brief), false)} />
               </Field>
               <Field label="Speaking pace" hint="Most people speak 120–150 words a minute when presenting." className="form-grid__full">
                 <div className="pace-row">
@@ -278,7 +276,7 @@ export function SetupView({ project }: { project: Project }) {
           <div className="plan-card">
             <h2 className="plan-card__title">Your plan</h2>
             <dl className="plan-card__rows">
-              <div><dt>Speaking time</dt><dd className="tabular"><RollingText value={formatDuration(plan.speakingSeconds)} />{brief.qaMinutes > 0 && <span className="faint"> + {brief.qaMinutes} min Q&amp;A</span>}</dd></div>
+              <div><dt>Speaking time</dt><dd className="tabular"><RollingText value={formatDuration(plan.speakingSeconds)} /></dd></div>
               <div><dt>Spoken words</dt><dd className="tabular"><RollingText value={`~${plan.range[0].toLocaleString()}–${plan.range[1].toLocaleString()}`} /></dd></div>
               <div><dt>Per slide</dt><dd className="tabular"><RollingText value={plan.includedSlides ? `~${Math.round(plan.usableWords / plan.includedSlides)} words` : "—"} /></dd></div>
               <div><dt>Slides</dt><dd className="tabular"><RollingText value={`${plan.includedSlides} included`} />{project.slides.length > plan.includedSlides && <span className="faint"> · {project.slides.length - plan.includedSlides} optional</span>}</dd></div>
@@ -352,5 +350,5 @@ function AnalysisStatus({ project, aiReady, onRetry }: { project: Project; aiRea
   const { status } = project.analysis;
   if (status === "running" || status === "idle") return <p className="analysis-status" role="status"><Spinner size={14} label="" /> <span className="shimmer-text">Reading your slides…</span></p>;
   if (status === "failed") return <p className="analysis-status">Couldn&apos;t read the slides for suggestions. <button type="button" className="suggest-link" onClick={onRetry}>Retry</button></p>;
-  return <p className="analysis-status analysis-status--done"><Check aria-hidden="true" /> Read {pluralize(project.slides.filter((slide) => slide.analysis).length, "slide")}</p>;
+  return null;
 }

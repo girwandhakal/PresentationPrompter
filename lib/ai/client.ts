@@ -180,7 +180,7 @@ export function generateQuestions(project: Project, slide: Slide, signal?: Abort
 }
 
 /** Converts a written-slide payload into the stored script shape. */
-export function scriptFromWritten(written: Omit<WrittenSlideOutput, "flags"> & { flags: { kind: string; message: string }[] }): SlideScript {
+export function scriptFromWritten(written: WrittenSlideOutput): SlideScript {
   return {
     document: documentFromAi(written.paragraphs, written.cues.map((cue) => ({ paragraph: cue.paragraph, afterSentence: cue.afterSentence, label: cue.text }))),
     purpose: written.purpose,
@@ -189,7 +189,6 @@ export function scriptFromWritten(written: Omit<WrittenSlideOutput, "flags"> & {
     transition: written.transition,
     recovery: written.recovery,
     questions: written.questions.map((question) => ({ id: makeId("q"), question: question.question, answer: question.answer })),
-    flags: written.flags as SlideScript["flags"],
     origin: "ai",
   };
 }

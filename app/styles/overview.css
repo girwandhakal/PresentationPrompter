@@ -18,12 +18,14 @@
 .overview__slide { animation: slide-settle 420ms var(--ease-out); }
 @keyframes slide-settle { from { opacity: 0.35; transform: scale(0.985); filter: blur(3px); } }
 .overview__nav { display: flex; align-items: center; justify-content: center; gap: var(--s-3); font-size: var(--t-sm); color: var(--text-2); }
-.filmstrip { display: flex; gap: var(--s-2); overflow-x: auto; padding: 4px 2px 8px; }
+/* A scroll container clips at its padding edge, so the padding has to hold the selection ring
+   (3px out + 2px stroke) and the hover lift (3px). The negative margins keep the strip where it was. */
+.filmstrip { display: flex; gap: var(--s-2); overflow-x: auto; padding: 9px 6px 10px; margin: -5px -4px -2px; }
 .filmstrip li { flex: 0 0 112px; }
 .filmstrip__item { position: relative; display: block; width: 100%; border-radius: 6px; transition: transform 300ms var(--ease-out); }
 .filmstrip__item .slide-image { border-radius: 6px; transition: opacity 200ms var(--ease), box-shadow 300ms var(--ease-out); }
 .filmstrip__item:not([aria-current="true"]) .slide-image { opacity: 0.72; }
-.filmstrip__item:hover .slide-image { opacity: 1; box-shadow: 0 0 0 1px var(--line-strong), var(--shadow-2); }
+.filmstrip__item:hover .slide-image { opacity: 1; box-shadow: 0 0 0 1px var(--line-strong), var(--shadow-1); }
 /* The selection ring is one element that glides along the strip (see <Overview>). */
 .filmstrip__ring { position: absolute; inset: -3px; border-radius: 9px; box-shadow: 0 0 0 2px var(--text); pointer-events: none; }
 .filmstrip__item:hover { transform: translateY(-3px); }
@@ -33,14 +35,8 @@
 .overview__script { position: sticky; top: var(--s-6); display: flex; flex-direction: column; gap: var(--s-4); padding: var(--s-5); border-radius: var(--r-lg); background: var(--surface); border: 1px solid var(--line); box-shadow: var(--shadow-1); max-height: calc(100dvh - 120px); overflow-y: auto; }
 .overview__script-head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--s-3); }
 .overview__slide-title { font-size: var(--t-xl); margin-top: 2px; animation: focus-in 360ms var(--ease-out); }
-.overview__purpose { font-size: var(--t-sm); color: var(--text-2); line-height: 1.5; }
 .overview__text { --st-size: 17px; padding-left: var(--s-6); animation: focus-in 420ms var(--ease-out); }
 .overview__preview { --st-size: 18px; max-height: 380px; animation: fade-in 300ms var(--ease-out); }
-.overview__flag { animation: rise-in 300ms var(--ease-out); display: flex; gap: 6px; font-size: var(--t-xs); line-height: 1.5; padding: 8px 10px; border-radius: var(--r-sm); background: var(--attention); border: 1px solid var(--attention-line); }
-.overview__flag svg { width: 14px; height: 14px; flex: 0 0 auto; margin-top: 1px; }
-.overview__stats { display: grid; grid-template-columns: repeat(4, 1fr); margin: 0; border-top: 1px solid var(--line); padding-top: var(--s-3); }
-.overview__stats dt { font-size: var(--t-2xs); color: var(--text-2); }
-.overview__stats dd { margin: 0; font-weight: 600; }
 .overview__script .empty-state { padding: var(--s-6) 0; }
 
 @media (max-width: 1000px) {

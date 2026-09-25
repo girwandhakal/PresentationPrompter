@@ -18,11 +18,6 @@ export type SlideAnalysis = {
   uncertain: string[];
 };
 
-export type ScriptFlag = {
-  kind: "unsupported-claim" | "uncertain-visual" | "needs-context" | "over-budget" | "under-budget";
-  message: string;
-};
-
 export type QuestionPrep = { id: string; question: string; answer: string };
 
 /** Everything the presenter says or sees privately for a slide. Never sent to the audience. */
@@ -34,7 +29,6 @@ export type SlideScript = {
   transition: string;
   recovery: string;
   questions: QuestionPrep[];
-  flags: ScriptFlag[];
   origin: "ai" | "user" | "mixed" | "empty";
 };
 
@@ -135,7 +129,5 @@ export type PresenterSession = {
   targetSeconds: number;
   completed: boolean;
   slides: SessionSlideRecord[];
-  marked: string[];
-  recoveries: number;
   skipped: string[];
 };

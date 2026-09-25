@@ -2,12 +2,13 @@
 
 import { X } from "lucide-react";
 import { AnimatePresence, m } from "motion/react";
-import { createContext, useCallback, useContext, useRef, useState, type ReactNode } from "react";
+import { useCallback, useContext, useRef, useState, type ReactNode } from "react";
+import { stableContext } from "@/lib/stable-context";
 
 type Toast = { id: number; message: string; action?: { label: string; onClick: () => void }; tone: "default" | "error"; duration: number };
 export type ToastInput = { message: string; action?: Toast["action"]; tone?: Toast["tone"]; duration?: number };
 
-const ToastContext = createContext<((toast: ToastInput | string) => void) | null>(null);
+const ToastContext = stableContext<((toast: ToastInput | string) => void) | null>("toast", null);
 
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);

@@ -3,6 +3,7 @@
 import { AlertTriangle, ArrowDown, ArrowUp, EyeOff, MoreHorizontal, Trash2, Eye } from "lucide-react";
 import { m } from "motion/react";
 import { useState } from "react";
+import { hasScript } from "@/lib/domain/planner";
 import type { Project, Slide } from "@/lib/domain/types";
 import { releaseBlobUrls } from "@/lib/store/blob-url";
 import { deleteBlobs } from "@/lib/store/db";
@@ -18,7 +19,7 @@ import { useToast } from "../ui/toast";
  * import warnings. Reorder works by drag or from each slide's menu (keyboard-friendly).
  */
 export function SlideReview({ project }: { project: Project }) {
-  const { update } = useProjects();
+  const { update, saveVersion } = useProjects();
   const toast = useToast();
   const [dragId, setDragId] = useState<string | null>(null);
   const [overId, setOverId] = useState<string | null>(null);
@@ -50,6 +51,7 @@ export function SlideReview({ project }: { project: Project }) {
       toast("A presentation needs at least one slide.");
       return;
     }
+    if (hasScript(project)) await saveVersion(project.id, `Before removing “${slide.title}”`);
     await setSlides(slides.filter((item) => item.id !== slide.id));
     void deleteBlobs([slide.imageKey, slide.thumbKey]);
     releaseBlobUrls([slide.imageKey, slide.thumbKey]);

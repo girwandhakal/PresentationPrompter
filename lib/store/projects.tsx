@@ -1,6 +1,7 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { stableContext } from "../stable-context";
 import { shortId } from "../domain/factory";
 import type { Project, ScriptVersion } from "../domain/types";
 import * as store from "./db";
@@ -26,7 +27,7 @@ type ProjectsStore = {
   reload: () => Promise<void>;
 };
 
-const ProjectsContext = createContext<ProjectsStore | null>(null);
+const ProjectsContext = stableContext<ProjectsStore | null>("projects", null);
 
 function sortProjects(values: Iterable<Project>) {
   return [...values].sort((a, b) => b.updatedAt - a.updatedAt);

@@ -297,6 +297,8 @@ function SelectionBubble({ containerRef, aiEnabled, locked, onRewrite }: {
 }) {
   const [editor] = useLexicalComposerContext();
   const [position, setPosition] = useState<{ top: number; left: number } | null>(null);
+  const shown = useRef(false);
+  useEffect(() => { shown.current = position !== null; }, [position]);
 
   const measure = useCallback(() => {
     const container = containerRef.current;
@@ -307,8 +309,11 @@ function SelectionBubble({ containerRef, aiEnabled, locked, onRewrite }: {
     const rect = range.getBoundingClientRect();
     const box = container.getBoundingClientRect();
     if (!rect.width && !rect.height) return setPosition(null);
+    // The text scrolls inside its box; hide the bubble once the selection has scrolled out of view.
+    const view = editor.getRootElement()?.getBoundingClientRect();
+    if (view && (rect.bottom < view.top || rect.top > view.bottom)) return setPosition(null);
     setPosition({ top: rect.top - box.top - 8, left: Math.min(Math.max(rect.left - box.left + rect.width / 2, 150), box.width - 150) });
-  }, [containerRef]);
+  }, [containerRef, editor]);
 
   useEffect(() => editor.registerUpdateListener(({ editorState }) => {
     let show = false;
@@ -322,10 +327,16 @@ function SelectionBubble({ containerRef, aiEnabled, locked, onRewrite }: {
 
   useEffect(() => {
     const hide = () => setPosition(null);
+    // Only a bubble that's already showing follows the text as it scrolls.
+    const follow = () => { if (shown.current) measure(); };
     const root = editor.getRootElement();
     root?.addEventListener("blur", hide);
-    return () => root?.removeEventListener("blur", hide);
-  }, [editor]);
+    root?.addEventListener("scroll", follow, { passive: true });
+    return () => {
+      root?.removeEventListener("blur", hide);
+      root?.removeEventListener("scroll", follow);
+    };
+  }, [editor, measure]);
 
   if (!position || locked) return null;
 

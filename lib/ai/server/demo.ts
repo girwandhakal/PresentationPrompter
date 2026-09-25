@@ -156,7 +156,6 @@ export function createDemoProvider(): AiProvider {
             recovery: `The point here is simple: ${slide.keyIdea || slide.title}`,
             transition: slide.transition || (slide.nextTitle ? `Next, ${slide.nextTitle.replace(/[.!?…]+$/, "")}.` : "Thank you."),
             questions: request.brief.includeQuestions ? [{ question: `What does ${slide.title.toLowerCase()} mean for us?`, answer: "I'd want to confirm the specifics before answering precisely — let's follow up after." }] : [],
-            flags: slide.text.trim() ? [] : [{ kind: "needs-context" as const, message: "Demo mode can't read slide images. Add a sentence about what this slide shows." }],
           };
         }),
       };

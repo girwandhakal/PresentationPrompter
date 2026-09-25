@@ -1,4 +1,5 @@
 import { openDB, type DBSchema, type IDBPDatabase } from "idb";
+import { withoutQaTime } from "../domain/planner";
 import type { PresenterSession, Project, ScriptVersion } from "../domain/types";
 
 /**
@@ -56,13 +57,20 @@ export function subscribe(listener: (event: DataEvent) => void) {
 
 // ── Projects ────────────────────────────────────────────────────────────────
 
+/** Brings a stored project up to the current shape. Every read goes through here. */
+function upgrade(project: Project): Project {
+  if (!project.brief.qaMinutes && !project.generatedWith?.qaMinutes) return project;
+  return { ...project, brief: withoutQaTime(project.brief), generatedWith: project.generatedWith && withoutQaTime(project.generatedWith) };
+}
+
 export async function listProjects() {
-  const projects = await (await db()).getAll("projects");
+  const projects = (await (await db()).getAll("projects")).map(upgrade);
   return projects.sort((a, b) => b.updatedAt - a.updatedAt);
 }
 
 export async function getProject(id: string) {
-  return (await db()).get("projects", id);
+  const project = await (await db()).get("projects", id);
+  return project && upgrade(project);
 }
 
 export async function putProject(project: Project) {
@@ -128,25 +136,4 @@ export async function getSession(id: string) {
 
 export async function listSessions(projectId: string) {
   return (await (await db()).getAllFromIndex("sessions", "projectId", projectId)).sort((a, b) => b.startedAt - a.startedAt);
-}
-
-// ── Whole-database operations ───────────────────────────────────────────────
-
-export async function clearEverything() {
-  const database = await db();
-  const tx = database.transaction(["projects", "blobs", "versions", "sessions"], "readwrite");
-  await Promise.all([tx.objectStore("projects").clear(), tx.objectStore("blobs").clear(), tx.objectStore("versions").clear(), tx.objectStore("sessions").clear(), tx.done]);
-  notify({ type: "reset" });
-}
-
-export async function storageEstimate() {
-  if (typeof navigator === "undefined" || !navigator.storage?.estimate) return null;
-  const { usage = 0, quota = 0 } = await navigator.storage.estimate();
-  const persisted = navigator.storage.persisted ? await navigator.storage.persisted() : false;
-  return { usage, quota, persisted };
-}
-
-export async function requestPersistence() {
-  if (typeof navigator === "undefined" || !navigator.storage?.persist) return false;
-  return navigator.storage.persist();
 }

@@ -9,8 +9,10 @@
  * - A gesture says what the control does. Icons that only label content (alerts, info) stay still.
  */
 
-.lucide { transform-origin: 50% 50%; transition: transform 460ms var(--spring); }
-.lucide > * { transform-box: fill-box; transform-origin: 50% 50%; transition: transform 460ms var(--spring); }
+/* A gentle spring (under 2% overshoot): small, thin-stroked icons read a bigger bounce as a wobble. */
+.lucide { transform-origin: 50% 50%; transition: transform 420ms var(--spring-soft); }
+.lucide > * { transform-box: fill-box; transform-origin: 50% 50%; transition: transform 420ms var(--spring-soft); }
+.lucide-x { transition-duration: 900ms; }
 
 /* Always on (not hover): confirmations draw themselves in. */
 .lucide-check path { stroke-dasharray: 24; animation: draw 380ms var(--ease-out) both; }
@@ -69,8 +71,10 @@
   /* Time and history */
   :where(a[href], button:not(:disabled)):is(:hover, :focus-visible) .lucide-history { transform: rotate(-45deg); }
   :where(a[href], button:not(:disabled)):is(:hover, :focus-visible) .lucide-rotate-ccw { transform: rotate(-150deg); transition-duration: 700ms; }
-  :where(a[href], button:not(:disabled)):is(:hover, :focus-visible) .lucide-undo-2 { transform: translateX(-2px) rotate(-8deg); }
-  :where(a[href], button:not(:disabled)):is(:hover, :focus-visible) .lucide-redo-2 { transform: translateX(2px) rotate(8deg); }
+  /* Undo/redo glide sideways only: rotating a 15px arrow renders jagged mid-turn. */
+  :where(a[href], button:not(:disabled)):is(:hover, :focus-visible) :is(.lucide-undo-2, .lucide-redo-2) { transition: transform 260ms var(--ease-out); }
+  :where(a[href], button:not(:disabled)):is(:hover, :focus-visible) .lucide-undo-2 { transform: translateX(-2px); }
+  :where(a[href], button:not(:disabled)):is(:hover, :focus-visible) .lucide-redo-2 { transform: translateX(2px); }
   :where(a[href], button:not(:disabled)):is(:hover, :focus-visible) .lucide-repeat { transform: rotate(180deg); transition-duration: 700ms; }
 
   /* Looking and showing */

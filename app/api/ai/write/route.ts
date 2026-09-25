@@ -5,9 +5,9 @@ import { finalizeWrittenSlide, fitRatio, needsRepair, paragraphsWords, sanitizeC
 export const dynamic = "force-dynamic";
 
 /**
- * Writes a batch of slides, then validates each against the plan: ids, cue anchors, grounding of
- * figures, and word budget. Slides that miss their budget get one targeted repair attempt; the
- * closer of the two versions is kept, and a remaining miss is reported to the presenter.
+ * Writes a batch of slides, then validates each against the plan: ids, cue anchors, and word
+ * budget. Slides that miss their budget get one targeted repair attempt; the closer of the two
+ * versions is kept.
  */
 export function POST(request: Request) {
   return handleAi(request, WriteRequest, async (provider, input, signal) => {
@@ -19,11 +19,11 @@ export function POST(request: Request) {
       return raw ? finalizeWrittenSlide(raw, slide, input.brief) : null;
     });
 
-    const repaired = await mapLimit(input.slides, 3, async (slide, index): Promise<WrittenSlideOutput & { words: number; target: number } | null> => {
+    const repaired = await mapLimit(input.slides, 3, async (slide, index): Promise<WrittenSlideOutput | null> => {
       const draft = drafts[index];
       if (!draft) return null;
       const words = paragraphsWords(draft.paragraphs);
-      if (!needsRepair(words, slide.targetWords, input.brief.depth)) return { ...draft, words, target: slide.targetWords };
+      if (!needsRepair(words, slide.targetWords, input.brief.depth)) return draft;
       try {
         const fixed = await provider.rewriteScript({
           kind: "script",
@@ -38,27 +38,17 @@ export function POST(request: Request) {
         const fixedWords = paragraphsWords(paragraphs);
         const better = paragraphs.length && Math.abs(fitRatio(fixedWords, slide.targetWords) - 1) < Math.abs(fitRatio(words, slide.targetWords) - 1);
         if (better) {
-          const next = finalizeWrittenSlide({ ...draft, paragraphs, cues: sanitizeCues(fixed.cues, paragraphs, input.brief.cueDensity) }, slide, input.brief);
-          return { ...next, words: fixedWords, target: slide.targetWords };
+          return finalizeWrittenSlide({ ...draft, paragraphs, cues: sanitizeCues(fixed.cues, paragraphs, input.brief.cueDensity) }, slide, input.brief);
         }
       } catch (error) {
         if (signal.aborted) throw error;
-        // A failed repair keeps the original draft; the budget note below tells the presenter.
+        // A failed repair keeps the original draft.
       }
-      return { ...draft, words, target: slide.targetWords };
+      return draft;
     });
 
     return {
-      slides: input.slides.map((slide, index) => {
-        const result = repaired[index];
-        if (!result) return { id: slide.id, script: null };
-        const { words, target, ...script } = result;
-        const ratio = fitRatio(words, target);
-        const budgetFlag = target >= 15 && needsRepair(words, target, input.brief.depth)
-          ? [{ kind: ratio > 1 ? "over-budget" as const : "under-budget" as const, message: `About ${words} words against a plan of ${target}. ${ratio > 1 ? "Consider shortening." : "There's room to expand."}` }]
-          : [];
-        return { id: slide.id, script: { ...script, flags: [...script.flags, ...budgetFlag] } };
-      }),
+      slides: input.slides.map((slide, index) => ({ id: slide.id, script: repaired[index] })),
     };
   }, { maxBytes: 1024 * 1024 });
 }

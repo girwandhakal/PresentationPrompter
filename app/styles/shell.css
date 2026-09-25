@@ -79,7 +79,7 @@ body:has(.shell) { overflow: hidden; }
 .sidebar__item:hover .sidebar__item-menu, .sidebar__item:focus-within .sidebar__item-menu, .sidebar__item-menu:has([aria-expanded="true"]), .sidebar__item[data-active="true"] .sidebar__item-menu { opacity: 1; transform: translate(0, -50%); }
 @media (hover: none) { .sidebar__item-menu { opacity: 1; transform: translate(0, -50%); } }
 
-.sidebar__footer { padding: 8px; border-top: 1px solid var(--line); }
+.sidebar__footer { padding: 8px; }
 .sidebar__footer-link { position: relative; display: flex; align-items: center; gap: 10px; height: 38px; padding: 0 10px; border-radius: var(--r-md); font-size: var(--t-sm); font-weight: 500; color: var(--text-2); white-space: nowrap; transition: background-color 160ms var(--ease), color 160ms var(--ease), transform 160ms var(--ease-out); }
 .sidebar__footer-link:active { transform: scale(0.97); }
 .sidebar__footer-link:hover, .sidebar__footer-link.is-current { background: var(--hover); color: var(--text); }

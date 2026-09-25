@@ -38,9 +38,17 @@ export function emptyScript(): SlideScript {
     transition: "",
     recovery: "",
     questions: [],
-    flags: [],
     origin: "empty",
   };
+}
+
+/**
+ * Time for questions is no longer a setting. Older projects and saved defaults reserved Q&A minutes
+ * out of the total; folding them into the total keeps their speaking time, and so every slide
+ * budget, exactly as it was.
+ */
+export function withoutQaTime<T extends Pick<Brief, "minutes" | "qaMinutes">>(brief: T): T {
+  return brief.qaMinutes ? { ...brief, minutes: Math.max(LIMITS.minutes.min, brief.minutes - brief.qaMinutes), qaMinutes: 0 } : brief;
 }
 
 export function clampBrief(brief: Brief): Brief {
