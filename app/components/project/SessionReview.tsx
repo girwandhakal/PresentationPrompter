@@ -1,6 +1,6 @@
 "use client";
 
-import { BarChart3, Flag, LifeBuoy, PenLine, Play, Repeat, SkipForward } from "lucide-react";
+import { BarChart3, Flag, PenLine, Play, Repeat, SkipForward } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { formatClock } from "@/lib/domain/format";
@@ -57,7 +57,6 @@ export function SessionReview({ project, sessionId }: { project: Project; sessio
     ...marked.map((id) => ({ icon: <Flag />, text: <>You marked slide {titles.get(id)!.number}, <Link href={`/p/${project.id}/edit?slide=${id}`}>{titles.get(id)!.title}</Link>, for review.</> })),
     ...repeated.map((row) => ({ icon: <Repeat />, text: <>You returned to slide {titles.get(row.slideId)!.number} {row.visits - 1 === 1 ? "once" : `${row.visits - 1} times`}. A clearer transition into it might help.</> })),
     ...skipped.map((id) => ({ icon: <SkipForward />, text: <>Slide {titles.get(id)!.number}, {titles.get(id)!.title}, wasn&apos;t shown. Mark it optional if that&apos;s intended.</> })),
-    ...(session.recoveries ? [{ icon: <LifeBuoy />, text: <>You used “I lost my place” {session.recoveries === 1 ? "once" : `${session.recoveries} times`}. The recovery line for each slide is editable in the Notes tab.</> }] : []),
   ];
 
   return (

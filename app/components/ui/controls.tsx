@@ -1,7 +1,9 @@
 "use client";
 
 import { AlertCircle, Info, LoaderCircle } from "lucide-react";
+import { LayoutGroup, m } from "motion/react";
 import { useId, useRef, type ReactNode } from "react";
+import { GLIDE } from "./motion";
 
 /** Single-choice segmented control (ARIA radiogroup with arrow-key navigation). */
 export function Segmented<T extends string>({ value, onChange, options, label, size = "md", id }: {
@@ -13,6 +15,7 @@ export function Segmented<T extends string>({ value, onChange, options, label, s
   id?: string;
 }) {
   const ref = useRef<HTMLDivElement>(null);
+  const group = useId();
   function onKeyDown(event: React.KeyboardEvent) {
     const keys = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 } as Record<string, number>;
     if (!(event.key in keys)) return;
@@ -24,20 +27,23 @@ export function Segmented<T extends string>({ value, onChange, options, label, s
   }
   return (
     <div ref={ref} id={id} role="radiogroup" aria-label={label} className={`segmented segmented--${size}`} onKeyDown={onKeyDown}>
-      {options.map((option) => (
-        <button
-          key={option.value}
-          type="button"
-          role="radio"
-          aria-checked={option.value === value}
-          tabIndex={option.value === value ? 0 : -1}
-          title={option.description}
-          className="segmented__option"
-          onClick={() => onChange(option.value)}
-        >
-          {option.label}
-        </button>
-      ))}
+      <LayoutGroup id={group}>
+        {options.map((option) => (
+          <button
+            key={option.value}
+            type="button"
+            role="radio"
+            aria-checked={option.value === value}
+            tabIndex={option.value === value ? 0 : -1}
+            title={option.description}
+            className="segmented__option"
+            onClick={() => onChange(option.value)}
+          >
+            {option.value === value && <m.span layoutId="puck" className="segmented__puck" transition={GLIDE} aria-hidden="true" />}
+            <span className="segmented__label">{option.label}</span>
+          </button>
+        ))}
+      </LayoutGroup>
     </div>
   );
 }
@@ -106,6 +112,7 @@ export function Tabs<T extends string>({ value, onChange, tabs, label, idPrefix 
   idPrefix: string;
 }) {
   const ref = useRef<HTMLDivElement>(null);
+  const group = useId();
   function onKeyDown(event: React.KeyboardEvent) {
     const delta = event.key === "ArrowRight" ? 1 : event.key === "ArrowLeft" ? -1 : 0;
     if (!delta) return;
@@ -116,22 +123,25 @@ export function Tabs<T extends string>({ value, onChange, tabs, label, idPrefix 
   }
   return (
     <div ref={ref} role="tablist" aria-label={label} className="tabs" onKeyDown={onKeyDown}>
-      {tabs.map((tab) => (
-        <button
-          key={tab.value}
-          type="button"
-          role="tab"
-          id={`${idPrefix}-tab-${tab.value}`}
-          aria-controls={`${idPrefix}-panel-${tab.value}`}
-          aria-selected={tab.value === value}
-          tabIndex={tab.value === value ? 0 : -1}
-          className="tabs__tab"
-          onClick={() => onChange(tab.value)}
-        >
-          {tab.label}
-          {tab.badge != null && <span className="tabs__badge">{tab.badge}</span>}
-        </button>
-      ))}
+      <LayoutGroup id={group}>
+        {tabs.map((tab) => (
+          <button
+            key={tab.value}
+            type="button"
+            role="tab"
+            id={`${idPrefix}-tab-${tab.value}`}
+            aria-controls={`${idPrefix}-panel-${tab.value}`}
+            aria-selected={tab.value === value}
+            tabIndex={tab.value === value ? 0 : -1}
+            className="tabs__tab"
+            onClick={() => onChange(tab.value)}
+          >
+            {tab.label}
+            {tab.badge != null && <span className="tabs__badge">{tab.badge}</span>}
+            {tab.value === value && <m.span layoutId="underline" className="tabs__indicator" transition={GLIDE} aria-hidden="true" />}
+          </button>
+        ))}
+      </LayoutGroup>
     </div>
   );
 }

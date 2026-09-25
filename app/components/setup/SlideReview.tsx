@@ -1,6 +1,7 @@
 "use client";
 
 import { AlertTriangle, ArrowDown, ArrowUp, EyeOff, MoreHorizontal, Trash2, Eye } from "lucide-react";
+import { m } from "motion/react";
 import { useState } from "react";
 import type { Project, Slide } from "@/lib/domain/types";
 import { releaseBlobUrls } from "@/lib/store/blob-url";
@@ -8,6 +9,7 @@ import { deleteBlobs } from "@/lib/store/db";
 import { useProjects } from "@/lib/store/projects";
 import { SlideImage } from "../project/SlideImage";
 import { IconButton } from "../ui/button";
+import { SPRING } from "../ui/motion";
 import { Menu } from "../ui/menu";
 import { useToast } from "../ui/toast";
 
@@ -81,6 +83,7 @@ export function SlideReview({ project }: { project: Project }) {
               data-optional={slide.optional}
               data-dragging={dragId === slide.id}
               data-over={overId === slide.id && dragId !== slide.id}
+              style={{ "--i": index } as React.CSSProperties}
               draggable
               onDragStart={(event) => {
                 setDragId(slide.id);
@@ -100,31 +103,34 @@ export function SlideReview({ project }: { project: Project }) {
                 setOverId(null);
               }}
             >
-              <div className="review-slide__thumb">
-                <SlideImage slide={slide} aspectRatio={project.aspectRatio} size="thumb" />
-                <span className="review-slide__number tabular">{index + 1}</span>
-                {slide.optional && <span className="review-slide__badge">Optional</span>}
-                {issues.length > 0 && (
-                  <span className="review-slide__warning" data-tooltip={issues.map((warning) => warning.message).join(" ")} data-tooltip-side="top" tabIndex={0} aria-label={`Import note: ${issues.map((warning) => warning.message).join(" ")}`}>
-                    <AlertTriangle />
-                  </span>
-                )}
-              </div>
-              <div className="review-slide__footer">
-                <span className="review-slide__title" title={slide.title}>{slide.title}</span>
-                <Menu
-                  label={`Actions for slide ${index + 1}`}
-                  align="end"
-                  items={[
-                    { label: slide.optional ? "Include in timing" : "Mark optional", icon: slide.optional ? <Eye /> : <EyeOff />, onSelect: () => toggleOptional(slide) },
-                    { label: "Move earlier", icon: <ArrowUp />, disabled: index === 0, onSelect: () => move(slide.id, -1) },
-                    { label: "Move later", icon: <ArrowDown />, disabled: index === slides.length - 1, onSelect: () => move(slide.id, 1) },
-                    { type: "separator" },
-                    { label: "Remove slide", icon: <Trash2 />, tone: "danger", onSelect: () => remove(slide) },
-                  ]}
-                  trigger={(props) => <IconButton {...props} label={`Actions for slide ${index + 1}`} size="sm" tooltip={false}><MoreHorizontal /></IconButton>}
-                />
-              </div>
+              {/* Reordering glides each card to its new place instead of jumping. */}
+              <m.div layout="position" transition={SPRING} className="review-slide__inner">
+                <div className="review-slide__thumb">
+                  <SlideImage slide={slide} aspectRatio={project.aspectRatio} size="thumb" />
+                  <span className="review-slide__number tabular">{index + 1}</span>
+                  {slide.optional && <span className="review-slide__badge">Optional</span>}
+                  {issues.length > 0 && (
+                    <span className="review-slide__warning" data-tooltip={issues.map((warning) => warning.message).join(" ")} data-tooltip-side="top" tabIndex={0} aria-label={`Import note: ${issues.map((warning) => warning.message).join(" ")}`}>
+                      <AlertTriangle />
+                    </span>
+                  )}
+                </div>
+                <div className="review-slide__footer">
+                  <span className="review-slide__title" title={slide.title}>{slide.title}</span>
+                  <Menu
+                    label={`Actions for slide ${index + 1}`}
+                    align="end"
+                    items={[
+                      { label: slide.optional ? "Include in timing" : "Mark optional", icon: slide.optional ? <Eye /> : <EyeOff />, onSelect: () => toggleOptional(slide) },
+                      { label: "Move earlier", icon: <ArrowUp />, disabled: index === 0, onSelect: () => move(slide.id, -1) },
+                      { label: "Move later", icon: <ArrowDown />, disabled: index === slides.length - 1, onSelect: () => move(slide.id, 1) },
+                      { type: "separator" },
+                      { label: "Remove slide", icon: <Trash2 />, tone: "danger", onSelect: () => remove(slide) },
+                    ]}
+                    trigger={(props) => <IconButton {...props} label={`Actions for slide ${index + 1}`} size="sm" tooltip={false}><MoreHorizontal /></IconButton>}
+                  />
+                </div>
+              </m.div>
             </li>
           );
         })}

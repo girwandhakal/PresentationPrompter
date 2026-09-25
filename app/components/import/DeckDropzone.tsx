@@ -59,7 +59,7 @@ export function DeckDropzone({ onFiles, disabled, compact, title = "Drop your de
         <span className="dropzone__arrow"><FileUp /></span>
       </div>
       <div className="dropzone__text">
-        <p className="dropzone__title">{dragging ? "Release to import" : title}</p>
+        <p className="dropzone__title" key={dragging ? "release" : "idle"}>{dragging ? "Release to import" : title}</p>
         <p className="dropzone__hint">{hint ?? "PDF, PowerPoint (.pptx), or slide images · up to 100 MB"}</p>
       </div>
       <Button variant="primary" size={compact ? "sm" : "md"} disabled={disabled} onClick={() => input.current?.click()}>

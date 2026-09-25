@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, ArrowRight, ChevronDown, EyeOff, Flag, Keyboard, LifeBuoy, Minus, MonitorUp, Pause, Play, Plus, Settings2, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, ChevronDown, EyeOff, Flag, Keyboard, Minus, MonitorUp, Pause, Play, Plus, Settings2, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { shortId } from "@/lib/domain/factory";
@@ -16,12 +16,13 @@ import { Button, IconButton } from "../ui/button";
 import { Kbd, Meter, Segmented } from "../ui/controls";
 import { Dialog } from "../ui/dialog";
 import { Menu } from "../ui/menu";
+import { RollingText } from "../ui/motion";
 import { useToast } from "../ui/toast";
-import { Preflight, PresenterSettings, RecoveryPanel, ShortcutsDialog, type AudienceStatus } from "./PresenterOverlays";
+import { Preflight, PresenterSettings, ShortcutsDialog, type AudienceStatus } from "./PresenterOverlays";
 import { Teleprompter, type TeleprompterHandle } from "./Teleprompter";
 
 type Phase = "preflight" | "calm" | "live";
-type Overlay = null | "recovery" | "settings" | "shortcuts" | "end";
+type Overlay = null | "settings" | "shortcuts" | "end";
 
 /** Accumulating stopwatch that survives pauses. */
 function useStopwatch() {
@@ -53,14 +54,12 @@ export function PresenterView({ project }: { project: Project }) {
   const [hint, setHint] = useState<string | null>(null);
   const [idle, setIdle] = useState(false);
   const [marked, setMarked] = useState<string[]>([]);
-  const [recoveryLine, setRecoveryLine] = useState("");
   const [, setTick] = useState(0);
 
   const teleprompter = useRef<TeleprompterHandle>(null);
   const total = useStopwatch();
   const slideClock = useStopwatch();
   const slideTimes = useRef(new Map<string, { ms: number; visits: number }>());
-  const recoveries = useRef(0);
   const session = useRef<{ id: string; startedAt: number } | null>(null);
   const channel = useRef<BroadcastChannel | null>(null);
   const seq = useRef(0);
@@ -282,7 +281,7 @@ export function PresenterView({ project }: { project: Project }) {
         targetSeconds: plan.slides[position]?.seconds ?? 0,
       })),
       marked,
-      recoveries: recoveries.current,
+      recoveries: 0,
       skipped: slides.filter((item) => !item.optional && !(times.get(item.id)?.visits)).map((item) => item.id),
     };
   }, [index, marked, plan.slides, project.id, slideClock, slides, targetTotal, total]);
@@ -368,14 +367,6 @@ export function PresenterView({ project }: { project: Project }) {
     return () => window.clearTimeout(timer);
   }, [hint]);
 
-  const openRecovery = useCallback(() => {
-    setPlaying(false);
-    setCountdown(null);
-    recoveries.current += 1;
-    setRecoveryLine(teleprompter.current?.currentLine() ?? "");
-    setOverlay("recovery");
-  }, []);
-
   const toggleMark = useCallback(() => {
     if (!slide) return;
     setMarked((current) => current.includes(slide.id) ? current.filter((id) => id !== slide.id) : [...current, slide.id]);
@@ -405,7 +396,6 @@ export function PresenterView({ project }: { project: Project }) {
           case "ArrowUp": teleprompter.current?.nudge(-1); onManualScroll(); return true;
           case "Home": teleprompter.current?.restart(); setAtEnd(false); return true;
           case "End": teleprompter.current?.toEnd(); return true;
-          case "r": case "R": openRecovery(); return true;
           case "b": case "B": case ".": setBlank((value) => !value); return true;
           case "c": case "C": setPrefs({ ...prefs, showCues: !prefs.showCues }); return true;
           case "m": case "M": toggleMark(); return true;
@@ -424,7 +414,7 @@ export function PresenterView({ project }: { project: Project }) {
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [countdown, exit, go, index, onManualScroll, openRecovery, overlayOpen, prefs, setPace, setPrefs, toggleMark, togglePlay]);
+  }, [countdown, exit, go, index, onManualScroll, overlayOpen, prefs, setPace, setPrefs, toggleMark, togglePlay]);
 
   if (!slide) return null;
 
@@ -450,7 +440,7 @@ export function PresenterView({ project }: { project: Project }) {
         />
         <div className="presenter__spacer" />
         <button type="button" className="presenter__timer tabular" onClick={toggleTimer} disabled={!live} aria-label={`Elapsed ${formatClock(elapsed)} of ${formatClock(targetTotal)}. ${timerPaused ? "Resume" : "Pause"} timer`}>
-          <span className="presenter__elapsed">{formatClock(elapsed)}</span>
+          <span className="presenter__elapsed"><RollingText value={formatClock(elapsed)} /></span>
           <span className="presenter__remaining">{remaining >= 0 ? `${formatClock(remaining)} left` : `${formatClock(-remaining)} over`}</span>
           {timerPaused && <span className="presenter__paused">Paused</span>}
         </button>
@@ -478,7 +468,7 @@ export function PresenterView({ project }: { project: Project }) {
           />
           {countdown != null && (
             <div className="presenter__countdown" role="status">
-              <span>Next slide in <strong className="tabular">{countdown}</strong></span>
+              <span>Next slide in <strong className="tabular presenter__count" key={countdown}>{countdown}</strong></span>
               <Button size="sm" variant="secondary" onClick={() => setCountdown(null)}>Stay here <Kbd>Esc</Kbd></Button>
             </div>
           )}
@@ -495,16 +485,16 @@ export function PresenterView({ project }: { project: Project }) {
           <aside className="presenter__context" aria-label="Slides">
             <figure className="presenter__card">
               <figcaption>Now showing{blank && " (blanked)"}</figcaption>
-              <div className="presenter__thumb" data-blank={blank}><SlideImage slide={slide} aspectRatio={project.aspectRatio} /></div>
+              <div className="presenter__thumb" data-blank={blank}><SlideImage key={slide.id} slide={slide} aspectRatio={project.aspectRatio} /></div>
             </figure>
             <div className="presenter__slide-time tabular">
               <span>This slide</span>
-              <strong>{formatClock(slideElapsed)}{targetSlide ? ` / ${formatClock(targetSlide)}` : ""}</strong>
+              <strong><RollingText value={formatClock(slideElapsed)} />{targetSlide ? ` / ${formatClock(targetSlide)}` : ""}</strong>
             </div>
             {targetSlide > 0 && <Meter value={slideElapsed} target={targetSlide} label={`${slideElapsed} of ${targetSlide} seconds on this slide`} />}
             <figure className="presenter__card presenter__card--next">
               <figcaption>{next ? `Next · ${index + 2}` : "Last slide"}</figcaption>
-              {next ? <SlideImage slide={next} aspectRatio={project.aspectRatio} size="thumb" /> : <div className="presenter__end-card">End of deck{project.brief.qaMinutes ? " · Questions" : ""}</div>}
+              {next ? <SlideImage key={next.id} slide={next} aspectRatio={project.aspectRatio} size="thumb" /> : <div className="presenter__end-card">End of deck{project.brief.qaMinutes ? " · Questions" : ""}</div>}
             </figure>
             {slide.script.transition && prefs.mode !== "cues" && (
               <p className="presenter__transition"><span>Transition</span>{slide.script.transition}</p>
@@ -524,13 +514,12 @@ export function PresenterView({ project }: { project: Project }) {
         <div className="presenter__controls-group presenter__controls-group--mid">
           <div className="pace" aria-label="Scroll pace">
             <IconButton size="sm" label="Slower (−)" onClick={() => setPace(-0.05)} tooltip="top"><Minus /></IconButton>
-            <span className="pace__value tabular" aria-live="polite">{Math.round(prefs.paceMultiplier * 100)}%</span>
+            <span className="pace__value tabular" aria-live="polite"><RollingText value={`${Math.round(prefs.paceMultiplier * 100)}%`} /></span>
             <IconButton size="sm" label="Faster (+)" onClick={() => setPace(0.05)} tooltip="top"><Plus /></IconButton>
           </div>
           <Segmented size="sm" label="Reading mode" value={prefs.mode} onChange={(mode) => setPrefs({ ...prefs, mode })} options={[{ value: "full", label: "Script" }, { value: "notes", label: "Short" }, { value: "keywords", label: "Keywords" }, { value: "cues", label: "Cues" }]} />
         </div>
         <div className="presenter__controls-group">
-          <Button variant="secondary" icon={<LifeBuoy />} onClick={openRecovery} aria-keyshortcuts="R">I lost my place</Button>
           <IconButton label={isMarked ? "Unmark slide (M)" : "Mark slide for review (M)"} aria-pressed={isMarked} onClick={toggleMark} tooltip="top"><Flag /></IconButton>
           <IconButton label={blank ? "Show slide to audience (B)" : "Blank audience screen (B)"} aria-pressed={blank} onClick={() => setBlank((value) => !value)} tooltip="top"><EyeOff /></IconButton>
         </div>
@@ -556,14 +545,6 @@ export function PresenterView({ project }: { project: Project }) {
         onClose={() => router.push(`/p/${project.id}`)}
         calmStart={prefs.calmStart}
         onCalmStart={(calmStart) => setPrefs({ ...prefs, calmStart })}
-      />
-      <RecoveryPanel
-        open={overlay === "recovery"}
-        slide={slide}
-        currentLine={recoveryLine}
-        onClose={() => setOverlay(null)}
-        onRestartSlide={() => { teleprompter.current?.restart(); setAtEnd(false); setOverlay(null); }}
-        onPrevious={() => { setOverlay(null); go(index - 1); }}
       />
       <PresenterSettings open={overlay === "settings"} prefs={prefs} onChange={setPrefs} onClose={() => setOverlay(null)} />
       <ShortcutsDialog open={overlay === "shortcuts"} onClose={() => setOverlay(null)} />

@@ -1,6 +1,7 @@
 "use client";
 
 import { ArrowLeft, ArrowRight, Check, ChevronDown, CircleAlert, History, LoaderCircle, PanelRightClose, PanelRightOpen, Play, SlidersHorizontal, Sparkles, X } from "lucide-react";
+import { m } from "motion/react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AiRequestError, rewriteScript, rewriteSelection, useAiStatus, type ScriptAction, type SelectionAction } from "@/lib/ai/client";
@@ -15,6 +16,7 @@ import { SlideImage } from "../project/SlideImage";
 import { Button, ButtonLink, IconButton } from "../ui/button";
 import { Meter } from "../ui/controls";
 import { Menu, type MenuEntry } from "../ui/menu";
+import { GLIDE, RevealWords } from "../ui/motion";
 import { useToast } from "../ui/toast";
 import { HistorySheet } from "./HistorySheet";
 import { Inspector } from "./Inspector";
@@ -245,7 +247,7 @@ export function ScriptEditor({ project, initialSlideId }: { project: Project; in
         <div className="page-header__titles">
           <span className="page-header__title">{project.title}</span>
           <span className="page-header__subtitle" role="status" aria-live="polite">
-            {saveState === "saving" ? "Saving…" : saveState === "error" ? "Not saved. Retrying when you edit again." : <><Check className="inline-icon" aria-hidden="true" /> Saved</>}
+            {saveState === "saving" ? <span className="shimmer-text">Saving…</span> : saveState === "error" ? "Not saved. Retrying when you edit again." : <><Check className="inline-icon" aria-hidden="true" /> Saved</>}
           </span>
         </div>
         <div className="page-header__actions">
@@ -275,6 +277,7 @@ export function ScriptEditor({ project, initialSlideId }: { project: Project; in
                     onClick={() => select(slide.id)}
                     disabled={locked && slide.id !== active.id}
                   >
+                    {slide.id === active.id && <m.span layoutId="rail-current" className="rail-item__current" transition={GLIDE} aria-hidden="true" />}
                     <span className="rail-item__number tabular">{position + 1}</span>
                     <span className="rail-item__thumb"><SlideImage slide={slide} aspectRatio={project.aspectRatio} size="thumb" /></span>
                     <span className="rail-item__text">
@@ -312,7 +315,7 @@ export function ScriptEditor({ project, initialSlideId }: { project: Project; in
             {pending && (
               <div className="ai-pending" role="status">
                 <LoaderCircle className="spin" aria-hidden="true" />
-                <span>{pending}…</span>
+                <span><span className="shimmer-text">{pending}…</span></span>
                 <Button size="sm" variant="ghost" onClick={cancelPending}>Cancel</Button>
               </div>
             )}
@@ -331,7 +334,7 @@ export function ScriptEditor({ project, initialSlideId }: { project: Project; in
                 ) : (
                   <div className="proposal__selection">
                     <p className="proposal__before"><span className="sr-only">Before: </span>{proposal.before}</p>
-                    <p className="proposal__after"><span className="sr-only">After: </span>{proposal.after}</p>
+                    <p className="proposal__after"><span className="sr-only">After: </span><RevealWords text={proposal.after} /></p>
                   </div>
                 )}
               </section>

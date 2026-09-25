@@ -66,19 +66,15 @@ test("import, brief, generate, edit, present, and review a deck", async ({ page,
   expect(audienceText).not.toContain("Pause and let the slide land");
   expect(audienceText).not.toContain("Now, clarity");
 
-  // Blank the room's screen, recover, then end.
+  // Blank the room's screen, then end.
   await page.keyboard.press("b");
   await expect(audience.getByRole("img")).toHaveCount(0);
   await page.keyboard.press("b");
-  await page.keyboard.press("r");
-  await expect(page.getByRole("heading", { name: "You're on this slide" })).toBeVisible();
-  await page.keyboard.press("Escape");
   await page.keyboard.press("Escape");
   await page.getByRole("button", { name: "End and review" }).click();
   await page.waitForURL(new RegExp(`/p/${id}/review`));
   await expect(page.getByRole("heading", { name: "How it went" })).toBeVisible();
   await expect(audience.getByText("Thank you")).toBeVisible();
-  await expect(page.getByText(/used “I lost my place” once/)).toBeVisible();
 
   // Work persists across a reload.
   await page.goto(`/p/${id}`);

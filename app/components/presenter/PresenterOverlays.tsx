@@ -1,9 +1,9 @@
 "use client";
 
-import { Check, MonitorUp, RotateCcw, Undo2 } from "lucide-react";
+import { Check, MonitorUp } from "lucide-react";
 import type { ReactNode } from "react";
 import { pluralize } from "@/lib/domain/format";
-import type { Project, Slide } from "@/lib/domain/types";
+import type { Project } from "@/lib/domain/types";
 import { DEFAULT_PRESENTER_PREFS, type PresenterPrefs } from "@/lib/prefs";
 import { Button } from "../ui/button";
 import { Callout, Kbd, Segmented, Slider, Switch } from "../ui/controls";
@@ -71,56 +71,6 @@ export function Preflight({ open, project, audience, onOpenAudience, onStart, on
   );
 }
 
-export function RecoveryPanel({ open, slide, currentLine, onClose, onRestartSlide, onPrevious }: {
-  open: boolean;
-  slide: Slide;
-  currentLine: string;
-  onClose: () => void;
-  onRestartSlide: () => void;
-  onPrevious: () => void;
-}) {
-  const point = slide.analysis?.mainPoint || slide.script.purpose || slide.title;
-  return (
-    <Dialog
-      open={open}
-      onClose={onClose}
-      size="lg"
-      className="theme-dark recovery-dialog"
-      title="You're on this slide"
-      footer={<>
-        <Button variant="ghost" icon={<Undo2 />} onClick={onPrevious}>Previous slide</Button>
-        <Button variant="secondary" icon={<RotateCcw />} onClick={onRestartSlide}>Back to slide start</Button>
-        <Button variant="accent" onClick={onClose}>Continue <Kbd>Esc</Kbd></Button>
-      </>}
-    >
-      <div className="recovery">
-        <section>
-          <h3 className="recovery__label">The point</h3>
-          <p className="recovery__point">{point}</p>
-        </section>
-        {slide.script.recovery && (
-          <section>
-            <h3 className="recovery__label">Say this to regroup</h3>
-            <p className="recovery__say">“{slide.script.recovery}”</p>
-          </section>
-        )}
-        {currentLine && (
-          <section>
-            <h3 className="recovery__label">Where you are in the script</h3>
-            <p className="recovery__line">{currentLine}</p>
-          </section>
-        )}
-        {slide.script.transition && (
-          <section>
-            <h3 className="recovery__label">Then move on with</h3>
-            <p className="recovery__line">{slide.script.transition}</p>
-          </section>
-        )}
-      </div>
-    </Dialog>
-  );
-}
-
 export function PresenterSettings({ open, prefs, onChange, onClose }: {
   open: boolean;
   prefs: PresenterPrefs;
@@ -173,7 +123,6 @@ export const SHORTCUTS: [string, string][] = [
   ["←  PageUp", "Previous slide"],
   ["↑  ↓", "Nudge the script"],
   ["Home / End", "Start or end of this slide"],
-  ["R", "I lost my place"],
   ["B", "Blank the audience screen"],
   ["C", "Show or hide cues"],
   ["M", "Mark slide for review"],

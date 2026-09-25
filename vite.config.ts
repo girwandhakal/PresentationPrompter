@@ -50,10 +50,10 @@ export default defineConfig(async () => {
   const { cloudflare } = await import("@cloudflare/vite-plugin");
 
   return {
-    // Pre-bundle browser-only dependencies that load lazily (import, editor), so the dev server
+    // Pre-bundle browser-only dependencies that load lazily (import, editor, motion features), so the dev server
     // doesn't re-optimize and reload in the middle of the first import.
     optimizeDeps: {
-      include: ["pdfjs-dist/legacy/build/pdf.mjs", "jszip", "idb", "lexical", "@lexical/react/LexicalComposer", "@lexical/react/LexicalComposerContext", "@lexical/react/LexicalContentEditable", "@lexical/react/LexicalErrorBoundary", "@lexical/react/LexicalHistoryPlugin", "@lexical/react/LexicalRichTextPlugin", "@lexical/react/LexicalAutoFocusPlugin"],
+      include: ["motion/react", "pdfjs-dist/legacy/build/pdf.mjs", "jszip", "idb", "lexical", "@lexical/react/LexicalComposer", "@lexical/react/LexicalComposerContext", "@lexical/react/LexicalContentEditable", "@lexical/react/LexicalErrorBoundary", "@lexical/react/LexicalHistoryPlugin", "@lexical/react/LexicalRichTextPlugin", "@lexical/react/LexicalAutoFocusPlugin"],
     },
     server: isCodexSeatbeltSandbox
       ? { watch: { useFsEvents: false, usePolling: true } }
