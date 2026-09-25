@@ -28,6 +28,7 @@ export function Overview({ project }: { project: Project }) {
 
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
+      if (event.defaultPrevented) return;
       const target = event.target as HTMLElement;
       if (target.closest("input, textarea, [contenteditable='true'], [role='menu']")) return;
       if (event.key === "ArrowRight") setIndex((value) => Math.min(project.slides.length - 1, value + 1));

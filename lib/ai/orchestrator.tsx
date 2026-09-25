@@ -5,6 +5,7 @@ import { planPresentation, hasScript } from "../domain/planner";
 import type { DeckContext, Project, Slide, SlideAnalysis } from "../domain/types";
 import { useProjects } from "../store/projects";
 import { aiFetch, AiRequestError, analysisInput, briefInput, contextInput, scriptFromWritten, slideImageForAi } from "./client";
+import { aiLockName } from "./lock";
 import type { WrittenSlideOutput } from "./schemas";
 
 /**
@@ -36,11 +37,36 @@ function chunk<T>(items: T[], size: number) {
   return chunks;
 }
 
+/** Runs work with bounded concurrency; after the first failure no further items are started. */
 async function runLimited<T>(items: T[], limit: number, work: (item: T) => Promise<void>) {
   let next = 0;
+  let failed = false;
   await Promise.all(Array.from({ length: Math.min(limit, items.length) }, async () => {
-    while (next < items.length) await work(items[next++]);
+    while (!failed && next < items.length) {
+      try {
+        await work(items[next++]);
+      } catch (error) {
+        failed = true;
+        throw error;
+      }
+    }
   }));
+}
+
+/**
+ * Holds a Web Lock for the duration of AI work on a project, so other tabs can tell a live run
+ * from one interrupted by a closed tab (see recoverInterrupted in the store).
+ */
+async function holdLock(name: string): Promise<() => void> {
+  if (typeof navigator === "undefined" || !navigator.locks) return () => {};
+  let release = () => {};
+  await new Promise<void>((acquired) => {
+    void navigator.locks.request(name, () => new Promise<void>((done) => {
+      release = done;
+      acquired();
+    }));
+  });
+  return release;
 }
 
 function userMessage(error: unknown) {
@@ -129,11 +155,22 @@ export function OrchestratorProvider({ children }: { children: ReactNode }) {
     if (existing) return existing;
     const controller = controllers.current.get(projectId) ?? new AbortController();
     controllers.current.set(projectId, controller);
-    const job = runAnalysis(projectId, controller.signal)
-      .catch(async (error) => {
-        if (controller.signal.aborted) return;
-        await update(projectId, (current) => ({ ...current, analysis: { status: "failed", error: userMessage(error) } }), { touch: false });
-      })
+    const job = (async () => {
+      const release = await holdLock(aiLockName("analyze", projectId));
+      try {
+        await runAnalysis(projectId, controller.signal);
+      } catch (error) {
+        if (!controller.signal.aborted) {
+          await update(projectId, (current) => ({ ...current, analysis: { status: "failed", error: userMessage(error) } }), { touch: false });
+        }
+      } finally {
+        release();
+      }
+      // A cancelled run must not leave the setup page waiting on analysis that will never finish.
+      if (controller.signal.aborted) {
+        await update(projectId, (current) => current.analysis.status === "running" ? { ...current, analysis: { status: "idle" } } : current, { touch: false });
+      }
+    })()
       .finally(() => {
         analyses.current.delete(projectId);
         if (controllers.current.get(projectId) === controller && !generating.current.has(projectId)) controllers.current.delete(projectId);
@@ -148,6 +185,7 @@ export function OrchestratorProvider({ children }: { children: ReactNode }) {
     const controller = controllers.current.get(projectId) ?? new AbortController();
     controllers.current.set(projectId, controller);
     const signal = controller.signal;
+    const release = await holdLock(aiLockName("generate", projectId));
 
     try {
       await update(projectId, (current) => ({ ...current, generation: { status: "running", phase: "analyzing", startedAt: Date.now() } }));
@@ -220,6 +258,7 @@ export function OrchestratorProvider({ children }: { children: ReactNode }) {
       }), { touch: false });
       if (!signal.aborted) throw error;
     } finally {
+      release();
       generating.current.delete(projectId);
       if (controllers.current.get(projectId) === controller) controllers.current.delete(projectId);
     }

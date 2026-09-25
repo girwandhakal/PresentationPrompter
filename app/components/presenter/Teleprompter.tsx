@@ -1,6 +1,6 @@
 "use client";
 
-import { forwardRef, useCallback, useEffect, useImperativeHandle, useLayoutEffect, useRef } from "react";
+import { forwardRef, memo, useCallback, useEffect, useImperativeHandle, useLayoutEffect, useRef } from "react";
 import { documentToWordCount } from "@/lib/domain/script";
 import type { SlideScript } from "@/lib/domain/types";
 import type { PresenterPrefs } from "@/lib/prefs";
@@ -34,7 +34,8 @@ type Props = {
  * minute and the rendered height per word, so changing font size or width never changes timing.
  * In notes/keyword modes the slide's planned time sets the pace. Any manual scroll yields control.
  */
-export const Teleprompter = forwardRef<TeleprompterHandle, Props>(function Teleprompter(
+// Memoized: the presenter re-renders several times a second for its clocks.
+export const Teleprompter = memo(forwardRef<TeleprompterHandle, Props>(function Teleprompter(
   { script, slideKey, prefs, playing, wpm, targetSeconds, onEnd, onManualScroll, onProgress },
   ref,
 ) {
@@ -166,4 +167,4 @@ export const Teleprompter = forwardRef<TeleprompterHandle, Props>(function Telep
       <div className="teleprompter__spacer teleprompter__spacer--bottom" aria-hidden="true" />
     </div>
   );
-});
+}));

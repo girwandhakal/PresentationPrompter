@@ -18,6 +18,7 @@ import { emptyScript, hasScript } from "@/lib/domain/planner";
 import { pluralize } from "@/lib/domain/format";
 import type { Project, Slide } from "@/lib/domain/types";
 import type { ImportResult } from "@/lib/import";
+import { releaseBlobUrls } from "@/lib/store/blob-url";
 import { deleteBlobs, putBlobs } from "@/lib/store/db";
 import { useProjects } from "@/lib/store/projects";
 import { useDocumentTitle } from "@/lib/use-document-title";
@@ -72,6 +73,7 @@ function Replace({ project }: { project: Project }) {
         status: hasScript({ slides }) ? "ready" : "setup",
       }));
       void deleteBlobs(oldKeys);
+      releaseBlobUrls(oldKeys);
       toast("Slides replaced. The previous script is saved in History.");
       router.push(`/p/${project.id}`);
     } catch {

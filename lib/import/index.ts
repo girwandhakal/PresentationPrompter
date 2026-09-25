@@ -20,6 +20,9 @@ export type ImportResult = {
   blobs: [string, Blob][];
 };
 
+/** Archives opened while detecting a file's type, reused by the importer instead of unzipping twice. */
+const openedArchives = new WeakMap<File, import("jszip")>();
+
 export const ACCEPTED_TYPES = ".pdf,.pptx,.png,.jpg,.jpeg,.webp,.cueframe,application/pdf,image/png,image/jpeg,image/webp";
 
 /** Identifies a file by its leading bytes; names and browser MIME types are only hints. */
@@ -38,6 +41,7 @@ export async function detectKind(file: File): Promise<DetectedKind> {
     const { default: JSZip } = await import("jszip");
     try {
       const zip = await JSZip.loadAsync(file);
+      openedArchives.set(file, zip);
       if (zip.file("ppt/presentation.xml")) return "pptx";
       if (zip.file("manifest.json")) return "backup";
       if (zip.file(/^Index\//).length) return "keynote";
@@ -90,7 +94,7 @@ export async function importFiles(files: File[], onProgress: (progress: ImportPr
     return { title: fileBaseName(file.name), fileName: file.name, kind: "pdf", bytes: file.size, aspectRatio: slides[0].width / slides[0].height, slides, blobs };
   }
   if (kind === "pptx") {
-    const { slides, aspectRatio } = await importPptx(file, context);
+    const { slides, aspectRatio } = await importPptx(file, context, openedArchives.get(file));
     return { title: fileBaseName(file.name), fileName: file.name, kind: "pptx", bytes: file.size, aspectRatio, slides, blobs };
   }
   if (kind === "images") {

@@ -27,6 +27,19 @@ export function loadBlobUrl(key: string): Promise<string | null> {
   return pending;
 }
 
+/** Frees object URLs (and the Blobs they pin in memory) for images that were deleted or replaced. */
+export function releaseBlobUrls(keys: string[]) {
+  for (const key of keys) {
+    const url = cache.get(key);
+    if (url) URL.revokeObjectURL(url);
+    cache.delete(key);
+  }
+}
+
+export function releaseAllBlobUrls() {
+  releaseBlobUrls([...cache.keys()]);
+}
+
 export function useBlobUrl(key: string | undefined) {
   const [state, setState] = useState<{ key: string; url: string | null; loaded: boolean }>(() => ({
     key: key ?? "",

@@ -82,11 +82,11 @@ function relAttr(element: Element, name: string) {
   return null;
 }
 
-export async function importPptx(file: File, context: ImportContext): Promise<{ slides: ImportedSlide[]; aspectRatio: number }> {
+export async function importPptx(file: File, context: ImportContext, opened?: JSZip): Promise<{ slides: ImportedSlide[]; aspectRatio: number }> {
   const { default: JSZipLib } = await import("jszip");
   let zip: JSZip;
   try {
-    zip = await JSZipLib.loadAsync(file);
+    zip = opened ?? await JSZipLib.loadAsync(file);
   } catch {
     throw new ImportError("This PowerPoint file couldn't be opened. Try saving it again, or export it as PDF.");
   }
@@ -101,10 +101,16 @@ export async function importPptx(file: File, context: ImportContext): Promise<{ 
   const aspectRatio = cx / cy;
 
   const presentationRels = await readRels(zip, presentationPath);
-  const slidePaths = byLocal(presentation, "sldId")
-    .filter((node) => node.getAttribute("show") !== "0")
+  const orderedPaths = byLocal(presentation, "sldId")
     .map((node) => presentationRels.get(relAttr(node, "id") ?? "")?.target)
     .filter((path): path is string => Boolean(path && zip.file(path)));
+
+  // Hidden slides carry show="0" on the slide's own root element (<p:sld>), not on the list entry.
+  const slidePaths: string[] = [];
+  for (const path of orderedPaths) {
+    const head = (await zip.file(path)!.async("string")).slice(0, 2000);
+    if (!/<(?:\w+:)?sld\b[^>]*\sshow="(?:0|false)"/.test(head)) slidePaths.push(path);
+  }
 
   if (!slidePaths.length) throw new ImportError("This presentation doesn't contain any visible slides.");
   context.assertSlideCount(slidePaths.length);

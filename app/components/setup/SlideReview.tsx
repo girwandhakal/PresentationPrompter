@@ -3,6 +3,7 @@
 import { AlertTriangle, ArrowDown, ArrowUp, EyeOff, MoreHorizontal, Trash2, Eye } from "lucide-react";
 import { useState } from "react";
 import type { Project, Slide } from "@/lib/domain/types";
+import { releaseBlobUrls } from "@/lib/store/blob-url";
 import { deleteBlobs } from "@/lib/store/db";
 import { useProjects } from "@/lib/store/projects";
 import { SlideImage } from "../project/SlideImage";
@@ -49,6 +50,7 @@ export function SlideReview({ project }: { project: Project }) {
     }
     await setSlides(slides.filter((item) => item.id !== slide.id));
     void deleteBlobs([slide.imageKey, slide.thumbKey]);
+    releaseBlobUrls([slide.imageKey, slide.thumbKey]);
     toast(`Removed slide “${slide.title}”`);
   }
 

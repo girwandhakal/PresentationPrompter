@@ -391,9 +391,11 @@ export function PresenterView({ project }: { project: Project }) {
     function onKey(event: KeyboardEvent) {
       if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey) return;
       const target = event.target as HTMLElement;
-      if (target.closest("input, textarea, select, [contenteditable='true']")) return;
+      if (target.closest("input, textarea, select, [contenteditable='true'], [role=menu]")) return;
       if (overlayOpen) return;
       const key = event.key;
+      // Space and Enter belong to a focused control (it activates natively); don't also toggle scrolling.
+      if ((key === " " || key === "Enter") && target.closest("button, a, [role=radio], [role=switch]")) return;
       const handled = (() => {
         switch (key) {
           case " ": togglePlay(); return true;

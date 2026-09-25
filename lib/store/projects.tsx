@@ -4,6 +4,8 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { shortId } from "../domain/factory";
 import type { Project, ScriptVersion } from "../domain/types";
 import * as store from "./db";
+import { aiLockName } from "../ai/lock";
+import { releaseAllBlobUrls, releaseBlobUrls } from "./blob-url";
 import { migrateLegacyStorage } from "./migrate";
 
 type Updater = (project: Project) => Project;
@@ -43,7 +45,8 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
   const reload = useCallback(async () => {
     try {
       const loaded = await store.listProjects();
-      records.current = new Map(loaded.map((project) => [project.id, recoverInterrupted(project)]));
+      const live = await liveAiRuns();
+      records.current = new Map(loaded.map((project) => [project.id, recoverInterrupted(project, live)]));
       commit();
       setLoadError(null);
     } catch (error) {
@@ -63,7 +66,10 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
   }, [reload]);
 
   useEffect(() => store.subscribe(async (event) => {
-    if (event.type === "reset") return void reload();
+    if (event.type === "reset") {
+      releaseAllBlobUrls();
+      return void reload();
+    }
     if (event.type === "project-deleted") {
       records.current.delete(event.id);
       return commit();
@@ -118,6 +124,7 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
     if (!current) return;
     await chains.current.get(id);
     await store.deleteProject(current);
+    releaseBlobUrls(current.slides.flatMap((slide) => [slide.imageKey, slide.thumbKey]));
     records.current.delete(id);
     commit();
   }, [commit]);
@@ -169,13 +176,26 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
   return <ProjectsContext.Provider value={value}>{children}</ProjectsContext.Provider>;
 }
 
-/** A generation left "running" by a closed tab can never finish; surface it as resumable. */
-function recoverInterrupted(project: Project): Project {
+/** Names of AI runs that some open tab is actively holding a lock for. */
+async function liveAiRuns() {
+  try {
+    const state = typeof navigator !== "undefined" && navigator.locks ? await navigator.locks.query() : null;
+    return new Set((state?.held ?? []).map((lock) => lock.name ?? ""));
+  } catch {
+    return new Set<string>();
+  }
+}
+
+/**
+ * A run left "running" by a closed tab can never finish; surface it as resumable. Runs another open
+ * tab still holds a lock for are left alone.
+ */
+function recoverInterrupted(project: Project, live: Set<string>): Project {
   let next = project;
-  if (project.generation.status === "running") {
+  if (project.generation.status === "running" && !live.has(aiLockName("generate", project.id))) {
     next = { ...next, generation: { status: "failed", error: "Script generation was interrupted before it finished.", at: Date.now() } };
   }
-  if (project.analysis.status === "running") next = { ...next, analysis: { status: "idle" } };
+  if (project.analysis.status === "running" && !live.has(aiLockName("analyze", project.id))) next = { ...next, analysis: { status: "idle" } };
   return next;
 }
 

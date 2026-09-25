@@ -213,10 +213,9 @@ function DocumentPlugin({ document, onChange }: { document: ScriptDocument; onCh
 
   useEffect(() => {
     loadScriptDocument(editor, initial.current);
-    const hydrated = JSON.stringify(editor.getEditorState().toJSON());
+    // Loading is tagged, and selection-only updates dirty no nodes, so anything else is an edit.
     return editor.registerUpdateListener(({ editorState, dirtyElements, dirtyLeaves, tags }) => {
       if (tags.has("script-hydrate") || (!dirtyElements.size && !dirtyLeaves.size)) return;
-      if (JSON.stringify(editorState.toJSON()) === hydrated) return;
       onChangeRef.current(documentFromLexicalState(editorState as EditorState));
     });
   }, [editor]);
