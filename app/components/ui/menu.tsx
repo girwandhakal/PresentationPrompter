@@ -47,7 +47,8 @@ export function Menu({ trigger, items, align = "start", label }: {
   useLayoutEffect(() => {
     if (!open || !triggerElement || !menuRef.current) return;
     const rect = triggerElement.getBoundingClientRect();
-    const menu = menuRef.current.getBoundingClientRect();
+    // offsetWidth/Height ignore the entrance scale transform, which would otherwise make the menu measure small.
+    const menu = { width: menuRef.current.offsetWidth, height: menuRef.current.offsetHeight };
     const gap = 6;
     const below = rect.bottom + gap + menu.height <= window.innerHeight - 8;
     const top = below ? rect.bottom + gap : Math.max(8, rect.top - gap - menu.height);
