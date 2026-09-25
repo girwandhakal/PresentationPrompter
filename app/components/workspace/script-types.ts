@@ -95,7 +95,31 @@ export function parseScriptDocument(value: unknown, fallbackBody = "", fallbackC
       if (parsed?.version === 1 && Array.isArray(parsed.paragraphs)) return normalizeScriptDocument(parsed as ScriptDocument);
     } catch { /* fall through to the legacy body */ }
   }
-  return documentFromLegacy(fallbackBody, fallbackCue);
+  return isolateCues(documentFromLegacy(fallbackBody, fallbackCue));
+}
+
+function isolateCues(document: ScriptDocument): ScriptDocument {
+  const paragraphs = document.paragraphs.flatMap((paragraph) => {
+    if (!paragraph.children.some((child) => child.type === "cue")) return [paragraph];
+    const lines: ScriptParagraph[] = [];
+    let children: ScriptInline[] = [];
+    const addLine = (line: ScriptInline[]) => lines.push({
+      id: lines.length ? makeId("paragraph") : paragraph.id,
+      children: line,
+    });
+    for (const child of paragraph.children) {
+      if (child.type === "cue") {
+        if (children.some((part) => part.type !== "text" || part.text.length)) addLine(children);
+        addLine([child]);
+        children = [];
+      } else {
+        children.push(child);
+      }
+    }
+    if (children.some((part) => part.type !== "text" || part.text.length)) addLine(children);
+    return lines;
+  });
+  return { version: 1, paragraphs };
 }
 
 function normalizeScriptDocument(document: ScriptDocument): ScriptDocument {
@@ -110,7 +134,7 @@ function normalizeScriptDocument(document: ScriptDocument): ScriptDocument {
       })
       : [{ type: "text" as const, text: "" }],
   }));
-  return { version: 1, paragraphs: paragraphs.length ? paragraphs : [{ id: "paragraph-1", children: [{ type: "text", text: "" }] }] };
+  return isolateCues({ version: 1, paragraphs: paragraphs.length ? paragraphs : [{ id: "paragraph-1", children: [{ type: "text", text: "" }] }] });
 }
 
 export function documentToSpokenText(document: ScriptDocument) {
@@ -128,4 +152,12 @@ export function documentToDuration(document: ScriptDocument, wordsPerMinute = 13
 
 export function documentCueCount(document: ScriptDocument) {
   return document.paragraphs.reduce((total, paragraph) => total + paragraph.children.filter((child) => child.type === "cue").length, 0);
+}
+
+export function documentFirstCueLabel(document: ScriptDocument) {
+  for (const paragraph of document.paragraphs) {
+    const cue = paragraph.children.find((child): child is ScriptCue => child.type === "cue");
+    if (cue && cue.label.trim()) return cue.label.trim();
+  }
+  return "";
 }

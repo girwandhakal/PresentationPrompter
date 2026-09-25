@@ -9,6 +9,7 @@ import {
   Trash2,
   Upload,
 } from "lucide-react";
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import type { Presentation } from "./types";
 
@@ -19,7 +20,6 @@ type Props = {
   collapsed: boolean;
   onCloseMobile: () => void;
   onToggleCollapse: () => void;
-  onSelect: (id: string) => void;
   onAdd: () => void;
   onDuplicate: (id: string) => void;
   onDelete: (id: string) => void;
@@ -33,7 +33,6 @@ export function WorkspaceSidebar({
   collapsed,
   onCloseMobile,
   onToggleCollapse,
-  onSelect,
   onAdd,
   onDuplicate,
   onDelete,
@@ -90,18 +89,20 @@ export function WorkspaceSidebar({
           {presentations.map((p) => (
             <div key={p.id} style={{ position: "relative" }}>
               <div className={`sidebar-row ${p.id === activeId ? "is-active" : ""}`}>
-                <button
+                <Link
                   className="sidebar-row-main"
+                  href={`/p/${p.id}`}
                   title={collapsed ? p.title : undefined}
                   aria-label={collapsed ? p.title : undefined}
-                  onClick={() => { onSelect(p.id); onCloseMobile(); }}
+                  aria-current={p.id === activeId ? "page" : undefined}
+                  onClick={onCloseMobile}
                 >
                   <span className="sidebar-item-dot" />
                   <span className="sidebar-item-text">
                     <span className="sidebar-item-title">{p.title}</span>
                     <span className="sidebar-item-meta">{p.updated}</span>
                   </span>
-                </button>
+                </Link>
                 <button
                   className="sidebar-item-menu"
                   aria-label={`Actions for ${p.title}`}

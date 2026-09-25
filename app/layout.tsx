@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Bricolage_Grotesque } from "next/font/google";
 import { headers } from "next/headers";
+import { PresentationsProvider } from "./components/workspace/use-presentations";
 import "./globals.css";
 import "./editor.css";
 
@@ -30,7 +31,9 @@ export async function generateMetadata(): Promise<Metadata> {
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en" className={bricolage.variable}>
-      <body>{children}</body>
+      <body>
+        <PresentationsProvider>{children}</PresentationsProvider>
+      </body>
     </html>
   );
 }

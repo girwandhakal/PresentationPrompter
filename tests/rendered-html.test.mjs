@@ -13,7 +13,7 @@ async function render(pathname = "/") {
 }
 
 test("the presentation workspace renders its project and primary actions", async () => {
-  const response = await render();
+  const response = await render("/p/quiet-launch");
   assert.equal(response.status, 200);
   assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
   const html = await response.text();
@@ -24,9 +24,15 @@ test("the presentation workspace renders its project and primary actions", async
 });
 
 test("presenter and audience routes render", async () => {
-  for (const pathname of ["/presenter", "/audience"]) {
+  for (const pathname of ["/p/quiet-launch/present", "/p/quiet-launch/audience"]) {
     const response = await render(pathname);
     assert.equal(response.status, 200, pathname);
     assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
   }
+});
+
+test("the root route redirects to the most recent presentation", async () => {
+  const response = await render("/");
+  assert.equal(response.status, 200);
+  assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
 });

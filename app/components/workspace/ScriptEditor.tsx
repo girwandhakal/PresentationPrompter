@@ -1,12 +1,13 @@
 "use client";
 
 import { ArrowLeft, ArrowRight, Bold, Check, ChevronLeft, Clock3, Eye, Italic, Mic2, Redo2, Sparkles, Undo2 } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  $createTextNode,
   $getRoot,
   $getSelection,
   $isRangeSelection,
+  $isTextNode,
   COMMAND_PRIORITY_LOW,
   FORMAT_TEXT_COMMAND,
   KEY_DOWN_COMMAND,
@@ -27,20 +28,15 @@ import { TeleprompterText } from "./TeleprompterText";
 import { CueNode, ScriptParagraphNode, $createCueNode } from "./script-nodes";
 import { documentFromLexicalState, loadScriptDocument } from "./script-lexical";
 import {
-  documentFromLegacy,
   documentToDuration,
-  documentToSpokenText,
   documentToWordCount,
   makeId,
-  parseScriptDocument,
   type ScriptDocument,
 } from "./script-types";
+import { usePresentations } from "./use-presentations";
 
 type Props = {
   presentation: Presentation;
-  onBack: () => void;
-  onSave: (slides: Slide[]) => void;
-  onDirtyChange?: (dirty: boolean) => void;
 };
 
 const cuePresets = [
@@ -148,9 +144,11 @@ function CueKeyboardPlugin({ startCue, onCueState }: { startCue: (editor: Lexica
         }
         const paragraph = cue.getParent();
         if (paragraph) {
-          const next = new ScriptParagraphNode(makeId("paragraph"));
-          next.append($createTextNode(""));
-          paragraph.insertAfter(next);
+          let next = paragraph.getNextSibling();
+          if (!(next instanceof ScriptParagraphNode) || next.getChildrenSize()) {
+            next = new ScriptParagraphNode(makeId("paragraph"));
+            paragraph.insertAfter(next);
+          }
           next.selectStart();
         }
         onCueState(false);
@@ -282,11 +280,10 @@ function EditorDocumentPlugin({ document, onChange }: { document: ScriptDocument
   return null;
 }
 
-export function ScriptEditor({ presentation, onBack, onSave, onDirtyChange }: Props) {
-  const [slides, setSlides] = useState(() => presentation.slides.map((slide) => ({
-    ...slide,
-    script: parseScriptDocument(slide.script, slide.body, slide.cue),
-  })));
+export function ScriptEditor({ presentation }: Props) {
+  const router = useRouter();
+  const { updateSlides } = usePresentations();
+  const [slides, setSlides] = useState(presentation.slides);
   const [activeIndex, setActiveIndex] = useState(0);
   const [saved, setSaved] = useState(true);
   const [previewOpen, setPreviewOpen] = useState(true);
@@ -296,16 +293,19 @@ export function ScriptEditor({ presentation, onBack, onSave, onDirtyChange }: Pr
   const elasticLayerRef = useRef<HTMLDivElement>(null);
   const autosave = useRef<number | undefined>(undefined);
   const active = slides[activeIndex];
-  const totalWords = slides.reduce((sum, slide) => sum + documentToWordCount(slide.script ?? documentFromLegacy(slide.body, slide.cue)), 0);
+  const totalWords = slides.reduce((sum, slide) => sum + documentToWordCount(slide.script), 0);
 
-  useEffect(() => onDirtyChange?.(!saved), [onDirtyChange, saved]);
+  const slidesRef = useRef(slides);
+  const savedRef = useRef(saved);
+  useEffect(() => { slidesRef.current = slides; }, [slides]);
+  useEffect(() => { savedRef.current = saved; }, [saved]);
+  useEffect(() => () => {
+    if (!savedRef.current) updateSlides(presentation.id, slidesRef.current);
+  }, [presentation.id, updateSlides]);
 
   const updateScript = useCallback((state: EditorState) => {
     const script = documentFromLexicalState(state);
-    const firstCue = script.paragraphs.flatMap((paragraph) => paragraph.children).find((child) => child.type === "cue");
-    setSlides((current) => current.map((slide) => slide.id === active?.id
-      ? { ...slide, script, body: documentToSpokenText(script), cue: firstCue?.type === "cue" ? firstCue.label : "", duration: documentToDuration(script) }
-      : slide));
+    setSlides((current) => current.map((slide) => slide.id === active?.id ? { ...slide, script } : slide));
     setSaved(false);
   }, [active?.id]);
 
@@ -327,31 +327,46 @@ export function ScriptEditor({ presentation, onBack, onSave, onDirtyChange }: Pr
         }
       }
       if (!$isRangeSelection(selection)) return;
+      if (!selection.isCollapsed()) selection.removeText();
       // Lexical drops zero-length TextNodes. A single whitespace sentinel keeps
       // an empty cue visible while trim-based serialization still excludes it.
       const cue = $createCueNode(label || " ", makeId("cue"));
       const currentNode = selection.anchor.getNode();
-      const currentParagraph = currentNode instanceof ScriptParagraphNode ? currentNode : currentNode.getParent();
-      if (currentNode instanceof CueNode) currentNode.insertAfter(cue);
-      else if (currentParagraph instanceof ScriptParagraphNode && currentNode !== currentParagraph) selection.insertNodes([cue]);
-      else if (currentParagraph instanceof ScriptParagraphNode) currentParagraph.append(cue);
-      else {
-        const fallbackParagraph = $getRoot().getLastChild();
-        if (fallbackParagraph instanceof ScriptParagraphNode) fallbackParagraph.append(cue);
-        else return;
+      const paragraph = currentNode instanceof ScriptParagraphNode ? currentNode : currentNode.getParent();
+      if (!(paragraph instanceof ScriptParagraphNode)) return;
+
+      let splitIndex = selection.anchor.type === "element"
+        ? selection.anchor.offset
+        : currentNode.getIndexWithinParent() + 1;
+      if ($isTextNode(currentNode) && !(currentNode instanceof CueNode)) {
+        const offset = selection.anchor.offset;
+        if (offset === 0) splitIndex = currentNode.getIndexWithinParent();
+        else if (offset < currentNode.getTextContentSize()) {
+          const [, right] = currentNode.splitText(offset);
+          splitIndex = right.getIndexWithinParent();
+        }
       }
-      const offset = cue.getTextContent().length;
-      cue.select(offset, offset);
+
+      const trailing = paragraph.getChildren().slice(splitIndex);
+      const cueParagraph = new ScriptParagraphNode(makeId("paragraph"));
+      cueParagraph.append(cue);
+      const nextParagraph = new ScriptParagraphNode(makeId("paragraph"));
+      for (const node of trailing) nextParagraph.append(node);
+      paragraph.insertAfter(cueParagraph);
+      cueParagraph.insertAfter(nextParagraph);
+      if (!paragraph.getChildrenSize()) paragraph.remove();
+      if (label) nextParagraph.selectStart();
+      else cue.select(cue.getTextContentSize(), cue.getTextContentSize());
       inserted = true;
     });
-    if (inserted) setPendingCue(true);
+    if (inserted) setPendingCue(!label);
   }, []);
 
   const save = useCallback(() => {
     if (autosave.current) window.clearTimeout(autosave.current);
-    onSave(slides);
+    updateSlides(presentation.id, slides);
     setSaved(true);
-  }, [onSave, slides]);
+  }, [updateSlides, presentation.id, slides]);
 
   const setActiveSlide = useCallback((index: number) => {
     if (index === activeIndex) return;
@@ -364,13 +379,13 @@ export function ScriptEditor({ presentation, onBack, onSave, onDirtyChange }: Pr
     if (saved) return;
     if (autosave.current) window.clearTimeout(autosave.current);
     autosave.current = window.setTimeout(() => {
-      onSave(slides);
+      updateSlides(presentation.id, slides);
       setSaved(true);
     }, 800);
     return () => {
       if (autosave.current) window.clearTimeout(autosave.current);
     };
-  }, [onSave, saved, slides]);
+  }, [updateSlides, presentation.id, saved, slides]);
 
   const config = useMemo(() => ({
     namespace: "CueframeScript",
@@ -380,11 +395,11 @@ export function ScriptEditor({ presentation, onBack, onSave, onDirtyChange }: Pr
   }), []);
 
   if (!active) return null;
-  const script = active.script ?? documentFromLegacy(active.body, active.cue);
+  const script = active.script;
 
   function leave() {
     if (!saved) save();
-    onBack();
+    router.push(`/p/${presentation.id}`);
   }
 
   return (
@@ -405,14 +420,14 @@ export function ScriptEditor({ presentation, onBack, onSave, onDirtyChange }: Pr
           <div className="editor-list-header"><strong>Slides</strong><span>{slides.length}</span></div>
           <div className="editor-list-items">
             {slides.map((slide, index) => {
-              const words = documentToWordCount(slide.script ?? documentFromLegacy(slide.body, slide.cue));
+              const words = documentToWordCount(slide.script);
               return <button key={slide.id} className={`editor-slide-item ${index === activeIndex ? "is-active" : ""}`} aria-current={index === activeIndex ? "step" : undefined} onClick={() => setActiveSlide(index)}>
                 <span className="editor-item-num">{String(index + 1).padStart(2, "0")}</span>
-                <span className="editor-item-content"><strong>{slide.title || `Slide ${index + 1}`}</strong><span>{words} words · {documentToDuration(slide.script ?? documentFromLegacy(slide.body, slide.cue))}</span></span>
+                <span className="editor-item-content"><strong>{slide.title || `Slide ${index + 1}`}</strong><span>{words} words · {documentToDuration(slide.script)}</span></span>
               </button>;
             })}
           </div>
-          <div className="editor-list-footer">{totalWords} words · about {documentToDuration({ version: 1, paragraphs: slides.flatMap((slide) => (slide.script ?? documentFromLegacy(slide.body, slide.cue)).paragraphs) })} total</div>
+          <div className="editor-list-footer">{totalWords} words · about {documentToDuration({ version: 1, paragraphs: slides.flatMap((slide) => slide.script.paragraphs) })} total</div>
         </nav>
 
         <section className="editor-canvas" aria-label={`Edit slide ${activeIndex + 1}`}>
