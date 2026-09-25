@@ -25,7 +25,7 @@ import {
   writeInstructions,
   writeText,
 } from "./prompts";
-import { spokenProblems } from "./spoken-lint";
+import { draftProblems, pickDraft, spokenProblems } from "./spoken-lint";
 
 type Effort = "low" | "medium" | "high";
 
@@ -60,6 +60,16 @@ export function createOpenAiProvider({ apiKey, model, baseURL }: { apiKey: strin
 
   const input = (text: string): ResponseInputContent => ({ type: "input_text", text });
 
+  /** A retry is best-effort: if it fails for any reason other than cancellation, keep the first draft. */
+  async function retry<T>(attempt: () => Promise<T>, signal?: AbortSignal): Promise<T | null> {
+    try {
+      return await attempt();
+    } catch (error) {
+      if (signal?.aborted) throw error;
+      return null;
+    }
+  }
+
   return {
     status: { provider: "openai", model },
 
@@ -76,18 +86,13 @@ export function createOpenAiProvider({ apiKey, model, baseURL }: { apiKey: strin
       const instructions = writeInstructions(request.brief);
       const text = writeText(request);
       const first = await structured(WriteOutput, "slide_scripts", instructions, [input(text)], { effort: "low", signal });
-      const failing = first.slides.flatMap((slide) => {
-        const problems = [...spokenProblems(slide.paragraphs), ...spokenProblems([slide.concise]).filter((problem) => problem.includes("label"))];
-        return problems.length ? [{ id: slide.id, problems }] : [];
-      });
+      const failing = draftProblems(first.slides);
       if (!failing.length) return first;
       const feedback = failing.map((item) => `- Slide id ${item.id}: ${item.problems.join(" ")}`).join("\n");
-      const second = await structured(WriteOutput, "slide_scripts", instructions, [
+      const second = await retry(() => structured(WriteOutput, "slide_scripts", instructions, [
         input(`${text}\n\nA previous draft was rejected because parts of it read like slide notes, not speech:\n${feedback}\n\nRewrite the whole set. Fix these slides and keep the rest of the same quality, word targets, and structure.`),
-      ], { effort: "low", signal });
-      // Keep whichever draft has fewer failing slides, so a retry can never make things worse.
-      const secondFailing = second.slides.filter((slide) => spokenProblems(slide.paragraphs).length).length;
-      return secondFailing <= failing.length ? second : first;
+      ], { effort: "low", signal }), signal);
+      return pickDraft(first, second);
     },
 
     rewriteScript: async (request, signal) => {
@@ -96,10 +101,10 @@ export function createOpenAiProvider({ apiKey, model, baseURL }: { apiKey: strin
       const first = await structured(ScriptRewriteOutput, "script_rewrite", instructions, [input(text)], { effort: "low", signal });
       const problems = spokenProblems(first.paragraphs);
       if (!problems.length) return first;
-      const second = await structured(ScriptRewriteOutput, "script_rewrite", instructions, [
+      const second = await retry(() => structured(ScriptRewriteOutput, "script_rewrite", instructions, [
         input(`${text}\n\nA previous draft was rejected because it read like slide notes, not speech:\n${problems.map((problem) => `- ${problem}`).join("\n")}\n\nWrite it again as natural spoken sentences.`),
-      ], { effort: "low", signal });
-      return spokenProblems(second.paragraphs).length <= problems.length ? second : first;
+      ], { effort: "low", signal }), signal);
+      return second && spokenProblems(second.paragraphs).length <= problems.length ? second : first;
     },
 
     rewriteSelection: (request, signal) => structured(SelectionRewriteOutput, "selection_rewrite", rewriteInstructions(request), [input(rewriteText(request))], { effort: "low", verbosity: "low", signal }),

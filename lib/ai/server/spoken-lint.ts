@@ -40,3 +40,24 @@ export function spokenProblems(paragraphs: string[]): string[] {
 
   return problems;
 }
+
+type DraftSlide = { id: string; paragraphs: string[]; concise: string };
+
+/** Slides in a written draft that read like notes: their paragraphs, plus label-style openers in the concise summary. */
+export function draftProblems(slides: DraftSlide[]): { id: string; problems: string[] }[] {
+  return slides.flatMap((slide) => {
+    const problems = [...spokenProblems(slide.paragraphs), ...spokenProblems([slide.concise]).filter((problem) => problem.includes("label"))];
+    return problems.length ? [{ id: slide.id, problems }] : [];
+  });
+}
+
+/**
+ * Picks between a draft and its retry so a retry can never make things worse: the retry wins only if
+ * it exists, covers every slide the first draft had, and fails on no more slides.
+ */
+export function pickDraft<T extends { slides: DraftSlide[] }>(first: T, retry: T | null): T {
+  if (!retry) return first;
+  const ids = new Set(retry.slides.map((slide) => slide.id));
+  if (!first.slides.every((slide) => ids.has(slide.id))) return first;
+  return draftProblems(retry.slides).length <= draftProblems(first.slides).length ? retry : first;
+}
