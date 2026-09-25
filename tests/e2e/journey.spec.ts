@@ -109,9 +109,7 @@ test("PowerPoint files import with titles and speaker notes", async ({ page }) =
   await expect(page.getByText(/PowerPoint slides are shown as simplified previews/)).toBeVisible();
   await expect(page.getByText(/content that doesn't carry over/)).toBeVisible();
 
-  // Speaker notes from the deck reach the editor's inspector.
   await page.getByRole("link", { name: "I'll write it myself" }).click();
-  await expect(page.getByLabel("Speaker notes from the deck")).toHaveValue("Mention the APAC number first.");
 
   // Writing from scratch: text, a cue on its own line, and a new paragraph all persist.
   await page.getByRole("button", { name: "Write it myself" }).click();

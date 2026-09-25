@@ -20,8 +20,8 @@ import type { WrittenSlideOutput } from "./schemas";
  */
 
 const ANALYZE_BATCH = 4;
-const WRITE_BATCH = 4;
-const CONCURRENCY = 3;
+const WRITE_BATCH = 2;
+const CONCURRENCY = 6;
 
 type Orchestrator = {
   analyze: (projectId: string) => Promise<void>;

@@ -25,12 +25,14 @@ import {
   writeInstructions,
   writeText,
 } from "./prompts";
+import { spokenProblems } from "./spoken-lint";
 
 type Effort = "low" | "medium" | "high";
 
 export class AiOutputError extends Error {}
 
 export function createOpenAiProvider({ apiKey, model, baseURL }: { apiKey: string; model: string; baseURL?: string }): AiProvider {
+  const reasoningModel = /^(gpt-5|o\d)/i.test(model);
   const client = new OpenAI({ apiKey, baseURL, timeout: 110_000, maxRetries: 2 });
 
   async function structured<T extends z.ZodType>(
@@ -43,10 +45,12 @@ export function createOpenAiProvider({ apiKey, model, baseURL }: { apiKey: strin
     const response = await client.responses.parse({
       model,
       store: false,
-      reasoning: { effort },
+      // Reasoning effort and verbosity exist only on reasoning models (gpt-5, o-series). Sending them to
+      // gpt-4.x/4o is a 400, so non-reasoning models (which are also the fastest) just skip them.
+      ...(reasoningModel ? { reasoning: { effort } } : {}),
       instructions,
       input: [{ role: "user", content }],
-      text: { verbosity, format: zodTextFormat(schema, name) },
+      text: { ...(reasoningModel ? { verbosity } : {}), format: zodTextFormat(schema, name) },
     }, { signal });
     if (response.status === "incomplete") throw new AiOutputError(`The response was cut short (${response.incomplete_details?.reason ?? "unknown reason"}).`);
     const parsed = response.output_parsed;
@@ -66,11 +70,37 @@ export function createOpenAiProvider({ apiKey, model, baseURL }: { apiKey: strin
 
     context: (request, signal) => structured(ContextOutput, "deck_context", CONTEXT_INSTRUCTIONS, [input(contextText(request))], { effort: "low", verbosity: "low", signal }),
 
-    outline: (request, signal) => structured(OutlineOutput, "narrative_outline", OUTLINE_INSTRUCTIONS, [input(outlineText(request))], { effort: "medium", signal }),
+    outline: (request, signal) => structured(OutlineOutput, "narrative_outline", OUTLINE_INSTRUCTIONS, [input(outlineText(request))], { effort: "low", signal }),
 
-    write: (request, signal) => structured(WriteOutput, "slide_scripts", writeInstructions(request.brief), [input(writeText(request))], { effort: "medium", signal }),
+    write: async (request, signal) => {
+      const instructions = writeInstructions(request.brief);
+      const text = writeText(request);
+      const first = await structured(WriteOutput, "slide_scripts", instructions, [input(text)], { effort: "low", signal });
+      const failing = first.slides.flatMap((slide) => {
+        const problems = [...spokenProblems(slide.paragraphs), ...spokenProblems([slide.concise]).filter((problem) => problem.includes("label"))];
+        return problems.length ? [{ id: slide.id, problems }] : [];
+      });
+      if (!failing.length) return first;
+      const feedback = failing.map((item) => `- Slide id ${item.id}: ${item.problems.join(" ")}`).join("\n");
+      const second = await structured(WriteOutput, "slide_scripts", instructions, [
+        input(`${text}\n\nA previous draft was rejected because parts of it read like slide notes, not speech:\n${feedback}\n\nRewrite the whole set. Fix these slides and keep the rest of the same quality, word targets, and structure.`),
+      ], { effort: "low", signal });
+      // Keep whichever draft has fewer failing slides, so a retry can never make things worse.
+      const secondFailing = second.slides.filter((slide) => spokenProblems(slide.paragraphs).length).length;
+      return secondFailing <= failing.length ? second : first;
+    },
 
-    rewriteScript: (request, signal) => structured(ScriptRewriteOutput, "script_rewrite", rewriteInstructions(request), [input(rewriteText(request))], { effort: "low", signal }),
+    rewriteScript: async (request, signal) => {
+      const instructions = rewriteInstructions(request);
+      const text = rewriteText(request);
+      const first = await structured(ScriptRewriteOutput, "script_rewrite", instructions, [input(text)], { effort: "low", signal });
+      const problems = spokenProblems(first.paragraphs);
+      if (!problems.length) return first;
+      const second = await structured(ScriptRewriteOutput, "script_rewrite", instructions, [
+        input(`${text}\n\nA previous draft was rejected because it read like slide notes, not speech:\n${problems.map((problem) => `- ${problem}`).join("\n")}\n\nWrite it again as natural spoken sentences.`),
+      ], { effort: "low", signal });
+      return spokenProblems(second.paragraphs).length <= problems.length ? second : first;
+    },
 
     rewriteSelection: (request, signal) => structured(SelectionRewriteOutput, "selection_rewrite", rewriteInstructions(request), [input(rewriteText(request))], { effort: "low", verbosity: "low", signal }),
 

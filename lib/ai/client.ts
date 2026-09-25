@@ -95,7 +95,7 @@ export function briefInput(brief: Brief): BriefInput {
     style: brief.style,
     depth: brief.depth,
     cueDensity: brief.cueDensity,
-    includeQuestions: brief.includeQuestions,
+    includeQuestions: false, // Q&A prep was removed from the UI; skipping it also shortens generation.
   };
 }
 

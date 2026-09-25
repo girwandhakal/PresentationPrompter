@@ -403,14 +403,7 @@ export function ScriptEditor({ project, initialSlideId }: { project: Project; in
         </main>
 
         {inspectorOpen && (
-          <Inspector
-            project={working}
-            slide={active}
-            plannedSeconds={targetSeconds}
-            aiEnabled={aiEnabled}
-            onScript={patchScript}
-            onSlide={(values) => patchSlide(active.id, (slide) => ({ ...slide, ...values }))}
-          />
+          <Inspector project={working} slide={active} />
         )}
       </div>
 
