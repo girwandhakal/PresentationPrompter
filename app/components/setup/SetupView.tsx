@@ -1,38 +1,68 @@
 "use client";
 
-import { ArrowRight, CircleAlert, Sparkles } from "lucide-react";
+import { ArrowRight, Ban, Briefcase, CircleAlert, Cpu, Hourglass, ListChecks, MessageCircle, Quote, Scissors, Sparkles, Target, UserRound, Users, Zap } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useAiStatus } from "@/lib/ai/client";
 import { useOrchestrator } from "@/lib/ai/orchestrator";
 import { fileBaseName, formatDuration, pluralize } from "@/lib/domain/format";
 import { clampBrief, hasScript, LIMITS, planPresentation, planSummary } from "@/lib/domain/planner";
-import type { Brief, DeliveryStyle, Project } from "@/lib/domain/types";
+import type { Brief, DeliveryStyle, Project, ScriptDepth } from "@/lib/domain/types";
 import { setPref } from "@/lib/prefs";
 import { useProjects } from "@/lib/store/projects";
 import { Button, ButtonLink } from "../ui/button";
-import { Callout, Segmented, Spinner } from "../ui/controls";
+import { Callout, Segmented, Slider, Spinner } from "../ui/controls";
 import { Dialog } from "../ui/dialog";
-import { Field, Input, Select, Textarea } from "../ui/field";
 import { RollingText } from "../ui/motion";
 import { useToast } from "../ui/toast";
+import { BriefRow, ChoiceCards, ExtraFields, LengthPicker, PaceVisual, ShapeVisual, VoiceSample, type Chip } from "./BriefControls";
 import { GeneratingView } from "./GeneratingView";
 import { RebalanceDialog } from "./RebalanceDialog";
 import { SlideReview } from "./SlideReview";
 
-const STYLES: { value: DeliveryStyle; label: string; description: string }[] = [
-  { value: "conversational", label: "Conversational", description: "Plain, warm, like talking to a colleague" },
-  { value: "measured", label: "Measured", description: "Calm and deliberate, with room for pauses" },
-  { value: "concise", label: "Concise", description: "Short sentences, no preamble" },
-  { value: "energetic", label: "Energetic", description: "Forward momentum without hype" },
-  { value: "technical", label: "Technical", description: "Precise terms, briefly defined" },
-  { value: "executive", label: "Executive", description: "Conclusion first, then evidence" },
+const STYLES: { value: DeliveryStyle; label: string; description: string; sample: string; icon: ReactNode }[] = [
+  { value: "conversational", label: "Conversational", description: "Warm, like talking to a colleague", sample: "So here's what we found, and why I think it matters for you.", icon: <MessageCircle /> },
+  { value: "measured", label: "Measured", description: "Calm, with room for pauses", sample: "Let's take this one step at a time, starting with what we know.", icon: <Hourglass /> },
+  { value: "concise", label: "Concise", description: "Short sentences, no preamble", sample: "Three findings. One decision. Here's the first.", icon: <Scissors /> },
+  { value: "energetic", label: "Energetic", description: "Momentum without hype", sample: "This is the part I'm most excited to show you, because it works.", icon: <Zap /> },
+  { value: "technical", label: "Technical", description: "Precise terms, briefly defined", sample: "Latency drops because requests are batched, which means fewer round trips.", icon: <Cpu /> },
+  { value: "executive", label: "Executive", description: "Conclusion first, then evidence", sample: "The bottom line is we're on track, and here's the evidence.", icon: <Briefcase /> },
 ];
 
 const PACES = [
   { value: 115, label: "Relaxed" },
   { value: 130, label: "Natural" },
   { value: 150, label: "Brisk" },
+];
+
+const DEPTHS: { value: ScriptDepth; label: string; description: string }[] = [
+  { value: "full", label: "Full script", description: "Complete sentences to read aloud" },
+  { value: "notes", label: "Concise notes", description: "Short prompts you expand" },
+  { value: "cues", label: "Keywords", description: "A few words to jog memory" },
+];
+
+const CUE_COUNT: Record<Brief["cueDensity"], number> = { none: 0, light: 1, detailed: 3 };
+
+const GOAL_STARTERS: Chip[] = [
+  { label: "Get approval for…", value: "Get approval for " },
+  { label: "Update them on…", value: "Update them on " },
+  { label: "Teach them how to…", value: "Teach them how to " },
+  { label: "Convince them to…", value: "Convince them to " },
+];
+
+const AUDIENCES: Chip[] = [
+  { label: "Classmates", value: "Classmates and instructors" },
+  { label: "Project sponsor", value: "Project sponsor and reviewers" },
+  { label: "Executives", value: "Executives who want the bottom line" },
+  { label: "Technical team", value: "A technical team who knows the details" },
+  { label: "Clients", value: "Clients new to the project" },
+  { label: "General", value: "A general audience" },
+];
+
+const EXTRAS = [
+  { key: "mustInclude", label: "Must include", add: "Must include", icon: <ListChecks />, placeholder: "Facts, examples, or a call to action to cover", maxLength: 1500 },
+  { key: "avoid", label: "Avoid", add: "Things to avoid", icon: <Ban />, placeholder: "Topics, claims, or phrasing to leave out", maxLength: 800 },
+  { key: "presenterRole", label: "Your role", add: "Your role", icon: <UserRound />, placeholder: "e.g. New team lead presenting to peers", maxLength: 300 },
 ];
 
 type TextField = "goal" | "audience" | "keyMessage";
@@ -138,15 +168,22 @@ export function SetupView({ project }: { project: Project }) {
     wasRunning.current = running;
   }, [running, project.generation.status, project.status, project.id, router, toast]);
 
-  const errors = {
-    goal: !brief.goal.trim() ? "Add a goal so the script knows what it's working toward." : null,
-    audience: !brief.audience.trim() ? "Add who you're speaking to." : null,
+  // Nothing here is required: a blank goal or audience is written with these defaults.
+  const defaults = {
+    goal: `Help the audience understand ${title.trim() || "this presentation"}`,
+    audience: "A general audience",
   };
-  const valid = !errors.goal && !errors.audience && plan.includedSlides > 0;
+  const currentStyle = STYLES.find((style) => style.value === brief.style) ?? STYLES[0];
+  const valid = plan.includedSlides > 0;
 
   async function startGeneration() {
     setAttempted(true);
     if (!valid || !aiReady) return;
+    if (!brief.goal.trim() || !brief.audience.trim()) {
+      const filled = { ...brief, goal: brief.goal.trim() || defaults.goal, audience: brief.audience.trim() || defaults.audience };
+      setBrief(filled);
+      schedule(filled, title);
+    }
     await flush();
     setPref("defaultBrief", { minutes: brief.minutes, qaMinutes: brief.qaMinutes, wpm: brief.wpm, style: brief.style, depth: brief.depth, cueDensity: brief.cueDensity, includeQuestions: brief.includeQuestions });
     orchestrator.generate(project.id).catch(() => { /* surfaced through project.generation */ });
@@ -163,7 +200,7 @@ export function SetupView({ project }: { project: Project }) {
     toast("Saved. Timing estimates and teleprompter pace now use the new settings.");
   }
 
-  if (running) return <GeneratingView project={project} onCancel={() => orchestrator.cancel(project.id)} />;
+  if (running) return <GeneratingView onCancel={() => orchestrator.cancel(project.id)} />;
 
   const failed = project.generation.status === "failed" ? project.generation.error : null;
 
@@ -185,90 +222,118 @@ export function SetupView({ project }: { project: Project }) {
 
           <section className="setup-section" aria-labelledby="setup-about">
             <div className="setup-section__head">
-              <h2 id="setup-about" className="section-title">Additional Settings</h2>
+              <h2 id="setup-about" className="section-title">About your talk</h2>
               <AnalysisStatus project={project} aiReady={aiReady} onRetry={() => orchestrator.analyze(project.id)} />
             </div>
-            <div className="form-stack">
-              <Field label="Title" className={suggested.title ? "field--suggested" : undefined} hint={suggested.title ? "Suggested from your slides." : undefined}>
-                <Input
+            <div className="brief-card">
+              <div className="brief-title" data-suggested={suggested.title || undefined}>
+                <label htmlFor="brief-title" className="brief-title__label">Title{suggested.title && <span className="brief-tag brief-tag--ai"><Sparkles aria-hidden="true" />Suggested</span>}</label>
+                <input
+                  id="brief-title"
+                  className="brief-title__input"
                   value={title}
                   maxLength={160}
+                  placeholder={fileBaseName(project.source.fileName)}
                   onChange={(event) => {
                     touched.current.add("title");
                     setSuggested((current) => ({ ...current, title: false }));
                     setTitle(event.target.value);
                     schedule(brief, event.target.value);
                   }}
+                  onKeyDown={(event) => { if (event.key === "Enter") event.currentTarget.blur(); }}
                 />
-              </Field>
-              <Field
+              </div>
+              <BriefRow
+                icon={<Target />}
                 label="Goal"
-                className={suggested.goal ? "field--suggested" : undefined}
-                hint={suggested.goal ? "Suggested from your slides. Edit it so it's in your words." : "What should this presentation achieve? For example, “Get approval for a one-month pilot.”"}
-                error={attempted ? errors.goal : null}
-              >
-                <Textarea rows={2} value={brief.goal} maxLength={600} onChange={(event) => patch({ goal: event.target.value })} placeholder="What do you want the audience to understand, decide, or do?" />
-              </Field>
-              <Field
+                value={brief.goal}
+                maxLength={600}
+                fallback={defaults.goal}
+                suggested={suggested.goal}
+                starters={GOAL_STARTERS}
+                onChange={(goal) => patch({ goal })}
+              />
+              <BriefRow
+                icon={<Users />}
                 label="Audience"
-                className={suggested.audience ? "field--suggested" : undefined}
-                hint={suggested.audience ? "Suggested from your slides." : "Who's in the room, and how much do they already know?"}
-                error={attempted ? errors.audience : null}
-              >
-                <Input value={brief.audience} maxLength={400} onChange={(event) => patch({ audience: event.target.value })} placeholder="e.g. Product leads who know the roadmap but not the research" />
-              </Field>
-              <Field label="Key message" optional className={suggested.keyMessage ? "field--suggested" : undefined} hint={suggested.keyMessage ? "Suggested from your slides." : "The one thing they should remember."}>
-                <Input value={brief.keyMessage} maxLength={600} onChange={(event) => patch({ keyMessage: event.target.value })} />
-              </Field>
+                value={brief.audience}
+                maxLength={400}
+                fallback={defaults.audience}
+                suggested={suggested.audience}
+                chips={AUDIENCES}
+                onChange={(audience) => patch({ audience })}
+              />
+              <BriefRow
+                icon={<Quote />}
+                label="Key message"
+                value={brief.keyMessage}
+                maxLength={600}
+                placeholder="The one thing they should remember (optional)"
+                suggested={suggested.keyMessage}
+                onChange={(keyMessage) => patch({ keyMessage })}
+              />
             </div>
+            <ExtraFields
+              fields={EXTRAS}
+              values={{ mustInclude: brief.mustInclude, avoid: brief.avoid, presenterRole: brief.presenterRole }}
+              onChange={(key, value) => patch({ [key]: value })}
+            />
           </section>
 
           <section className="setup-section" aria-labelledby="setup-timing">
             <div className="setup-section__head">
-              <h2 id="setup-timing" className="section-title">Timing and delivery</h2>
+              <h2 id="setup-timing" className="section-title">How you&apos;ll deliver it</h2>
             </div>
-            <div className="form-grid">
-              <Field label="Total length">
-                <Input type="number" inputMode="numeric" unit="min" min={LIMITS.minutes.min} max={LIMITS.minutes.max} value={brief.minutes} onChange={(event) => patch({ minutes: Number(event.target.value) })} onBlur={() => patch(clampBrief(brief), false)} />
-              </Field>
-              <Field label="Speaking pace" hint="Most people speak 120–150 words a minute when presenting." className="form-grid__full">
-                <div className="pace-row">
-                  <Segmented
-                    label="Speaking pace preset"
-                    value={String(PACES.find((pace) => pace.value === brief.wpm)?.value ?? "custom")}
-                    onChange={(value) => value !== "custom" && patch({ wpm: Number(value) })}
-                    options={[...PACES.map((pace) => ({ value: String(pace.value), label: <>{pace.label} <span className="faint tabular">{pace.value}</span></> })), ...(PACES.some((pace) => pace.value === brief.wpm) ? [] : [{ value: "custom", label: "Custom" }])]}
-                  />
-                  <Input className="pace-row__input" type="number" inputMode="numeric" unit="wpm" aria-label="Words per minute" min={LIMITS.wpm.min} max={LIMITS.wpm.max} value={brief.wpm} onChange={(event) => patch({ wpm: Number(event.target.value) })} onBlur={() => patch(clampBrief(brief), false)} />
-                </div>
-              </Field>
-              <Field label="Delivery style" className="form-grid__full" hint={STYLES.find((style) => style.value === brief.style)?.description}>
-                <Select value={brief.style} onChange={(event) => patch({ style: event.target.value as DeliveryStyle })}>
-                  {STYLES.map((style) => <option key={style.value} value={style.value}>{style.label}</option>)}
-                </Select>
-              </Field>
-              <Field label="Script depth" className="form-grid__full" hint={brief.depth === "full" ? "Complete sentences you can read aloud." : brief.depth === "notes" ? "Short prompts you expand in your own words." : "A few keywords per slide to jog your memory."}>
-                <Segmented label="Script depth" value={brief.depth} onChange={(depth) => patch({ depth })} options={[{ value: "full", label: "Full script" }, { value: "notes", label: "Concise notes" }, { value: "cues", label: "Keywords" }]} />
-              </Field>
-              <Field label="Delivery cues" className="form-grid__full" hint="Private reminders like “pause here” or “point to the chart”. Only you see them.">
-                <Segmented label="Delivery cues" value={brief.cueDensity} onChange={(cueDensity) => patch({ cueDensity })} options={[{ value: "none", label: "None" }, { value: "light", label: "A few" }, { value: "detailed", label: "Detailed" }]} />
-              </Field>
-            </div>
-
-            <details className="advanced">
-              <summary>More context <span className="faint">optional</span></summary>
-              <div className="form-stack">
-                <Field label="Must include" hint="Facts, examples, or a call to action the script should cover.">
-                  <Textarea rows={3} value={brief.mustInclude} maxLength={1500} onChange={(event) => patch({ mustInclude: event.target.value })} />
-                </Field>
-                <Field label="Avoid" hint="Topics, claims, or phrasing to leave out.">
-                  <Textarea rows={2} value={brief.avoid} maxLength={800} onChange={(event) => patch({ avoid: event.target.value })} />
-                </Field>
-                <Field label="Your role" hint="Your relationship to the audience, e.g. “new team lead presenting to peers”.">
-                  <Input value={brief.presenterRole} maxLength={300} onChange={(event) => patch({ presenterRole: event.target.value })} />
-                </Field>
+            <div className="delivery-grid">
+              <div className="delivery-block">
+                <h3 className="delivery-block__title">Length</h3>
+                <LengthPicker
+                  minutes={brief.minutes}
+                  min={LIMITS.minutes.min}
+                  max={LIMITS.minutes.max}
+                  onChange={(minutes) => patch({ minutes })}
+                  perSlide={plan.includedSlides ? formatDuration(plan.speakingSeconds / plan.includedSlides) : null}
+                />
               </div>
-            </details>
+              <div className="delivery-block">
+                <h3 className="delivery-block__title">Speaking pace</h3>
+                <ChoiceCards
+                  label="Speaking pace"
+                  columns={1}
+                  className="choice-cards--rows"
+                  value={PACES.some((pace) => pace.value === brief.wpm) ? String(brief.wpm) : null}
+                  onChange={(value) => patch({ wpm: Number(value) })}
+                  options={PACES.map((pace) => ({ value: String(pace.value), title: pace.label, meta: <span className="tabular">{pace.value} wpm</span>, visual: <PaceVisual wpm={pace.value} /> }))}
+                />
+                <Slider label="Words per minute" min={LIMITS.wpm.min} max={LIMITS.wpm.max} step={5} value={brief.wpm} onChange={(wpm) => patch({ wpm })} format={(value) => `${value} wpm`} />
+              </div>
+              <div className="delivery-block delivery-block--full">
+                <h3 className="delivery-block__title">Voice</h3>
+                <ChoiceCards
+                  label="Delivery style"
+                  value={brief.style}
+                  onChange={(style) => patch({ style })}
+                  options={STYLES.map((style) => ({ value: style.value, title: style.label, icon: style.icon, description: style.description }))}
+                />
+                <VoiceSample label={currentStyle.label} text={currentStyle.sample} />
+              </div>
+              <div className="delivery-block delivery-block--full">
+                <h3 className="delivery-block__title">What gets written</h3>
+                <ChoiceCards
+                  label="Script depth"
+                  value={brief.depth}
+                  onChange={(depth) => patch({ depth })}
+                  options={DEPTHS.map((depth) => ({ value: depth.value, title: depth.label, description: depth.description, visual: <ShapeVisual depth={depth.value} cues={CUE_COUNT[brief.cueDensity]} /> }))}
+                />
+                <div className="cue-row">
+                  <div>
+                    <p className="cue-row__label" id="cue-label">Delivery cues</p>
+                    <p className="cue-row__hint">Private reminders like &ldquo;pause&rdquo; or &ldquo;point to chart&rdquo;. Only you see them.</p>
+                  </div>
+                  <Segmented label="Delivery cues" size="sm" value={brief.cueDensity} onChange={(cueDensity) => patch({ cueDensity })} options={[{ value: "none", label: "None" }, { value: "light", label: "A few" }, { value: "detailed", label: "Detailed" }]} />
+                </div>
+              </div>
+            </div>
           </section>
         </div>
 
@@ -320,7 +385,7 @@ export function SetupView({ project }: { project: Project }) {
                 <Button variant="accent" size="lg" block disabled={aiReady === false} loading={aiReady === null} icon={<Sparkles />} onClick={startGeneration}>
                   {failed ? "Try again" : "Write my script"}
                 </Button>
-                {attempted && !valid && <p className="plan-card__invalid" role="alert">Add a goal and audience to continue.</p>}
+                {attempted && !valid && <p className="plan-card__invalid" role="alert">Include at least one slide to continue.</p>}
                 <ButtonLink href={`/p/${project.id}/edit`} variant="ghost" block onClick={() => void flush()}>I&apos;ll write it myself</ButtonLink>
               </div>
             )}

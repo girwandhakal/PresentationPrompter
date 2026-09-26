@@ -23,8 +23,8 @@ test("import, brief, generate, edit, present, and review a deck", async ({ page,
 
   // Setup: slides rendered from the PDF, analysis runs in the background and suggests a goal.
   await expect(page.getByText("6 slides from sample-deck.pdf")).toBeVisible();
-  await expect(page.getByLabel("Goal")).not.toHaveValue("");
-  await page.getByLabel("Audience").fill("Product and go-to-market leads");
+  await expect(page.getByRole("textbox", { name: "Goal" })).not.toHaveValue("");
+  await page.getByRole("textbox", { name: "Audience" }).fill("Product and go-to-market leads");
   await expect(page.getByText(/8 min · 130 wpm/)).toBeVisible();
 
   await page.getByRole("button", { name: "Write my script" }).click();

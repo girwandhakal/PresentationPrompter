@@ -169,7 +169,7 @@ Also:
 - No stage directions inside paragraphs; they belong in cues.
 
 Cues are private reminders only the presenter sees:
-- At most 5 words, a glanceable prompt, not a sentence ("Point to Q3 bar", "Pause", "Look up"). Never explain why.
+- At most 5 words, a glanceable prompt, not a sentence ("Point to Q3 bar", "Pause", "Look up"). Never explain why. Never put a pause cue after the last sentence of the script.
 - paragraph and afterSentence are 1-based: the cue appears after that sentence of that paragraph.
 - Never recommend theatrical or unnatural gestures.
 

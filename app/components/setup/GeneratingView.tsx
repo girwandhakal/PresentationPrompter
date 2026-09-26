@@ -1,6 +1,5 @@
 "use client";
 
-import type { Project } from "@/lib/domain/types";
 import { Button } from "../ui/button";
 
 /** Script lines for the miniature teleprompter: widths in %, and which lines are private cues. */
@@ -15,7 +14,7 @@ const LINES: { width: number; cue?: boolean }[] = [
  * or partial output: the presenter gets the finished draft or a clear message. The art is the
  * product in miniature: script lines drifting up past the Bluebell focus line.
  */
-export function GeneratingView({ project, onCancel }: { project: Project; onCancel: () => void }) {
+export function GeneratingView({ onCancel }: { onCancel: () => void }) {
   return (
     <div className="generating" role="status" aria-live="polite">
       <div className="prompter" aria-hidden="true">
