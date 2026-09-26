@@ -205,7 +205,8 @@ input[type="number"]::-webkit-inner-spin-button { opacity: 0.35; }
 
 /* ── Slider ────────────────────────────────────────────────────────────── */
 .slider { display: flex; flex-direction: column; gap: var(--s-2); }
-.slider__head { display: flex; justify-content: space-between; align-items: baseline; }
+.slider__head { display: flex; justify-content: space-between; align-items: baseline; gap: var(--s-3); }
+.slider__value { white-space: nowrap; }
 .slider__label { font-size: var(--t-sm); font-weight: 600; }
 .slider__value { font-size: var(--t-sm); color: var(--text-2); }
 .slider input[type="range"] { -webkit-appearance: none; appearance: none; width: 100%; height: 20px; background: transparent; cursor: pointer; }

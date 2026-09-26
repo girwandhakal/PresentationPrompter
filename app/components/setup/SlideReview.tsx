@@ -1,8 +1,8 @@
 "use client";
 
 import { AlertTriangle, ArrowDown, ArrowUp, EyeOff, MoreHorizontal, Trash2, Eye } from "lucide-react";
-import { m } from "motion/react";
-import { useState } from "react";
+import { m, type PanInfo } from "motion/react";
+import { useRef, useState } from "react";
 import { hasScript } from "@/lib/domain/planner";
 import type { Project, Slide } from "@/lib/domain/types";
 import { releaseBlobUrls } from "@/lib/store/blob-url";
@@ -10,20 +10,35 @@ import { deleteBlobs } from "@/lib/store/db";
 import { useProjects } from "@/lib/store/projects";
 import { SlideImage } from "../project/SlideImage";
 import { IconButton } from "../ui/button";
-import { SPRING } from "../ui/motion";
+import { GLIDE, SPRING } from "../ui/motion";
 import { Menu } from "../ui/menu";
 import { useToast } from "../ui/toast";
 
 /**
  * Import review: confirm order, drop slides that shouldn't be scripted, mark optional ones, and see
  * import warnings. Reorder works by drag or from each slide's menu (keyboard-friendly).
+ *
+ * Dragging is Motion's drag + layout (Reorder's technique, in two dimensions): the held card follows
+ * the pointer while everything else holds still. Resting on a slide (or dropping on it) opens a space
+ * there: the cards in between glide one slot aside. Passing quickly over slides moves nothing. The
+ * order is saved once, on release.
  */
+const DWELL_MS = 150;
 export function SlideReview({ project }: { project: Project }) {
   const { update, saveVersion } = useProjects();
   const toast = useToast();
   const [dragId, setDragId] = useState<string | null>(null);
-  const [overId, setOverId] = useState<string | null>(null);
+  // While dragging, the live order is local; it's committed to the project on release.
+  const [order, setOrder] = useState<string[] | null>(null);
+  const grid = useRef<HTMLOListElement>(null);
+  const hover = useRef<{ id: string; timer: number } | null>(null);
+  // Moving a card in the DOM restarts its CSS animations, so the entrance runs only until the first
+  // reorder; after that a moved card would blink out and fade back in.
+  const [settled, setSettled] = useState(false);
+  const cards = useRef(new Map<string, HTMLLIElement>());
   const slides = project.slides;
+  const byId = new Map(slides.map((slide) => [slide.id, slide]));
+  const ordered = order ? order.flatMap((id) => byId.get(id) ?? []) : slides;
 
   const setSlides = (next: Slide[]) => update(project.id, (current) => ({ ...current, slides: next }));
 
@@ -34,16 +49,69 @@ export function SlideReview({ project }: { project: Project }) {
     const next = [...slides];
     const [item] = next.splice(index, 1);
     next.splice(target, 0, item);
+    setSettled(true);
     void setSlides(next);
   }
 
-  function moveTo(id: string, beforeId: string) {
-    if (id === beforeId) return;
-    const next = slides.filter((slide) => slide.id !== id);
-    const item = slides.find((slide) => slide.id === id)!;
-    const index = next.findIndex((slide) => slide.id === beforeId);
-    next.splice(index < 0 ? next.length : index, 0, item);
-    void setSlides(next);
+  /** Moves `id` into `targetId`'s place within the live drag order. */
+  function openSpace(id: string, targetId: string) {
+    setOrder((current) => {
+      if (!current) return current;
+      const from = current.indexOf(id);
+      const to = current.indexOf(targetId);
+      if (from < 0 || to < 0 || from === to) return current;
+      const next = [...current];
+      next.splice(from, 1);
+      next.splice(to, 0, id);
+      return next;
+    });
+  }
+
+  function clearHover() {
+    if (hover.current) window.clearTimeout(hover.current.timer);
+    hover.current = null;
+  }
+
+  function onDrag(id: string, info: PanInfo) {
+    const list = grid.current;
+    if (!list) return;
+    const box = list.getBoundingClientRect();
+    const clientY = info.point.y - window.scrollY;
+    // Keep the pointer's slot in view when the grid scrolls.
+    if (clientY < box.top + 48) list.scrollTop -= 12;
+    else if (clientY > box.bottom - 48) list.scrollTop += 12;
+    // Hit-test against untransformed layout boxes (offset*), so cards that are mid-glide can't make
+    // the target flicker back and forth.
+    const x = info.point.x - window.scrollX - box.left + list.scrollLeft;
+    const y = clientY - box.top + list.scrollTop;
+    let target: string | null = null;
+    for (const [otherId, card] of cards.current) {
+      if (otherId === id) continue;
+      if (x >= card.offsetLeft && x <= card.offsetLeft + card.offsetWidth && y >= card.offsetTop && y <= card.offsetTop + card.offsetHeight) {
+        target = otherId;
+        break;
+      }
+    }
+    if (target === hover.current?.id) return;
+    clearHover();
+    if (!target) return;
+    const over = target;
+    hover.current = { id: over, timer: window.setTimeout(() => { hover.current = null; openSpace(id, over); }, DWELL_MS) };
+  }
+
+  function endDrag() {
+    const id = dragId;
+    const pending = hover.current?.id;
+    clearHover();
+    let final = order;
+    // Dropping straight onto a slide counts, even before the dwell opened a space.
+    if (final && id && pending) {
+      final = final.filter((item) => item !== id);
+      final.splice(order!.indexOf(pending), 0, id);
+    }
+    if (final && final.some((item, index) => slides[index]?.id !== item)) void setSlides(final.flatMap((item) => byId.get(item) ?? []));
+    setOrder(null);
+    setDragId(null);
   }
 
   async function remove(slide: Slide) {
@@ -75,38 +143,33 @@ export function SlideReview({ project }: { project: Project }) {
           <AlertTriangle aria-hidden="true" /> {warnings.length === 1 ? "One slide has" : `${warnings.length} slides have`} content that doesn&apos;t carry over (animations, video, or charts). Hover the marker for details.
         </p>
       )}
-      <ol className="slide-review__grid" aria-label="Slides in presentation order">
-        {slides.map((slide, index) => {
+      <m.ol ref={grid} layoutScroll className="slide-review__grid" data-settled={settled || undefined} aria-label="Slides in presentation order">
+        {ordered.map((slide, index) => {
           const issues = slide.warnings.filter((warning) => warning.kind !== "approximate-render");
           return (
-            <li
+            <m.li
               key={slide.id}
+              ref={(node) => { if (node) cards.current.set(slide.id, node); else cards.current.delete(slide.id); }}
               className="review-slide"
               data-optional={slide.optional}
               data-dragging={dragId === slide.id}
-              data-over={overId === slide.id && dragId !== slide.id}
-              style={{ "--i": index } as React.CSSProperties}
-              draggable
-              onDragStart={(event) => {
+              style={{ "--i": index, zIndex: dragId === slide.id ? 5 : 0 } as React.CSSProperties}
+              layout
+              transition={GLIDE}
+              drag
+              dragSnapToOrigin
+              dragMomentum={false}
+              dragTransition={{ bounceStiffness: 500, bounceDamping: 40 }}
+              whileDrag={{ scale: 1.05, transition: SPRING }}
+              onDragStart={() => {
+                setSettled(true);
                 setDragId(slide.id);
-                event.dataTransfer.effectAllowed = "move";
-                event.dataTransfer.setData("text/plain", slide.id);
+                setOrder(slides.map((item) => item.id));
               }}
-              onDragOver={(event) => {
-                if (!dragId) return;
-                event.preventDefault();
-                setOverId(slide.id);
-              }}
-              onDragEnd={() => { setDragId(null); setOverId(null); }}
-              onDrop={(event) => {
-                event.preventDefault();
-                if (dragId) moveTo(dragId, slide.id);
-                setDragId(null);
-                setOverId(null);
-              }}
+              onDrag={(_, info) => onDrag(slide.id, info)}
+              onDragEnd={endDrag}
             >
-              {/* Reordering glides each card to its new place instead of jumping. */}
-              <m.div layout="position" transition={SPRING} className="review-slide__inner">
+              <div className="review-slide__inner">
                 <div className="review-slide__thumb">
                   <SlideImage slide={slide} aspectRatio={project.aspectRatio} size="thumb" />
                   <span className="review-slide__number tabular">{index + 1}</span>
@@ -132,11 +195,11 @@ export function SlideReview({ project }: { project: Project }) {
                     trigger={(props) => <IconButton {...props} label={`Actions for slide ${index + 1}`} size="sm" tooltip={false}><MoreHorizontal /></IconButton>}
                   />
                 </div>
-              </m.div>
-            </li>
+              </div>
+            </m.li>
           );
         })}
-      </ol>
+      </m.ol>
     </div>
   );
 }

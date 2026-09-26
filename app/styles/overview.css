@@ -6,7 +6,6 @@
 .overview__header { display: flex; align-items: flex-end; justify-content: space-between; gap: var(--s-4); flex-wrap: wrap; }
 .overview__titles { min-width: 0; }
 .overview__title { font-size: var(--t-3xl); letter-spacing: -0.035em; }
-.overview__meta { margin-top: 6px; color: var(--text-2); font-size: var(--t-sm); }
 .overview__actions { display: flex; align-items: center; gap: var(--s-2); }
 .overview__banner { position: relative; overflow: hidden; padding: 10px 14px; border-radius: var(--r-md); background: var(--accent-soft); color: var(--accent-ink); font-size: var(--t-sm); font-weight: 600; }
 /* A new draft is being written: a slow band of light keeps moving so the banner reads as live. */
@@ -38,6 +37,9 @@
 .overview__text { --st-size: 17px; padding-left: var(--s-6); animation: focus-in 420ms var(--ease-out); }
 .overview__preview { --st-size: 18px; max-height: 380px; animation: fade-in 300ms var(--ease-out); }
 .overview__script .empty-state { padding: var(--s-6) 0; }
+.overview__views { display: grid; }
+.overview__view { grid-area: 1 / 1; min-width: 0; transition: opacity 240ms var(--ease), visibility 240ms; }
+.overview__view:not([data-active="true"]) { opacity: 0; visibility: hidden; pointer-events: none; }
 
 @media (max-width: 1000px) {
   .overview__body { grid-template-columns: 1fr; }

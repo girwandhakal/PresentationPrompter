@@ -22,10 +22,10 @@ test("import, brief, generate, edit, present, and review a deck", async ({ page,
   const id = await importSample(page);
 
   // Setup: slides rendered from the PDF, analysis runs in the background and suggests a goal.
-  await expect(page.getByText("6 slides from sample-deck.pdf")).toBeVisible();
+  await expect(page.getByText("6 Slides", { exact: true })).toBeVisible();
   await expect(page.getByRole("textbox", { name: "Goal" })).not.toHaveValue("");
   await page.getByRole("textbox", { name: "Audience" }).fill("Product and go-to-market leads");
-  await expect(page.getByText(/8 min · 130 wpm/)).toBeVisible();
+  await expect(page.locator(".length__value")).toHaveText(/8\s*min/);
 
   await page.getByRole("button", { name: "Write my script" }).click();
   await page.waitForURL(new RegExp(`/p/${id}/edit`));
@@ -80,7 +80,7 @@ test("import, brief, generate, edit, present, and review a deck", async ({ page,
   // The title suggested from the slides replaced the file name automatically.
   await expect(page.getByRole("heading", { name: "A quieter way to launch", level: 1 })).toBeVisible();
   // The accepted "More conversational" rewrite (which opens with "So,") was saved.
-  await expect(page.getByLabel("Script for slide 1").getByText(/^So, thanks for being here/)).toBeVisible();
+  await expect(page.getByLabel("Script for slide 1").getByText(/^So, thanks for being here/).filter({ visible: true })).toBeVisible();
   await expect(page.getByLabel("Script for slide 1")).toContainText("One more line for the room.");
 });
 
@@ -100,7 +100,7 @@ test("PowerPoint files import with titles and speaker notes", async ({ page }) =
   await ready(page, "/new");
   await page.locator("input[type=file]").first().setInputFiles({ name: "Quarterly review.pptx", mimeType: "application/vnd.openxmlformats-officedocument.presentationml.presentation", buffer });
   await page.waitForURL(/\/setup$/);
-  await expect(page.getByText("2 slides from Quarterly review.pptx")).toBeVisible();
+  await expect(page.getByText("2 Slides", { exact: true })).toBeVisible();
   await expect(page.getByText("Quarterly review", { exact: true }).first()).toBeVisible();
   await expect(page.getByText(/PowerPoint slides are shown as simplified previews/)).toBeVisible();
   await expect(page.getByText(/content that doesn't carry over/)).toBeVisible();

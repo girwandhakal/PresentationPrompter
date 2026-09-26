@@ -6,7 +6,7 @@ import Link from "next/link";
 import { useParams, usePathname } from "next/navigation";
 import { useMemo, useState } from "react";
 import { formatDuration, pluralize } from "@/lib/domain/format";
-import { hasScript, projectSpokenSeconds } from "@/lib/domain/planner";
+import { hasScript, projectHref, projectSpokenSeconds } from "@/lib/domain/planner";
 import type { Project } from "@/lib/domain/types";
 import { useProjects } from "@/lib/store/projects";
 import { ProjectMenu } from "../project/ProjectMenu";
@@ -146,10 +146,14 @@ export function Sidebar({ collapsed, onToggleCollapsed, mobileOpen, onCloseMobil
                       )}
                     </AnimatePresence>
                     <Link
-                      href={`/p/${project.id}`}
+                      href={projectHref(project)}
                       className="sidebar__link"
                       aria-current={project.id === activeId ? "page" : undefined}
-                      onClick={onCloseMobile}
+                      onClick={(event) => {
+                        // Already on this project's page: nothing to navigate to.
+                        if (pathname === projectHref(project)) event.preventDefault();
+                        onCloseMobile();
+                      }}
                     >
                       <span className="sidebar__item-title">{project.title}</span>
                       {projectState(project) && (

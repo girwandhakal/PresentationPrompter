@@ -1,47 +1,25 @@
 "use client";
 
-import { ArrowRight, Ban, Briefcase, CircleAlert, Cpu, Hourglass, ListChecks, MessageCircle, Quote, Scissors, Sparkles, Target, UserRound, Users, Zap } from "lucide-react";
+import { ArrowRight, Ban, CircleAlert, ListChecks, Quote, Sparkles, Target, UserRound, Users } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAiStatus } from "@/lib/ai/client";
 import { useOrchestrator } from "@/lib/ai/orchestrator";
-import { fileBaseName, formatDuration, pluralize } from "@/lib/domain/format";
-import { clampBrief, hasScript, LIMITS, planPresentation, planSummary } from "@/lib/domain/planner";
-import type { Brief, DeliveryStyle, Project, ScriptDepth } from "@/lib/domain/types";
+import { fileBaseName, formatDuration } from "@/lib/domain/format";
+import { clampBrief, hasScript, planPresentation } from "@/lib/domain/planner";
+import type { Brief, Project } from "@/lib/domain/types";
 import { setPref } from "@/lib/prefs";
 import { useProjects } from "@/lib/store/projects";
 import { Button, ButtonLink } from "../ui/button";
-import { Callout, Segmented, Slider, Spinner } from "../ui/controls";
+import { Callout, Spinner } from "../ui/controls";
 import { Dialog } from "../ui/dialog";
 import { RollingText } from "../ui/motion";
 import { useToast } from "../ui/toast";
-import { BriefRow, ChoiceCards, ExtraFields, LengthPicker, PaceVisual, ShapeVisual, VoiceSample, type Chip } from "./BriefControls";
+import { BriefRow, ExtraFields, type Chip } from "./BriefControls";
+import { DeliveryFields } from "./DeliveryFields";
 import { GeneratingView } from "./GeneratingView";
 import { RebalanceDialog } from "./RebalanceDialog";
 import { SlideReview } from "./SlideReview";
-
-const STYLES: { value: DeliveryStyle; label: string; description: string; sample: string; icon: ReactNode }[] = [
-  { value: "conversational", label: "Conversational", description: "Warm, like talking to a colleague", sample: "So here's what we found, and why I think it matters for you.", icon: <MessageCircle /> },
-  { value: "measured", label: "Measured", description: "Calm, with room for pauses", sample: "Let's take this one step at a time, starting with what we know.", icon: <Hourglass /> },
-  { value: "concise", label: "Concise", description: "Short sentences, no preamble", sample: "Three findings. One decision. Here's the first.", icon: <Scissors /> },
-  { value: "energetic", label: "Energetic", description: "Momentum without hype", sample: "This is the part I'm most excited to show you, because it works.", icon: <Zap /> },
-  { value: "technical", label: "Technical", description: "Precise terms, briefly defined", sample: "Latency drops because requests are batched, which means fewer round trips.", icon: <Cpu /> },
-  { value: "executive", label: "Executive", description: "Conclusion first, then evidence", sample: "The bottom line is we're on track, and here's the evidence.", icon: <Briefcase /> },
-];
-
-const PACES = [
-  { value: 115, label: "Relaxed" },
-  { value: 130, label: "Natural" },
-  { value: 150, label: "Brisk" },
-];
-
-const DEPTHS: { value: ScriptDepth; label: string; description: string }[] = [
-  { value: "full", label: "Full script", description: "Complete sentences to read aloud" },
-  { value: "notes", label: "Concise notes", description: "Short prompts you expand" },
-  { value: "cues", label: "Keywords", description: "A few words to jog memory" },
-];
-
-const CUE_COUNT: Record<Brief["cueDensity"], number> = { none: 0, light: 1, detailed: 3 };
 
 const GOAL_STARTERS: Chip[] = [
   { label: "Get approval for…", value: "Get approval for " },
@@ -173,7 +151,6 @@ export function SetupView({ project }: { project: Project }) {
     goal: `Help the audience understand ${title.trim() || "this presentation"}`,
     audience: "A general audience",
   };
-  const currentStyle = STYLES.find((style) => style.value === brief.style) ?? STYLES[0];
   const valid = plan.includedSlides > 0;
 
   async function startGeneration() {
@@ -206,28 +183,26 @@ export function SetupView({ project }: { project: Project }) {
 
   return (
     <div className="setup">
-      <header className="setup__header">
-        <h1 className="page-title">Setup</h1>
-      </header>
+      <h1 className="sr-only">Setup</h1>
 
       <div className="setup__layout">
         <div className="setup__main">
           <section className="setup-section" aria-labelledby="setup-slides">
             <div className="setup-section__head">
               <h2 id="setup-slides" className="section-title">Slides</h2>
-              <p className="setup-section__meta">{pluralize(project.slides.length, "slide")} from {project.source.fileName}</p>
+              <p className="setup-section__meta">{project.slides.length} {project.slides.length === 1 ? "Slide" : "Slides"}</p>
             </div>
             <SlideReview project={project} />
           </section>
 
           <section className="setup-section" aria-labelledby="setup-about">
             <div className="setup-section__head">
-              <h2 id="setup-about" className="section-title">About your talk</h2>
+              <h2 id="setup-about" className="section-title">Teleprompter settings</h2>
               <AnalysisStatus project={project} aiReady={aiReady} onRetry={() => orchestrator.analyze(project.id)} />
             </div>
             <div className="brief-card">
               <div className="brief-title" data-suggested={suggested.title || undefined}>
-                <label htmlFor="brief-title" className="brief-title__label">Title{suggested.title && <span className="brief-tag brief-tag--ai"><Sparkles aria-hidden="true" />Suggested</span>}</label>
+                <label htmlFor="brief-title" className="brief-title__label">Title</label>
                 <input
                   id="brief-title"
                   className="brief-title__input"
@@ -278,62 +253,11 @@ export function SetupView({ project }: { project: Project }) {
               values={{ mustInclude: brief.mustInclude, avoid: brief.avoid, presenterRole: brief.presenterRole }}
               onChange={(key, value) => patch({ [key]: value })}
             />
-          </section>
-
-          <section className="setup-section" aria-labelledby="setup-timing">
-            <div className="setup-section__head">
-              <h2 id="setup-timing" className="section-title">How you&apos;ll deliver it</h2>
-            </div>
-            <div className="delivery-grid">
-              <div className="delivery-block">
-                <h3 className="delivery-block__title">Length</h3>
-                <LengthPicker
-                  minutes={brief.minutes}
-                  min={LIMITS.minutes.min}
-                  max={LIMITS.minutes.max}
-                  onChange={(minutes) => patch({ minutes })}
-                  perSlide={plan.includedSlides ? formatDuration(plan.speakingSeconds / plan.includedSlides) : null}
-                />
-              </div>
-              <div className="delivery-block">
-                <h3 className="delivery-block__title">Speaking pace</h3>
-                <ChoiceCards
-                  label="Speaking pace"
-                  columns={1}
-                  className="choice-cards--rows"
-                  value={PACES.some((pace) => pace.value === brief.wpm) ? String(brief.wpm) : null}
-                  onChange={(value) => patch({ wpm: Number(value) })}
-                  options={PACES.map((pace) => ({ value: String(pace.value), title: pace.label, meta: <span className="tabular">{pace.value} wpm</span>, visual: <PaceVisual wpm={pace.value} /> }))}
-                />
-                <Slider label="Words per minute" min={LIMITS.wpm.min} max={LIMITS.wpm.max} step={5} value={brief.wpm} onChange={(wpm) => patch({ wpm })} format={(value) => `${value} wpm`} />
-              </div>
-              <div className="delivery-block delivery-block--full">
-                <h3 className="delivery-block__title">Voice</h3>
-                <ChoiceCards
-                  label="Delivery style"
-                  value={brief.style}
-                  onChange={(style) => patch({ style })}
-                  options={STYLES.map((style) => ({ value: style.value, title: style.label, icon: style.icon, description: style.description }))}
-                />
-                <VoiceSample label={currentStyle.label} text={currentStyle.sample} />
-              </div>
-              <div className="delivery-block delivery-block--full">
-                <h3 className="delivery-block__title">What gets written</h3>
-                <ChoiceCards
-                  label="Script depth"
-                  value={brief.depth}
-                  onChange={(depth) => patch({ depth })}
-                  options={DEPTHS.map((depth) => ({ value: depth.value, title: depth.label, description: depth.description, visual: <ShapeVisual depth={depth.value} cues={CUE_COUNT[brief.cueDensity]} /> }))}
-                />
-                <div className="cue-row">
-                  <div>
-                    <p className="cue-row__label" id="cue-label">Delivery cues</p>
-                    <p className="cue-row__hint">Private reminders like &ldquo;pause&rdquo; or &ldquo;point to chart&rdquo;. Only you see them.</p>
-                  </div>
-                  <Segmented label="Delivery cues" size="sm" value={brief.cueDensity} onChange={(cueDensity) => patch({ cueDensity })} options={[{ value: "none", label: "None" }, { value: "light", label: "A few" }, { value: "detailed", label: "Detailed" }]} />
-                </div>
-              </div>
-            </div>
+            <DeliveryFields
+              value={brief}
+              onChange={(values) => patch(values)}
+              perSlide={plan.includedSlides ? formatDuration(plan.speakingSeconds / plan.includedSlides) : null}
+            />
           </section>
         </div>
 
@@ -343,10 +267,8 @@ export function SetupView({ project }: { project: Project }) {
             <dl className="plan-card__rows">
               <div><dt>Speaking time</dt><dd className="tabular"><RollingText value={formatDuration(plan.speakingSeconds)} /></dd></div>
               <div><dt>Spoken words</dt><dd className="tabular"><RollingText value={`~${plan.range[0].toLocaleString()}–${plan.range[1].toLocaleString()}`} /></dd></div>
-              <div><dt>Per slide</dt><dd className="tabular"><RollingText value={plan.includedSlides ? `~${Math.round(plan.usableWords / plan.includedSlides)} words` : "—"} /></dd></div>
-              <div><dt>Slides</dt><dd className="tabular"><RollingText value={`${plan.includedSlides} included`} />{project.slides.length > plan.includedSlides && <span className="faint"> · {project.slides.length - plan.includedSlides} optional</span>}</dd></div>
+              <div><dt>Slides</dt><dd className="tabular"><RollingText value={String(plan.includedSlides)} /></dd></div>
             </dl>
-            <p className="plan-card__note">Longer, denser slides get more time; title slides get less. You can adjust any slide later.</p>
             {plan.warnings.map((warning) => (
               <p key={warning.message} className={`plan-card__warning plan-card__warning--${warning.level}`}>
                 <CircleAlert aria-hidden="true" /> {warning.message}
@@ -366,14 +288,9 @@ export function SetupView({ project }: { project: Project }) {
             {failed && (
               <Callout tone="error" title="The script wasn't finished">{failed}</Callout>
             )}
-            {aiStatus?.provider === "demo" && (
-              <Callout title="Demo mode">Scripts are assembled from your slide text so you can try everything. Set OPENAI_API_KEY on the server for real AI writing.</Callout>
-            )}
             {aiReady === false && (
               <Callout tone="warn" title="AI isn't set up">This server doesn&apos;t have an AI key yet, so scripts can&apos;t be written. You can still write your own script in the editor.</Callout>
             )}
-
-            <div className="plan-card__summary tabular">{planSummary(brief, plan)}</div>
 
             {scripted ? (
               <div className="plan-card__actions">
@@ -389,7 +306,6 @@ export function SetupView({ project }: { project: Project }) {
                 <ButtonLink href={`/p/${project.id}/edit`} variant="ghost" block onClick={() => void flush()}>I&apos;ll write it myself</ButtonLink>
               </div>
             )}
-            <p className="plan-card__privacy">Writing a script sends slide images, slide text, and this brief to the AI service. Everything else stays in this browser.</p>
           </div>
         </aside>
       </div>

@@ -15,7 +15,7 @@ import { ImportProgressCard } from "./ImportProgressCard";
 import { useImporter } from "./use-importer";
 
 /** Import step of the create flow: file → slides saved locally → setup form. */
-export function NewPresentation({ compact }: { compact?: boolean }) {
+export function NewPresentation() {
   const router = useRouter();
   const toast = useToast();
   const { create, projects } = useProjects();
@@ -52,7 +52,7 @@ export function NewPresentation({ compact }: { compact?: boolean }) {
           {state.message}
         </Callout>
       )}
-      <DeckDropzone onFiles={start} compact={compact} />
+      <DeckDropzone onFiles={start} />
     </div>
   );
 }

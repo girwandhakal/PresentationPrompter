@@ -41,7 +41,7 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
         <div className="mobile-bar">
           <IconButton label="Open menu" tooltip={false} onClick={() => setMobileOpen(true)}><MenuIcon /></IconButton>
           <Link href="/" className="mobile-bar__brand"><BrandMark size={22} /><span>Cueframe</span></Link>
-          <Link href="/new" className="icon-btn icon-btn--ghost" aria-label="New presentation"><Plus /></Link>
+          {!pathname?.endsWith("/setup") && <Link href="/new" className="icon-btn icon-btn--ghost" aria-label="New presentation"><Plus /></Link>}
         </div>
         {(loadError || saveError) && (
           <div className="shell__alert">
