@@ -7,6 +7,7 @@ import { projectStatus } from "../../components/shell/Sidebar";
 import { Skeleton } from "../../components/ui/controls";
 import { RevealWords } from "../../components/ui/motion";
 import { formatRelative } from "@/lib/domain/format";
+import { projectHref } from "@/lib/domain/planner";
 import { useProjects } from "@/lib/store/projects";
 import { useDocumentTitle } from "@/lib/use-document-title";
 
@@ -40,11 +41,8 @@ export default function HomePage() {
         <h1 className="page-title">Your presentations</h1>
       </header>
       <div className="home-grid stagger">
-        <div className="home-grid__new">
-          <NewPresentation compact />
-        </div>
         {projects.map((project) => (
-          <Link key={project.id} href={`/p/${project.id}`} className="project-card">
+          <Link key={project.id} href={projectHref(project)} className="project-card">
             <SlideImage slide={project.slides[0]} aspectRatio={project.aspectRatio} size="thumb" className="project-card__thumb" />
             <div className="project-card__body">
               <p className="project-card__title">{project.title}</p>

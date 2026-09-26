@@ -168,6 +168,14 @@
   .presenter__controls .btn__label { display: none; }
   .audience-chip span { display: none; }
   .presenter__remaining { display: none; }
+  /* Phones: the bar keeps close, where-am-I, timer, audience and settings; the title truncates. */
+  .presenter__bar { gap: var(--s-1); padding: 0 var(--s-2); }
+  .presenter__shortcuts-btn { display: none; }
+  .presenter__where { flex: 1 1 auto; overflow: hidden; }
+  .presenter__deck { max-width: 100%; }
+  .presenter__spacer { display: none; }
+  .presenter__timer { padding: 6px 8px; }
+  .presenter__elapsed { font-size: 20px; }
 }
 
 /* ── Audience window ───────────────────────────────────────────────────── */

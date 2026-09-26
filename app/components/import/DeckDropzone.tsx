@@ -6,10 +6,9 @@ import { ACCEPTED_TYPES } from "@/lib/import";
 import { Button } from "../ui/button";
 
 /** File target for decks: click, keyboard, or drag and drop. Multiple files only for slide images. */
-export function DeckDropzone({ onFiles, disabled, compact, title = "Drop your deck here", hint }: {
+export function DeckDropzone({ onFiles, disabled, title = "Drop your deck here", hint }: {
   onFiles: (files: File[]) => void;
   disabled?: boolean;
-  compact?: boolean;
   title?: string;
   hint?: string;
 }) {
@@ -24,7 +23,7 @@ export function DeckDropzone({ onFiles, disabled, compact, title = "Drop your de
 
   return (
     <div
-      className={`dropzone${compact ? " dropzone--compact" : ""}`}
+      className="dropzone"
       data-dragging={dragging}
       data-disabled={disabled}
       onDragEnter={(event) => {
@@ -62,7 +61,7 @@ export function DeckDropzone({ onFiles, disabled, compact, title = "Drop your de
         <p className="dropzone__title" key={dragging ? "release" : "idle"}>{dragging ? "Release to import" : title}</p>
         <p className="dropzone__hint">{hint ?? "PDF, PowerPoint (.pptx), or slide images · up to 100 MB"}</p>
       </div>
-      <Button variant="primary" size={compact ? "sm" : "md"} disabled={disabled} onClick={() => input.current?.click()}>
+      <Button variant="primary" size="md" disabled={disabled} onClick={() => input.current?.click()}>
         Choose file
       </Button>
       <input

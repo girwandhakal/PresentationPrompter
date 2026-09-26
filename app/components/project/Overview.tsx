@@ -3,10 +3,9 @@
 import { ArrowLeft, ArrowRight, BarChart3, PenLine, Play } from "lucide-react";
 import { m } from "motion/react";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { documentToWordCount } from "@/lib/domain/script";
-import { formatDuration, formatRelative, pluralize } from "@/lib/domain/format";
-import { hasScript, planPresentation, projectSpokenSeconds } from "@/lib/domain/planner";
+import { hasScript } from "@/lib/domain/planner";
 import type { Project } from "@/lib/domain/types";
 import { ScriptText } from "../presenter/ScriptText";
 import { Button, ButtonLink, IconButton } from "../ui/button";
@@ -21,7 +20,6 @@ export function Overview({ project }: { project: Project }) {
   const scripted = hasScript(project);
   const [index, setIndex] = useState(0);
   const [view, setView] = useState<"script" | "presenter">("script");
-  const plan = useMemo(() => planPresentation(project.brief, project.slides), [project]);
   const strip = useRef<HTMLOListElement>(null);
 
   // Keep the selected thumbnail (and its ring) fully in view. Only the strip scrolls, never the page.
@@ -56,7 +54,6 @@ export function Overview({ project }: { project: Project }) {
 
   if (!slide) return null;
 
-  const spoken = projectSpokenSeconds(project);
   const words = documentToWordCount(slide.script.document);
   const generating = project.generation.status === "running";
 
@@ -65,10 +62,6 @@ export function Overview({ project }: { project: Project }) {
       <header className="overview__header">
         <div className="overview__titles">
           <h1 className="overview__title">{project.title}</h1>
-          <p className="overview__meta tabular">
-            {pluralize(project.slides.length, "slide")} · {formatDuration(spoken)} of {formatDuration(plan.speakingSeconds)} planned
-            {project.lastPresentedAt ? ` · presented ${formatRelative(project.lastPresentedAt).toLowerCase()}` : ""}
-          </p>
         </div>
         <div className="overview__actions">
           <ProjectMenu project={project} />
@@ -114,10 +107,17 @@ export function Overview({ project }: { project: Project }) {
 
           {words === 0 ? (
             <EmptyState title="No script for this slide" action={<Button variant="secondary" size="sm" onClick={() => router.push(`/p/${project.id}/edit?slide=${slide.id}`)}>Write it</Button>} />
-          ) : view === "script" ? (
-            <ScriptText key={slide.id} className="overview__text" script={slide.script} />
           ) : (
-            <div key={slide.id} className="presenter-preview theme-dark overview__preview"><ScriptText script={slide.script} /></div>
+            // Both views share one grid cell and crossfade, so the card keeps the taller view's height
+            // and switching never changes the page's length.
+            <div className="overview__views">
+              <div className="overview__view" data-active={view === "script"} aria-hidden={view !== "script"} inert={view !== "script"}>
+                <ScriptText key={slide.id} className="overview__text" script={slide.script} />
+              </div>
+              <div className="overview__view" data-active={view === "presenter"} aria-hidden={view !== "presenter"} inert={view !== "presenter"}>
+                <div key={slide.id} className="presenter-preview theme-dark overview__preview"><ScriptText script={slide.script} /></div>
+              </div>
+            </div>
           )}
 
 

@@ -47,11 +47,6 @@
 .dropzone[data-dragging="true"] .dropzone__arrow { animation: arrow-bob 900ms var(--ease-in-out) infinite; }
 @keyframes arrow-bob { 50% { transform: translateY(5px); } }
 
-.dropzone--compact { min-height: 0; height: 100%; padding: var(--s-6) var(--s-4); gap: var(--s-3); border-radius: var(--r-lg); }
-.dropzone--compact .dropzone__art { transform: scale(0.72); margin: -10px 0; }
-.dropzone--compact .dropzone__title { font-size: var(--t-md); }
-.dropzone--compact .dropzone__hint { font-size: var(--t-xs); }
-.dropzone--compact .new-presentation { margin: 0; }
 
 /* ── Import progress ───────────────────────────────────────────────────── */
 .import-progress { margin-top: var(--s-8); padding: var(--s-6); border-radius: var(--r-xl); background: var(--surface); border: 1px solid var(--line); box-shadow: var(--shadow-2); display: flex; flex-direction: column; gap: var(--s-4); animation: dialog-in 360ms var(--ease-out); }
@@ -79,8 +74,6 @@
 
 .home-header { display: flex; align-items: flex-end; justify-content: space-between; gap: var(--s-4); margin-bottom: var(--s-8); }
 .home-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: var(--s-5); }
-.home-grid__new .new-presentation { margin: 0; height: 100%; }
-.home-grid__new .import-progress { margin: 0; height: 100%; justify-content: center; }
 .project-card { display: flex; flex-direction: column; border-radius: var(--r-lg); background: var(--surface); border: 1px solid var(--line); box-shadow: var(--shadow-1); overflow: hidden; transition: box-shadow 300ms var(--ease-out), transform 300ms var(--ease-out), border-color 200ms var(--ease); }
 .project-card:hover { box-shadow: var(--shadow-3); transform: translateY(-4px); border-color: var(--line-strong); }
 .project-card:active { transform: translateY(-1px) scale(0.985); transition-duration: 140ms; }

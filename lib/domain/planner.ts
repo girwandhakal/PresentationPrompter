@@ -161,6 +161,14 @@ export function hasScript(project: Pick<Project, "slides">) {
   return project.slides.some((slide) => slide.script.origin !== "empty" && documentToWordCount(slide.script.document) > 0);
 }
 
+/**
+ * Where a project opens: its setup until a script exists, otherwise its overview. Linking straight
+ * there avoids the overview mounting only to redirect, which replays the setup page from scratch.
+ */
+export function projectHref(project: Pick<Project, "id" | "slides" | "status">) {
+  return !hasScript(project) && project.status === "setup" ? `/p/${project.id}/setup` : `/p/${project.id}`;
+}
+
 /** A short line summarizing the plan, e.g. "8 min · 130 wpm · ~920–1,000 words · 12 slides". */
 export function planSummary(brief: Brief, plan: Plan) {
   const parts = [`${brief.minutes} min`, `${brief.wpm} wpm`, `~${plan.range[0].toLocaleString()}–${plan.range[1].toLocaleString()} spoken words`, `${plan.includedSlides} slides`];

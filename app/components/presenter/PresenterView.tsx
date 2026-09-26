@@ -437,7 +437,7 @@ export function PresenterView({ project }: { project: Project }) {
           <MonitorUp aria-hidden="true" />
           <span>{audience === "connected" ? (blank ? "Audience: blank" : "Audience") : audience === "lost" ? "Audience closed — reopen" : audience === "blocked" ? "Pop-up blocked — retry" : "Open audience"}</span>
         </button>
-        <IconButton label="Keyboard shortcuts" onClick={() => setOverlay("shortcuts")}><Keyboard /></IconButton>
+        <IconButton label="Keyboard shortcuts" className="presenter__shortcuts-btn" onClick={() => setOverlay("shortcuts")}><Keyboard /></IconButton>
         <IconButton label="Reading settings" onClick={() => setOverlay("settings")}><Settings2 /></IconButton>
       </header>
 

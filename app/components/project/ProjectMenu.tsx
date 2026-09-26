@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState, type ReactNode } from "react";
 import type { Project } from "@/lib/domain/types";
 import { exportBackup, exportMarkdown, exportText } from "@/lib/export";
-import { hasScript } from "@/lib/domain/planner";
+import { hasScript, projectHref } from "@/lib/domain/planner";
 import { useProjects } from "@/lib/store/projects";
 import { Button, IconButton } from "../ui/button";
 import { Dialog } from "../ui/dialog";
@@ -34,7 +34,7 @@ export function ProjectMenu({ project, trigger, align = "end" }: {
       const copy = await duplicate(project.id);
       if (copy) {
         toast(`Duplicated as “${copy.title}”`);
-        router.push(`/p/${copy.id}`);
+        router.push(projectHref(copy));
       }
     } },
     { label: "Replace slides…", icon: <Replace />, onSelect: () => router.push(`/p/${project.id}/replace`) },

@@ -1,70 +1,9 @@
 "use client";
 
-import { Mic, Minus, Plus, Sparkles, X } from "lucide-react";
+import { Minus, Plus, X } from "lucide-react";
 import { AnimatePresence, LayoutGroup, m } from "motion/react";
-import { useEffect, useId, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
+import { useId, useRef, useState, type ReactNode } from "react";
 import { EXIT, GLIDE, RollingText } from "../ui/motion";
-
-// ── Dictation ───────────────────────────────────────────────────────────────
-// Presenters think out loud, so every free-text field can be spoken instead of typed. Uses the
-// browser's own speech service where it exists; the button simply doesn't render elsewhere.
-
-type SpeechResultList = ArrayLike<ArrayLike<{ transcript: string }>>;
-type Recognition = {
-  continuous: boolean;
-  interimResults: boolean;
-  lang: string;
-  start(): void;
-  stop(): void;
-  onresult: ((event: { results: SpeechResultList }) => void) | null;
-  onend: (() => void) | null;
-  onerror: (() => void) | null;
-};
-
-function recognitionClass(): (new () => Recognition) | null {
-  if (typeof window === "undefined") return null;
-  const scope = window as unknown as { SpeechRecognition?: new () => Recognition; webkitSpeechRecognition?: new () => Recognition };
-  return scope.SpeechRecognition ?? scope.webkitSpeechRecognition ?? null;
-}
-
-const noSubscribe = () => () => {};
-
-function useDictation(onText: (text: string) => void) {
-  const supported = useSyncExternalStore(noSubscribe, () => recognitionClass() !== null, () => false);
-  const [listening, setListening] = useState(false);
-  const recognition = useRef<Recognition | null>(null);
-  const callback = useRef(onText);
-  useEffect(() => { callback.current = onText; });
-  useEffect(() => () => recognition.current?.stop(), []);
-
-  function toggle(current: string) {
-    if (recognition.current) {
-      recognition.current.stop();
-      return;
-    }
-    const Speech = recognitionClass();
-    if (!Speech) return;
-    const instance = new Speech();
-    instance.continuous = true;
-    instance.interimResults = true;
-    instance.lang = navigator.language || "en-US";
-    const prefix = current.trim() ? `${current.trim()} ` : "";
-    instance.onresult = (event) => {
-      const spoken = Array.from(event.results, (result) => result[0].transcript).join("").trim();
-      callback.current(prefix + (prefix ? spoken : spoken.charAt(0).toUpperCase() + spoken.slice(1)));
-    };
-    instance.onend = () => {
-      recognition.current = null;
-      setListening(false);
-    };
-    instance.onerror = () => instance.stop();
-    recognition.current = instance;
-    instance.start();
-    setListening(true);
-  }
-
-  return { supported, listening, toggle };
-}
 
 // ── Brief rows ──────────────────────────────────────────────────────────────
 
@@ -91,7 +30,6 @@ export function BriefRow({ icon, label, value, onChange, fallback, placeholder, 
 }) {
   const id = useId();
   const input = useRef<HTMLTextAreaElement>(null);
-  const dictation = useDictation(onChange);
   const empty = !value.trim();
   const options = empty && starters ? starters : chips;
 
@@ -107,28 +45,15 @@ export function BriefRow({ icon, label, value, onChange, fallback, placeholder, 
   }
 
   return (
-    <div className="brief-row" data-suggested={suggested || undefined} data-listening={dictation.listening || undefined} data-empty={empty || undefined}>
+    <div className="brief-row" data-suggested={suggested || undefined} data-empty={empty || undefined}>
       <span className="brief-row__icon" aria-hidden="true">{icon}</span>
       <div className="brief-row__body">
         <div className="brief-row__head">
           <label className="brief-row__label" htmlFor={id}>{label}</label>
-          {suggested && <span className="brief-tag brief-tag--ai"><Sparkles aria-hidden="true" />Suggested</span>}
           {empty && fallback && <span className="brief-tag">Default</span>}
           <span className="brief-row__tools">
-            {dictation.supported && (
-              <button
-                type="button"
-                className="brief-mic"
-                aria-pressed={dictation.listening}
-                aria-label={dictation.listening ? `Stop dictating ${label.toLowerCase()}` : `Dictate ${label.toLowerCase()}`}
-                title={dictation.listening ? "Stop" : "Say it instead"}
-                onClick={() => dictation.toggle(value)}
-              >
-                <Mic aria-hidden="true" />
-              </button>
-            )}
             {onRemove && (
-              <button type="button" className="brief-mic" aria-label={`Remove ${label.toLowerCase()}`} title="Remove" onClick={onRemove}>
+              <button type="button" className="brief-remove" aria-label={`Remove ${label.toLowerCase()}`} title="Remove" onClick={onRemove}>
                 <X aria-hidden="true" />
               </button>
             )}
@@ -151,7 +76,6 @@ export function BriefRow({ icon, label, value, onChange, fallback, placeholder, 
             }
           }}
         />
-        {dictation.listening && <p className="brief-row__listening" role="status"><span className="listening-bars" aria-hidden="true"><i /><i /><i /><i /></span>Listening… speak naturally, then tap the mic to stop.</p>}
         {options && (
           <div className="brief-chips" role="group" aria-label={empty && starters ? `Ways to start the ${label.toLowerCase()}` : `Quick picks for ${label.toLowerCase()}`} data-mode={empty && starters ? "starters" : "picks"}>
             {options.map((chip, index) => (
@@ -308,7 +232,7 @@ export function LengthPicker({ minutes, min, max, onChange, perSlide }: { minute
         </p>
         <button type="button" className="length__step" aria-label="One minute longer" disabled={minutes >= max} onClick={() => set(minutes + 1)}><Plus aria-hidden="true" /></button>
       </div>
-      <p className="length__sub">{perSlide ? <>About <strong>{perSlide}</strong> per slide</> : " "}</p>
+      {perSlide && <p className="length__sub">About <strong>{perSlide}</strong> per slide</p>}
       <label htmlFor={id} className="sr-only">Total length</label>
       <input
         id={id}
@@ -341,7 +265,7 @@ export function PaceVisual({ wpm }: { wpm: number }) {
   return (
     <span className="pace-visual" style={{ "--beat": `${beat}s` } as React.CSSProperties}>
       {[44, 70, 30, 58, 82, 38, 64, 50].map((width, index) => (
-        <i key={index} style={{ "--i": index, width: `${width * 0.28}px` } as React.CSSProperties} />
+        <i key={index} style={{ "--i": index, width: `${width * 0.2}px` } as React.CSSProperties} />
       ))}
     </span>
   );
@@ -365,21 +289,5 @@ export function ShapeVisual({ depth, cues }: { depth: "full" | "notes" | "cues";
         <i key={index} className={cueAt.includes(index) ? "is-cue" : undefined} style={{ "--w": `${width}%`, "--i": index } as React.CSSProperties} />
       ))}
     </span>
-  );
-}
-
-/** A spoken sample that re-reads itself, word by word, whenever the voice changes. */
-export function VoiceSample({ text, label }: { text: string; label: string }) {
-  return (
-    <figure className="voice-sample" aria-live="polite">
-      <figcaption>{label} sounds like</figcaption>
-      <AnimatePresence mode="popLayout" initial={false}>
-        <m.blockquote key={text} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0, transition: EXIT }}>
-          {text.split(/(\s+)/).map((word, index) => word.trim()
-            ? <span key={index} className="reveal-word" style={{ "--w": index / 2 } as React.CSSProperties}>{word}</span>
-            : word)}
-        </m.blockquote>
-      </AnimatePresence>
-    </figure>
   );
 }
