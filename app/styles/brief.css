@@ -81,7 +81,7 @@
 .brief-chip:hover { color: var(--text); border-color: color-mix(in srgb, var(--text) 32%, transparent); transform: translateY(-1px); }
 .brief-chip:hover svg { transform: rotate(90deg); }
 .brief-chip:active { transform: scale(0.95); transition-duration: 80ms; }
-.brief-chip[aria-pressed="true"] { color: var(--on-primary); background: var(--primary); border-color: var(--primary); font-weight: 600; }
+.brief-chip[aria-pressed="true"] { color: var(--on-primary); background: var(--primary); border-color: var(--primary); }
 .brief-chip--add { border-style: dashed; background: transparent; }
 .brief-chip--num { font-variant-numeric: tabular-nums; min-width: 44px; justify-content: center; }
 
@@ -154,7 +154,9 @@
 .choice-card__icon { width: 34px; height: 34px; flex: 0 0 auto; display: grid; place-items: center; border-radius: var(--r-sm); background: var(--surface-sunken); color: var(--text-2); transition: background-color 200ms var(--ease), color 200ms var(--ease), transform 400ms var(--spring); }
 .choice-card__icon svg { width: 17px; height: 17px; }
 .choice-card[aria-checked="true"] .choice-card__icon { background: var(--text); color: var(--bg); }
-.choice-card__title { font-size: var(--t-lg); font-weight: 600; }
+/* Options read as regular text; only titles and labels are bold. Selection shows through the ring. */
+.choice-card__title { font-size: var(--t-lg); font-weight: 400; }
+.delivery .segmented__option[aria-checked="true"] { font-weight: 500; }
 .choice-card__meta { margin-left: auto; white-space: nowrap; font-size: var(--t-sm); color: var(--text-2); }
 .choice-card__description { font-size: var(--t-sm); color: var(--text-2); line-height: 1.4; }
 .choice-card__visual { display: flex; width: 100%; }

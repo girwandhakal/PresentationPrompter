@@ -54,7 +54,7 @@
 /* Plan card */
 .plan-card { display: flex; flex-direction: column; gap: var(--s-4); padding: var(--s-5); border-radius: var(--r-lg); background: var(--surface); border: 1px solid var(--line); box-shadow: var(--shadow-2); }
 .plan-card__rows dd .rolling { justify-content: flex-end; }
-.plan-card__title { font-size: var(--t-lg); }
+.plan-card__title { font-size: 18px; letter-spacing: -0.015em; }
 .plan-card__rows { margin: 0; display: flex; flex-direction: column; }
 .plan-card__rows div { display: flex; justify-content: space-between; gap: var(--s-3); padding: 9px 0; border-bottom: 1px solid var(--line); font-size: var(--t-sm); }
 .plan-card__rows div:last-child { border-bottom: 0; }

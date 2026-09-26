@@ -52,7 +52,6 @@
 .teleprompter[data-mirror="true"] .teleprompter__content { transform: scaleX(-1); }
 .teleprompter .script-text { color: color-mix(in srgb, var(--powder) 92%, transparent); }
 .teleprompter[data-contrast="high"] .script-text { color: #fff; font-weight: 500; }
-.teleprompter .st-line { margin-bottom: 0.7em; }
 .teleprompter .st-cue { color: var(--bluebell); }
 .teleprompter .script-text--keywords .st-keywords { gap: 0.5em; }
 
