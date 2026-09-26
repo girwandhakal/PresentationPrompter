@@ -29,7 +29,8 @@ type Props = {
 
 /**
  * Smooth, pace-linked scrolling. In full-script mode the speed comes from the presenter's words per
- * minute and the rendered height per word, so changing font size or width never changes timing.
+ * minute and the rendered height of the words themselves (paragraph and cue spacing are pauses), so
+ * changing font size, width, or spacing never changes reading pace.
  * In notes/keyword modes the slide's planned time sets the pace. Any manual scroll yields control.
  */
 // Memoized: the presenter re-renders several times a second for its clocks.
@@ -41,6 +42,8 @@ export const Teleprompter = memo(forwardRef<TeleprompterHandle, Props>(function 
   const content = useRef<HTMLDivElement>(null);
   const position = useRef(0);
   const textHeight = useRef(0);
+  // Height of the words alone (paragraph line boxes, no gaps or cues), which sets full-script pace.
+  const linesHeight = useRef(0);
   const ended = useRef(false);
   const callbacks = useRef({ onEnd, onManualScroll, onProgress });
   useEffect(() => { callbacks.current = { onEnd, onManualScroll, onProgress }; }, [onEnd, onManualScroll, onProgress]);
@@ -79,11 +82,16 @@ export const Teleprompter = memo(forwardRef<TeleprompterHandle, Props>(function 
   useEffect(() => {
     const element = content.current;
     if (!element) return;
-    const observer = new ResizeObserver(() => { textHeight.current = element.offsetHeight; });
+    const measure = () => {
+      textHeight.current = element.offsetHeight;
+      linesHeight.current = [...element.querySelectorAll<HTMLElement>(".st-line")].reduce((sum, line) => sum + line.offsetHeight, 0);
+    };
+    const observer = new ResizeObserver(measure);
     observer.observe(element);
-    textHeight.current = element.offsetHeight;
+    measure();
     return () => observer.disconnect();
-  }, []);
+    // A new script or mode can keep the same total height but different lines, so re-measure.
+  }, [script, prefs.mode]);
 
   const words = documentToWordCount(script.document);
 
@@ -98,8 +106,10 @@ export const Teleprompter = memo(forwardRef<TeleprompterHandle, Props>(function 
       const dt = last ? Math.min(0.1, (now - last) / 1000) : 0;
       last = now;
       const height = textHeight.current || element.clientHeight;
+      // Full script: the words scroll past at the speaking rate; gaps and cues add natural pauses
+      // instead of speeding the text up. Other modes spread the slide's planned time over its height.
       const speed = prefs.mode === "full" && words > 0
-        ? (height / words) * (wpm / 60) * prefs.paceMultiplier
+        ? ((linesHeight.current || height) / words) * (wpm / 60) * prefs.paceMultiplier
         : (height / Math.max(10, targetSeconds || 45)) * prefs.paceMultiplier;
       const max = maxScroll();
       position.current = Math.min(max, position.current + speed * dt);
