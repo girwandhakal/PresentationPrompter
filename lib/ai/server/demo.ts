@@ -142,15 +142,10 @@ export function createDemoProvider(): AiProvider {
             : request.brief.depth === "notes"
               ? sentences.map((value) => value.replace(/\.$/, "")).slice(0, 5)
               : keywords(`${slide.title} ${slide.text}`).slice(0, 5);
-          const cues = request.brief.cueDensity === "none" ? [] : [
-            { paragraph: 1, afterSentence: 1, type: "pause" as const, text: "Pause and let the slide land" },
-            ...(request.brief.cueDensity === "detailed" ? [{ paragraph: Math.min(2, paragraphs.length), afterSentence: 1, type: "look" as const, text: "Look up at the room" }] : []),
-          ];
           return {
             id: slide.id,
             purpose: slide.role || `Covers ${slide.title}.`,
             paragraphs: paragraphs.length ? paragraphs : [sentence(slide.title)],
-            cues,
             concise: sentences.slice(0, 2).join(" "),
             keywords: keywords(`${slide.title} ${slide.text} ${slide.notes}`),
             recovery: `The point here is simple: ${slide.keyIdea || slide.title}`,
@@ -182,7 +177,7 @@ export function createDemoProvider(): AiProvider {
         words += countWords(value);
       }
       const paragraphs = toParagraphs(trimmed);
-      return { paragraphs, cues: request.brief.cueDensity === "none" ? [] : [{ paragraph: 1, afterSentence: 1, type: "pause" as const, text: "Pause here" }] };
+      return { paragraphs };
     },
 
     async rewriteSelection(request) {

@@ -78,6 +78,11 @@ test("cues with out-of-range anchors are clamped rather than dropped", () => {
   assert.equal(documentToWordCount(document), 2);
 });
 
+test("a cue anchored after sentence 0 opens its paragraph", () => {
+  const document = documentFromAi(["First point. Second point."], [{ paragraph: 1, afterSentence: 0, label: "Let them read the chart" }]);
+  assert.equal(documentToPlainText(document), "[Let them read the chart]\n\nFirst point. Second point.");
+});
+
 test("plain-text export marks cues as bracketed notes", () => {
   const document = documentFromAi(["Hello there. Welcome."], [{ paragraph: 1, afterSentence: 1, label: "Smile" }]);
   assert.equal(documentToPlainText(document), "Hello there.\n\n[Smile]\n\nWelcome.");

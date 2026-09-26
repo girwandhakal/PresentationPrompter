@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { finalizeWrittenSlide, needsRepair, sanitizeCues } from "../../lib/ai/validate";
-import type { BriefInput, WriteSlideInput, WrittenSlideOutput } from "../../lib/ai/schemas";
+import { finalizeWrittenSlide, needsRepair } from "../../lib/ai/validate";
+import type { BriefInput, WriteSlideInput, WrittenSlideDraft } from "../../lib/ai/schemas";
 
 const brief: BriefInput = {
   goal: "Get approval for a one-month pilot",
@@ -34,11 +34,10 @@ const input: WriteSlideInput = {
   nextTitle: "",
 };
 
-const output = (values: Partial<WrittenSlideOutput> = {}): WrittenSlideOutput => ({
+const output = (values: Partial<WrittenSlideDraft> = {}): WrittenSlideDraft => ({
   id: "s1",
   purpose: "Shows the signal.",
   paragraphs: ["Activation rose from 61% to 74%.", "That's the signal."],
-  cues: [],
   concise: "Activation is up.",
   keywords: ["activation"],
   recovery: "The point: activation is up.",
@@ -55,28 +54,12 @@ test("finalize trims, caps, and drops questions when not requested", () => {
   assert.equal(result.id, "s1");
 });
 
-test("cue anchors are clamped to real paragraphs and sentences, and capped by density", () => {
-  const paragraphs = ["One. Two.", "Three."];
-  const cues = sanitizeCues([
-    { paragraph: 5, afterSentence: 9, type: "gesture", text: "Pause" },
-    { paragraph: 1, afterSentence: 0, type: "look", text: "Look up" },
-    { paragraph: 1, afterSentence: 1, type: "gesture", text: "Point" },
-  ], paragraphs, "detailed");
-  assert.equal(cues.length, 3);
-  assert.deepEqual(cues[0], { paragraph: 2, afterSentence: 1, type: "gesture", text: "Pause" });
-  assert.deepEqual(cues[1], { paragraph: 1, afterSentence: 1, type: "look", text: "Look up" });
-  assert.equal(sanitizeCues(cues, paragraphs, "light").length, 1);
-  assert.equal(sanitizeCues(cues, paragraphs, "none").length, 0);
-});
-
-test("a pause cue never ends the script", () => {
-  const paragraphs = ["One. Two.", "Three."];
-  const cues = sanitizeCues([
-    { paragraph: 2, afterSentence: 1, type: "pause", text: "Pause" },
-    { paragraph: 1, afterSentence: 1, type: "pause", text: "Breathe" },
-    { paragraph: 2, afterSentence: 1, type: "look", text: "Look up" },
-  ], paragraphs, "detailed");
-  assert.deepEqual(cues.map((cue) => cue.text), ["Breathe", "Look up"]);
+test("finalize places cues from the prose and respects the density setting", () => {
+  const paragraphs = ["We changed one thing in onboarding. Activation rose from 61% to 74% in six weeks.", "Traffic stayed flat, so the gain came from clarity."];
+  const light = finalizeWrittenSlide(output({ paragraphs }), input, brief);
+  assert.equal(light.cues.length, 1);
+  assert.equal(light.cues[0].type, "emphasis");
+  assert.deepEqual(finalizeWrittenSlide(output({ paragraphs }), input, { ...brief, cueDensity: "none" }).cues, []);
 });
 
 test("repair is only attempted when a slide is meaningfully off its word budget", () => {

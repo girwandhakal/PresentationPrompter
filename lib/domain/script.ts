@@ -184,25 +184,31 @@ export type AiCuePlacement = { paragraph: number; afterSentence: number; label: 
 
 /**
  * Builds a script document from AI prose. Cues are anchored after a one-based sentence of a
- * one-based paragraph and become their own cue line, matching how the editor isolates cues.
+ * one-based paragraph (0 = before its first sentence) and become their own cue line, matching how
+ * the editor isolates cues.
  */
 export function documentFromAi(paragraphs: string[], cues: AiCuePlacement[] = []): ScriptDocument {
   const result: ScriptParagraph[] = [];
   const cleaned = paragraphs.map((paragraph) => paragraph.trim()).filter(Boolean);
+  const cueLines = (list: AiCuePlacement[]) => {
+    for (const cue of list) result.push({ id: makeId("paragraph"), children: [{ type: "cue", id: makeId("cue"), label: cue.label.trim() }] });
+  };
   cleaned.forEach((paragraph, paragraphIndex) => {
     const sentences = splitSentences(paragraph);
     const anchored = cues.filter((cue) => cue.label.trim() && Math.min(Math.max(cue.paragraph, 1), cleaned.length) === paragraphIndex + 1);
+    const at = (cue: AiCuePlacement) => Math.min(Math.max(Math.round(cue.afterSentence) || 0, 0), sentences.length);
     let buffer: string[] = [];
     const flush = () => {
       if (buffer.length) result.push({ id: makeId("paragraph"), children: [textInline(buffer.join(" "))] });
       buffer = [];
     };
+    cueLines(anchored.filter((cue) => at(cue) === 0));
     sentences.forEach((sentence, sentenceIndex) => {
       buffer.push(sentence);
-      const here = anchored.filter((cue) => Math.min(Math.max(cue.afterSentence, 1), sentences.length) === sentenceIndex + 1);
+      const here = anchored.filter((cue) => at(cue) === sentenceIndex + 1);
       if (here.length) {
         flush();
-        for (const cue of here) result.push({ id: makeId("paragraph"), children: [{ type: "cue", id: makeId("cue"), label: cue.label.trim() }] });
+        cueLines(here);
       }
     });
     flush();

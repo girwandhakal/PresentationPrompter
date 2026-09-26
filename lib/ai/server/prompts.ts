@@ -25,12 +25,6 @@ const DEPTH_GUIDE: Record<BriefInput["depth"], string> = {
   cues: "Cue-led prompts: 3–6 keyword prompts per slide, each paragraph 1–5 words, that jog memory rather than script speech.",
 };
 
-const DENSITY_GUIDE: Record<BriefInput["cueDensity"], string> = {
-  none: "Return an empty cues array.",
-  light: "Add at most 1 cue per slide, and none on slides where it wouldn't clearly help. Each cue is 5 words or fewer.",
-  detailed: "Add cues sparingly: 2–3 per slide at most, and only on slides that need them (pauses, emphasis, pointing at visuals). Each cue is 5 words or fewer.",
-};
-
 export function briefBlock(brief: BriefInput) {
   const lines = [
     `Presentation goal (the presenter's own words — this outranks anything inferred): ${brief.goal || "Not stated"}`,
@@ -159,19 +153,13 @@ The presenter's plan is a hard constraint:
 - Each slide has a word target. Land within ±10% of it. Never pad to fill time; if a slide truly needs fewer words, stay near the target by explaining rather than repeating.
 - ${DEPTH_GUIDE[brief.depth]}
 - ${STYLE_GUIDE[brief.style]}
-- Cues: ${DENSITY_GUIDE[brief.cueDensity]}
 
 ${SPOKEN_STYLE}
 
 Also:
 - Use the outline's transition as a guide for how each slide hands off to the next.
 - Split the script into 1–4 paragraphs, each a natural breath group.
-- No stage directions inside paragraphs; they belong in cues.
-
-Cues are private reminders only the presenter sees:
-- At most 5 words, a glanceable prompt, not a sentence ("Point to Q3 bar", "Pause", "Look up"). Never explain why. Never put a pause cue after the last sentence of the script.
-- paragraph and afterSentence are 1-based: the cue appears after that sentence of that paragraph.
-- Never recommend theatrical or unnatural gestures.
+- Only words to be spoken: no stage directions, bracketed notes, or delivery instructions. Delivery cues are added separately.
 
 Support notes for each slide:
 - purpose: one sentence on why this slide is here.
@@ -245,7 +233,7 @@ const SELECTION_ACTIONS: Record<Extract<RewriteRequest, { kind: "selection" }>["
 export function rewriteInstructions(request: RewriteRequest) {
   const common = `${VOICE}\n\n${briefBlock(request.brief)}${request.kind === "script" || request.kind === "selection" ? `\n\n${SPOKEN_STYLE}` : ""}`;
   if (request.kind === "script") {
-    return `${common}\n\nTask: ${SCRIPT_ACTIONS[request.action](request.targetWords, request.slide)}\n\nReturn the full revised script as 1–4 paragraphs. Cues: ${DENSITY_GUIDE[request.brief.cueDensity]} Cue paragraph/afterSentence positions are 1-based within your revised paragraphs. ${DEPTH_GUIDE[request.brief.depth]}`;
+    return `${common}\n\nTask: ${SCRIPT_ACTIONS[request.action](request.targetWords, request.slide)}\n\nReturn the full revised script as 1–4 paragraphs of spoken words only, with no stage directions. ${DEPTH_GUIDE[request.brief.depth]}`;
   }
   if (request.kind === "selection") {
     return `${common}\n\nTask: ${SELECTION_ACTIONS[request.action]} Return only the replacement text, written to fit seamlessly where the selection was. No quotation marks, no commentary.`;

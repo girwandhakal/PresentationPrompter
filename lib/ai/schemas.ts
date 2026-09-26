@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { CUE_TYPES } from "../domain/cues";
 
 /**
  * Contracts between the browser orchestrator and the AI gateway routes.
@@ -43,7 +44,6 @@ export const AnalysisInput = z.object({
   uncertain: z.array(text(300)).max(6),
 }).nullable();
 
-export const CUE_TYPES = ["pause", "emphasis", "look", "gesture", "breathe", "slow", "transition", "check"] as const;
 
 // ── Analyze ─────────────────────────────────────────────────────────────────
 
@@ -163,7 +163,10 @@ export const WrittenSlideOutput = z.object({
   questions: z.array(z.object({ question: z.string(), answer: z.string() })),
 });
 export type WrittenSlideOutput = z.infer<typeof WrittenSlideOutput>;
-export const WriteOutput = z.object({ slides: z.array(WrittenSlideOutput) });
+/** What the model writes. Cues are placed afterwards by code (lib/domain/cues.ts), never by the model. */
+export const WrittenSlideDraft = WrittenSlideOutput.omit({ cues: true });
+export type WrittenSlideDraft = z.infer<typeof WrittenSlideDraft>;
+export const WriteOutput = z.object({ slides: z.array(WrittenSlideDraft) });
 export type WriteOutput = z.infer<typeof WriteOutput>;
 
 // ── Rewrite ─────────────────────────────────────────────────────────────────
@@ -216,7 +219,7 @@ export const RewriteRequest = z.discriminatedUnion("kind", [
 ]);
 export type RewriteRequest = z.infer<typeof RewriteRequest>;
 
-export const ScriptRewriteOutput = z.object({ paragraphs: z.array(z.string()), cues: z.array(CueOutput) });
+export const ScriptRewriteOutput = z.object({ paragraphs: z.array(z.string()) });
 export const SelectionRewriteOutput = z.object({ text: z.string() });
 export const SupportOutput = z.object({ concise: z.string(), keywords: z.array(z.string()), recovery: z.string(), transition: z.string() });
 export const QuestionsOutput = z.object({ questions: z.array(z.object({ question: z.string(), answer: z.string() })) });

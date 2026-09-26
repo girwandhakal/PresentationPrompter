@@ -1,12 +1,12 @@
 import { handleAi, mapLimit } from "@/lib/ai/server/http";
 import { WriteRequest, type WrittenSlideOutput } from "@/lib/ai/schemas";
-import { finalizeWrittenSlide, fitRatio, needsRepair, paragraphsWords, sanitizeCues, sanitizeParagraphs } from "@/lib/ai/validate";
+import { finalizeWrittenSlide, fitRatio, needsRepair, paragraphsWords, sanitizeParagraphs } from "@/lib/ai/validate";
 
 export const dynamic = "force-dynamic";
 
 /**
- * Writes a batch of slides, then validates each against the plan: ids, cue anchors, and word
- * budget. Slides that miss their budget get one targeted repair attempt; the closer of the two
+ * Writes a batch of slides, then validates each against the plan (ids and word budget) and places
+ * its cues. Slides that miss their budget get one targeted repair attempt; the closer of the two
  * versions is kept.
  */
 export function POST(request: Request) {
@@ -38,7 +38,7 @@ export function POST(request: Request) {
         const fixedWords = paragraphsWords(paragraphs);
         const better = paragraphs.length && Math.abs(fitRatio(fixedWords, slide.targetWords) - 1) < Math.abs(fitRatio(words, slide.targetWords) - 1);
         if (better) {
-          return finalizeWrittenSlide({ ...draft, paragraphs, cues: sanitizeCues(fixed.cues, paragraphs, input.brief.cueDensity) }, slide, input.brief);
+          return finalizeWrittenSlide({ ...draft, paragraphs }, slide, input.brief);
         }
       } catch (error) {
         if (signal.aborted) throw error;
