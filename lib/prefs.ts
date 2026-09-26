@@ -34,7 +34,7 @@ export const DEFAULT_PRESENTER_PREFS: PresenterPrefs = {
   focusLine: true,
   showCues: true,
   autoAdvance: true,
-  advanceDelay: 1,
+  advanceDelay: 2,
   showNext: true,
   calmStart: false,
   mode: "full",

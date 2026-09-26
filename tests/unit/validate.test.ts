@@ -58,15 +58,25 @@ test("finalize trims, caps, and drops questions when not requested", () => {
 test("cue anchors are clamped to real paragraphs and sentences, and capped by density", () => {
   const paragraphs = ["One. Two.", "Three."];
   const cues = sanitizeCues([
-    { paragraph: 5, afterSentence: 9, type: "pause", text: "Pause" },
+    { paragraph: 5, afterSentence: 9, type: "gesture", text: "Pause" },
     { paragraph: 1, afterSentence: 0, type: "look", text: "Look up" },
     { paragraph: 1, afterSentence: 1, type: "gesture", text: "Point" },
   ], paragraphs, "detailed");
   assert.equal(cues.length, 3);
-  assert.deepEqual(cues[0], { paragraph: 2, afterSentence: 1, type: "pause", text: "Pause" });
+  assert.deepEqual(cues[0], { paragraph: 2, afterSentence: 1, type: "gesture", text: "Pause" });
   assert.deepEqual(cues[1], { paragraph: 1, afterSentence: 1, type: "look", text: "Look up" });
   assert.equal(sanitizeCues(cues, paragraphs, "light").length, 1);
   assert.equal(sanitizeCues(cues, paragraphs, "none").length, 0);
+});
+
+test("a pause cue never ends the script", () => {
+  const paragraphs = ["One. Two.", "Three."];
+  const cues = sanitizeCues([
+    { paragraph: 2, afterSentence: 1, type: "pause", text: "Pause" },
+    { paragraph: 1, afterSentence: 1, type: "pause", text: "Breathe" },
+    { paragraph: 2, afterSentence: 1, type: "look", text: "Look up" },
+  ], paragraphs, "detailed");
+  assert.deepEqual(cues.map((cue) => cue.text), ["Breathe", "Look up"]);
 });
 
 test("repair is only attempted when a slide is meaningfully off its word budget", () => {

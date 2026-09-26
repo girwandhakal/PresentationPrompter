@@ -44,12 +44,14 @@ export function sanitizeCues(cues: Cue[], paragraphs: string[], density: BriefIn
   if (!paragraphs.length) return [];
   return cues
     .filter((cue) => cue.text.trim())
-    .slice(0, MAX_CUES[density])
     .map((cue) => {
       const paragraph = Math.min(Math.max(1, Math.round(cue.paragraph) || 1), paragraphs.length);
       const sentences = Math.max(1, sentenceCount(paragraphs[paragraph - 1]));
       return { ...cue, paragraph, afterSentence: Math.min(Math.max(1, Math.round(cue.afterSentence) || 1), sentences), text: clean(cue.text, 40) };
-    });
+    })
+    // A pause after the script's final sentence has nothing left to precede; the slide change is the pause.
+    .filter((cue) => !(cue.type === "pause" && cue.paragraph === paragraphs.length && cue.afterSentence === Math.max(1, sentenceCount(paragraphs[paragraphs.length - 1]))))
+    .slice(0, MAX_CUES[density]);
 }
 
 export function sanitizeParagraphs(paragraphs: string[]) {
