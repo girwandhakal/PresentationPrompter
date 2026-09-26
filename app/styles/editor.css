@@ -78,7 +78,8 @@
 .script-paragraph { position: relative; min-height: 1.65em; margin-bottom: 1em; }
 .script-bold { font-weight: 700; }
 .script-italic { font-style: italic; }
-.script-paragraph:has(> .script-cue-chip:only-child) { margin: 0.2em 0 0.75em; }
+.script-paragraph:has(> .script-cue-chip:only-child) { margin: -0.4em 0 1em; }
+.script-paragraph:first-child:has(> .script-cue-chip:only-child) { margin-top: 0; }
 .script-paragraph:has(> .script-cue-chip:only-child)::before {
   content: ""; position: absolute; left: calc(-1 * var(--s-10) + 10px); top: 0.35em; width: 18px; height: 3px; border-radius: 3px; background: var(--bluebell);
   transform-origin: 0 50%; animation: line-write 420ms var(--ease-out);
@@ -165,7 +166,12 @@
 .script-text { font-family: var(--font-display); font-size: var(--st-size, 20px); line-height: var(--st-leading, 1.55); letter-spacing: -0.01em; font-weight: 420; }
 .st-line { margin: 0 0 1em; }
 .st-line strong { font-weight: 700; }
-.st-cue { position: relative; margin: 0.1em 0 0.8em; font-family: var(--font-ui); font-size: max(13px, calc(var(--st-size, 20px) * 0.62)); font-weight: 600; line-height: 1.4; letter-spacing: 0; color: var(--accent-ink); }
+/* A cue collapses into the paragraph gap above it (1em - 0.4em = 0.6em) and keeps a full 1em below, so
+   it reads as part of the paragraph it follows. First in a block, it simply starts at the top. */
+.script-text > .st-cue:first-child { margin-top: 0; }
+/* Short view: one line per sentence, so sentences stay closer than paragraphs do. */
+.script-text--notes .st-line { margin-bottom: 0.6em; }
+.st-cue { position: relative; margin: calc(var(--st-size, 20px) * -0.4) 0 var(--st-size, 20px); font-family: var(--font-ui); font-size: max(13px, calc(var(--st-size, 20px) * 0.62)); font-weight: 600; line-height: 1.4; letter-spacing: 0; color: var(--accent-ink); }
 .st-cue__mark { transform-origin: 0 50%; animation: line-write 480ms var(--ease-out) backwards; position: absolute; left: calc(-1 * max(22px, calc(var(--st-size, 20px) * 1.1))); top: 0.55em; width: max(14px, calc(var(--st-size, 20px) * 0.7)); height: 3px; border-radius: 3px; background: var(--bluebell); }
 .st-inline-cue { font-family: var(--font-ui); font-size: 0.62em; font-weight: 600; color: var(--accent-ink); margin: 0 0.3em; }
 .st-keywords { display: flex; flex-direction: column; gap: 0.35em; font-weight: 600; }

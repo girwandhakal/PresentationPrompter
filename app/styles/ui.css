@@ -180,10 +180,14 @@ input[type="number"]::-webkit-inner-spin-button { opacity: 0.35; }
 }
 .segmented__option:hover { color: var(--text); }
 .segmented__option:active { transform: scale(0.97); }
-.segmented__option[aria-checked="true"] { color: var(--text); font-weight: 600; }
+/* Selection is carried by the gliding puck, not by weight, so options don't shift width or look bold. */
+.segmented__option[aria-checked="true"] { color: var(--text); }
 .segmented__label { position: relative; z-index: 1; }
 .segmented__puck { position: absolute; inset: 0; border-radius: var(--r-sm); background: var(--surface); box-shadow: var(--shadow-1), 0 0 0 1px var(--line); }
 .theme-dark .segmented__puck, :root[data-theme="dark"] .segmented__puck { background: var(--surface-raised); box-shadow: 0 1px 2px rgb(0 0 0 / 0.4), inset 0 1px 0 color-mix(in srgb, var(--powder) 8%, transparent); }
+@media (forced-colors: active) {
+  .segmented__puck { border: 2px solid Highlight; }
+}
 .segmented--sm .segmented__option { min-height: 26px; padding: 3px 8px; font-size: var(--t-xs); }
 
 /* ── Switch ────────────────────────────────────────────────────────────── */
