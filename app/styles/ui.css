@@ -163,9 +163,6 @@
 .input:focus::placeholder { color: color-mix(in srgb, var(--text-3) 60%, transparent); }
 .input[aria-invalid="true"] { border-color: var(--text); }
 .textarea { resize: vertical; min-height: 84px; line-height: 1.5; }
-/* A field the AI just filled in glows once, then settles, so the change is noticed but not loud. */
-.field--suggested .input { animation: suggest-fill 1.6s var(--ease-out); }
-@keyframes suggest-fill { 0% { background-color: color-mix(in srgb, var(--bluebell) 14%, var(--surface)); border-color: var(--accent-line); box-shadow: 0 0 0 4px var(--accent-soft); } }
 .select { appearance: none; padding-right: 34px; background-image: linear-gradient(45deg, transparent 50%, currentColor 50%), linear-gradient(135deg, currentColor 50%, transparent 50%); background-position: calc(100% - 17px) 55%, calc(100% - 12px) 55%; background-size: 5px 5px; background-repeat: no-repeat; }
 .input-unit { position: relative; display: flex; align-items: center; }
 .input-unit .input { padding-right: 52px; font-variant-numeric: tabular-nums; }
