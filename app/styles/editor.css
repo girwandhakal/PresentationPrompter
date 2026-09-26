@@ -163,7 +163,7 @@
 
 /* Shared teleprompter text (editor preview, proposals, Presenter) */
 .script-text { font-family: var(--font-display); font-size: var(--st-size, 20px); line-height: var(--st-leading, 1.55); letter-spacing: -0.01em; font-weight: 420; }
-.st-line { margin: 0 0 0.6em; }
+.st-line { margin: 0 0 1em; }
 .st-line strong { font-weight: 700; }
 .st-cue { position: relative; margin: 0.1em 0 0.8em; font-family: var(--font-ui); font-size: max(13px, calc(var(--st-size, 20px) * 0.62)); font-weight: 600; line-height: 1.4; letter-spacing: 0; color: var(--accent-ink); }
 .st-cue__mark { transform-origin: 0 50%; animation: line-write 480ms var(--ease-out) backwards; position: absolute; left: calc(-1 * max(22px, calc(var(--st-size, 20px) * 1.1))); top: 0.55em; width: max(14px, calc(var(--st-size, 20px) * 0.7)); height: 3px; border-radius: 3px; background: var(--bluebell); }
