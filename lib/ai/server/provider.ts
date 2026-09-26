@@ -49,7 +49,7 @@ export function getProvider(): AiProvider | null {
   const mode = env("AI_PROVIDER")?.toLowerCase();
   const key = env("OPENAI_API_KEY");
   if (mode === "demo") return createDemoProvider();
-  if (key) return createOpenAiProvider({ apiKey: key, model: env("OPENAI_MODEL") ?? "gpt-5.6-sol", baseURL: env("OPENAI_BASE_URL") });
+  if (key) return createOpenAiProvider({ apiKey: key, model: env("OPENAI_MODEL") ?? "gpt-5.4-mini", baseURL: env("OPENAI_BASE_URL") });
   if (process.env.NODE_ENV === "development") return createDemoProvider();
   return null;
 }

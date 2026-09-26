@@ -25,7 +25,7 @@ Requires Node.js 22.13 or newer.
 | Variable | Required | Purpose |
 | --- | --- | --- |
 | `OPENAI_API_KEY` | For AI writing | Server-side key for the OpenAI Responses API. Never sent to the browser. |
-| `OPENAI_MODEL` | No | Model used for analysis and writing (default `gpt-5.6-sol`). Must support structured outputs and image input. |
+| `OPENAI_MODEL` | No | Model used for analysis and writing (default `gpt-5.4-mini`). Must support structured outputs and image input. |
 | `OPENAI_BASE_URL` | No | Point at an OpenAI-compatible proxy or gateway. |
 | `AI_PROVIDER` | No | `demo` forces the keyless demo provider (development and tests). |
 
