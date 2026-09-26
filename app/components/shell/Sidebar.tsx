@@ -5,8 +5,7 @@ import { AnimatePresence, LayoutGroup, m } from "motion/react";
 import Link from "next/link";
 import { useParams, usePathname } from "next/navigation";
 import { useMemo, useState } from "react";
-import { formatDuration, pluralize } from "@/lib/domain/format";
-import { hasScript, projectHref, projectSpokenSeconds } from "@/lib/domain/planner";
+import { hasScript, projectHref } from "@/lib/domain/planner";
 import type { Project } from "@/lib/domain/types";
 import { useProjects } from "@/lib/store/projects";
 import { ProjectMenu } from "../project/ProjectMenu";
@@ -24,7 +23,7 @@ function projectState(project: Project) {
 }
 
 export function projectStatus(project: Project) {
-  return projectState(project) ?? `${pluralize(project.slides.length, "slide")} · ${formatDuration(projectSpokenSeconds(project))}`;
+  return projectState(project) ?? (hasScript(project) ? "Ready" : "Draft");
 }
 
 const busy = (project: Project) =>
