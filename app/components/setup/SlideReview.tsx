@@ -1,8 +1,8 @@
 "use client";
 
 import { AlertTriangle, ArrowDown, ArrowUp, EyeOff, MoreHorizontal, Trash2, Eye } from "lucide-react";
-import { m, type PanInfo } from "motion/react";
-import { useRef, useState } from "react";
+import { m, useDragControls, type DragControls, type HTMLMotionProps, type PanInfo } from "motion/react";
+import { useRef, useState, type ReactNode, type Ref } from "react";
 import { hasScript } from "@/lib/domain/planner";
 import type { Project, Slide } from "@/lib/domain/types";
 import { releaseBlobUrls } from "@/lib/store/blob-url";
@@ -22,8 +22,12 @@ import { useToast } from "../ui/toast";
  * the pointer while everything else holds still. Resting on a slide (or dropping on it) opens a space
  * there: the cards in between glide one slot aside. Passing quickly over slides moves nothing. The
  * order is saved once, on release.
+ *
+ * A mouse picks a card up immediately. Touch needs a short press-and-hold first, so an ordinary swipe
+ * over the grid still scrolls the page.
  */
 const DWELL_MS = 150;
+const HOLD_MS = 260;
 export function SlideReview({ project }: { project: Project }) {
   const { update, saveVersion } = useProjects();
   const toast = useToast();
@@ -147,7 +151,7 @@ export function SlideReview({ project }: { project: Project }) {
         {ordered.map((slide, index) => {
           const issues = slide.warnings.filter((warning) => warning.kind !== "approximate-render");
           return (
-            <m.li
+            <DraggableCard
               key={slide.id}
               ref={(node) => { if (node) cards.current.set(slide.id, node); else cards.current.delete(slide.id); }}
               className="review-slide"
@@ -156,7 +160,7 @@ export function SlideReview({ project }: { project: Project }) {
               style={{ "--i": index, zIndex: dragId === slide.id ? 5 : 0 } as React.CSSProperties}
               layout
               transition={GLIDE}
-              drag
+              onContextMenu={(event) => { if (dragId) event.preventDefault(); }}
               dragSnapToOrigin
               dragMomentum={false}
               dragTransition={{ bounceStiffness: 500, bounceDamping: 40 }}
@@ -196,10 +200,56 @@ export function SlideReview({ project }: { project: Project }) {
                   />
                 </div>
               </div>
-            </m.li>
+            </DraggableCard>
           );
         })}
       </m.ol>
     </div>
+  );
+}
+
+/** Mouse: drag at once. Touch: only after a still hold, so a normal swipe keeps scrolling the page. */
+function pressToDrag(event: React.PointerEvent<HTMLLIElement>, controls: DragControls) {
+  if (event.button !== 0 || (event.target as HTMLElement).closest("button, a, [data-tooltip]")) return;
+  if (event.pointerType === "mouse") {
+    controls.start(event);
+    return;
+  }
+  const card = event.currentTarget;
+  const origin = event.nativeEvent;
+  const move = (next: PointerEvent) => { if (Math.hypot(next.clientX - origin.clientX, next.clientY - origin.clientY) > 8) cancel(); };
+  const cancel = () => {
+    window.clearTimeout(timer);
+    window.removeEventListener("pointermove", move);
+    window.removeEventListener("pointerup", cancel);
+    window.removeEventListener("pointercancel", cancel);
+  };
+  const timer = window.setTimeout(() => {
+    cancel();
+    // From here the gesture is a drag: stop the page scrolling until the finger lifts.
+    const block = (touch: TouchEvent) => touch.preventDefault();
+    const release = () => {
+      card.removeEventListener("touchmove", block);
+      window.removeEventListener("pointerup", release);
+      window.removeEventListener("pointercancel", release);
+    };
+    card.addEventListener("touchmove", block, { passive: false });
+    window.addEventListener("pointerup", release);
+    window.addEventListener("pointercancel", release);
+    navigator.vibrate?.(10);
+    controls.start(origin);
+  }, HOLD_MS);
+  window.addEventListener("pointermove", move);
+  window.addEventListener("pointerup", cancel);
+  window.addEventListener("pointercancel", cancel);
+}
+
+/** A grid card that owns its drag controls, so the drag starts from pressToDrag rather than on touch. */
+function DraggableCard({ children, ref, ...props }: Omit<HTMLMotionProps<"li">, "drag" | "dragControls" | "dragListener" | "onPointerDown" | "children"> & { children: ReactNode; ref?: Ref<HTMLLIElement> }) {
+  const controls = useDragControls();
+  return (
+    <m.li ref={ref} {...props} drag dragControls={controls} dragListener={false} onPointerDown={(event) => pressToDrag(event, controls)}>
+      {children}
+    </m.li>
   );
 }

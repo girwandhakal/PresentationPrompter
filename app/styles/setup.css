@@ -34,7 +34,7 @@
 .slide-review__note { display: flex; gap: var(--s-2); align-items: flex-start; font-size: var(--t-xs); color: var(--text-2); line-height: 1.5; }
 .slide-review__note svg { width: 14px; height: 14px; flex: 0 0 auto; margin-top: 1px; }
 .slide-review__grid { position: relative; display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: var(--s-4); max-height: 520px; overflow-y: auto; padding: 4px; margin: -4px; }
-.review-slide { position: relative; border-radius: var(--r-md); cursor: grab; touch-action: none; user-select: none; }
+.review-slide { position: relative; border-radius: var(--r-md); cursor: grab; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
 .review-slide:active { cursor: grabbing; }
 .review-slide__inner { display: flex; flex-direction: column; gap: 6px; animation: rise-in 480ms var(--ease-out) backwards; animation-delay: calc(min(var(--i, 0), 16) * 35ms); }
 .review-slide[data-optional="true"] .slide-image { opacity: 0.5; filter: grayscale(0.6); }
