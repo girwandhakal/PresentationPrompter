@@ -3,9 +3,10 @@ import { defineConfig } from "@playwright/test";
 const PORT = 3100;
 
 /**
- * End-to-end tests run against the dev server with the deterministic demo AI (no API key, no
- * network). They use the locally installed Chrome, so no browser download is needed; set
- * PLAYWRIGHT_CHANNEL=msedge (or "" for Playwright's bundled Chromium) to change it.
+ * End-to-end tests run against a production build with the deterministic demo AI (no API key, no
+ * network); the dev server compiles routes on first visit, which outlasts short-lived toasts. They
+ * use the locally installed Chrome, so no browser download is needed; set PLAYWRIGHT_CHANNEL=msedge
+ * (or "" for Playwright's bundled Chromium) to change it.
  */
 export default defineConfig({
   testDir: "tests/e2e",
@@ -21,7 +22,7 @@ export default defineConfig({
     trace: "retain-on-failure",
   },
   webServer: {
-    command: `npx cross-env AI_PROVIDER=demo WRANGLER_LOG_PATH=.wrangler/wrangler.log vinext dev --port ${PORT}`,
+    command: `npm run build && npx cross-env AI_PROVIDER=demo next start --port ${PORT}`,
     url: `http://localhost:${PORT}/api/ai/status`,
     reuseExistingServer: !process.env.CI,
     timeout: 180_000,

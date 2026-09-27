@@ -75,6 +75,7 @@ test("the talk opens with a greeting and closes with thanks", () => {
   const ends = { first: true, last: true };
   assert.deepEqual(frameTalk(["Today we look at the pilot.", "That's the plan."], ends, "full"), ["Hello, everyone. Today we look at the pilot.", "That's the plan. Thank you, everyone."]);
   assert.deepEqual(frameTalk(["Good morning, everyone. Today we look at the pilot."], { first: true, last: false }, "full"), ["Good morning, everyone. Today we look at the pilot."], "an existing greeting is kept");
+  assert.deepEqual(frameTalk(["So, hello, everyone. Today we look at the pilot."], { first: true, last: false }, "full"), ["So, hello, everyone. Today we look at the pilot."], "a greeting after a spoken lead-in is kept");
   assert.deepEqual(frameTalk(["I'm happy to take questions. Thanks for listening."], { first: false, last: true }, "full"), ["I'm happy to take questions. Thanks for listening."], "existing thanks are kept");
   assert.deepEqual(frameTalk(["Pilot scope", "Next steps"], ends, "cues"), ["Hello, everyone.", "Pilot scope", "Next steps", "Thank you, everyone."], "notes and cues get their own lines");
   assert.deepEqual(frameTalk(["Middle slide."], { first: false, last: false }, "full"), ["Middle slide."]);

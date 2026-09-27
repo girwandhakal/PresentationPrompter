@@ -8,8 +8,7 @@ type TextItem = { str: string; hasEOL: boolean; height: number; transform: numbe
 export async function importPdf(file: File, context: ImportContext): Promise<ImportedSlide[]> {
   // The legacy build carries polyfills for newer JS built-ins, so imports work beyond the latest browsers.
   const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
-  const { default: workerUrl } = await import("pdfjs-dist/legacy/build/pdf.worker.min.mjs?url");
-  pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
+  pdfjs.GlobalWorkerOptions.workerSrc = new URL("pdfjs-dist/legacy/build/pdf.worker.min.mjs", import.meta.url).toString();
 
   const loadingTask = pdfjs.getDocument({ data: new Uint8Array(await file.arrayBuffer()) });
   let document: Awaited<typeof loadingTask.promise>;
