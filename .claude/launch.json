@@ -32,8 +32,7 @@
       "runtimeArgs": [
         "cross-env",
         "AI_PROVIDER=demo",
-        "WRANGLER_LOG_PATH=.wrangler/wrangler.log",
-        "vinext",
+        "next",
         "dev",
         "--port",
         "3300"
@@ -46,11 +45,10 @@
       "runtimeArgs": [
         "cross-env",
         "AI_PROVIDER=demo",
-        "vite",
-        "preview",
+        "next",
+        "start",
         "--port",
-        "3200",
-        "--strictPort"
+        "3200"
       ],
       "port": 3200
     }
