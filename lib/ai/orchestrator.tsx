@@ -7,12 +7,12 @@ import type { DeckContext, Project, Slide, SlideAnalysis } from "../domain/types
 import { useProjects } from "../store/projects";
 import { aiFetch, AiRequestError, analysisInput, briefInput, contextInput, scriptFromWritten, slideImageForAi } from "./client";
 import { aiLockName } from "./lock";
-import type { WrittenSlideOutput } from "./schemas";
+import type { DeliveredSlide, WrittenSlideOutput } from "./schemas";
 
 /**
  * Runs the AI pipeline for a project from the browser, one bounded request at a time:
  *
- *   analyze (vision + text, batched)  →  deck context  →  plan (local)  →  outline  →  write (batched)
+ *   analyze (vision + text, batched)  →  deck context  →  plan (local)  →  outline  →  write (batched)  →  deliver
  *
  * Analysis starts as soon as slides are imported so the setup form can show suggestions. Generation
  * is deliberately quiet: the project shows one calm "writing" state, and the finished draft is
@@ -203,7 +203,7 @@ export function OrchestratorProvider({ children }: { children: ReactNode }) {
       const context = contextInput(project);
       const title = project.title.slice(0, 200);
 
-      const outline = await aiFetch<{ arc: string; slides: { id: string; role: string; keyIdea: string; transition: string }[] }>("outline", {
+      const outline = await aiFetch<{ arc: string; voice: string; slides: { id: string; role: string; keyIdea: string; transition: string }[] }>("outline", {
         brief,
         context,
         title,
@@ -228,8 +228,9 @@ export function OrchestratorProvider({ children }: { children: ReactNode }) {
           context,
           title,
           arc: outline.arc.slice(0, 2000),
+          voice: (outline.voice ?? "").slice(0, 1200),
           totalSlides: project.slides.length,
-          slides: batch.map(({ slide, index }) => slideWriteInput(project, slide, index, targets.get(slide.id) ?? 60, planned.get(slide.id))),
+          slides: batch.map(({ slide, index }) => slideWriteInput(project, slide, index, targets.get(slide.id) ?? 60, planned.get(slide.id), planned.get(project.slides[index - 1]?.id ?? "")?.transition)),
         }, signal);
         for (const entry of result.slides) if (entry.script) written.set(entry.id, entry.script);
       });
@@ -237,6 +238,30 @@ export function OrchestratorProvider({ children }: { children: ReactNode }) {
 
       const missing = project.slides.filter((slide) => !written.has(slide.id));
       if (missing.length) throw new AiRequestError(`The AI didn't return a script for ${missing.length === 1 ? "one slide" : `${missing.length} slides`}. Try again.`, 502, "incomplete");
+
+      // Pauses, bold and slow are marked once the whole deck's prose is final. If this pass fails,
+      // each slide keeps the rule-based marks the write step already placed.
+      if (brief.cueDensity !== "none") {
+        try {
+          const delivered = await aiFetch<{ slides: DeliveredSlide[] }>("deliver", {
+            density: brief.cueDensity,
+            slides: project.slides.map((slide, index) => ({
+              id: slide.id,
+              title: slide.title.slice(0, 300),
+              kind: slide.analysis?.kind ?? "content",
+              keyIdea: (planned.get(slide.id)?.keyIdea || slide.analysis?.mainPoint || "").slice(0, 600),
+              first: index === 0,
+              paragraphs: written.get(slide.id)!.paragraphs,
+            })),
+          }, signal);
+          for (const entry of delivered.slides) {
+            const script = written.get(entry.id);
+            if (script) written.set(entry.id, { ...script, cues: entry.cues, marks: entry.marks });
+          }
+        } catch (error) {
+          if (signal.aborted) throw error;
+        }
+      }
 
       // Keep what was there before, so regenerating is always reversible.
       const before = await latest(projectId);
@@ -274,7 +299,7 @@ export function OrchestratorProvider({ children }: { children: ReactNode }) {
   return <OrchestratorContext.Provider value={value}>{children}</OrchestratorContext.Provider>;
 }
 
-function slideWriteInput(project: Project, slide: Slide, index: number, targetWords: number, planned?: { role: string; keyIdea: string; transition: string }) {
+function slideWriteInput(project: Project, slide: Slide, index: number, targetWords: number, planned?: { role: string; keyIdea: string; transition: string }, previousTransition = "") {
   return {
     id: slide.id,
     index: index + 1,
@@ -285,6 +310,7 @@ function slideWriteInput(project: Project, slide: Slide, index: number, targetWo
     role: (planned?.role ?? "").slice(0, 400),
     keyIdea: (planned?.keyIdea ?? "").slice(0, 600),
     transition: (planned?.transition ?? "").slice(0, 600),
+    previousTransition: previousTransition.slice(0, 600),
     targetWords: Math.min(5000, Math.max(0, Math.round(targetWords))),
     previousTitle: project.slides[index - 1]?.title.slice(0, 300) ?? "",
     nextTitle: project.slides[index + 1]?.title.slice(0, 300) ?? "",

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { pickDraft, spokenProblems } from "../../lib/ai/server/spoken-lint";
+import { pickDraft, spokenProblems, ungroundedFigures } from "../../lib/ai/server/spoken-lint";
 
 test("flags label-and-colon openers", () => {
   assert.ok(spokenProblems(["Keep: small PRs, peer review."]).length);
@@ -23,13 +23,26 @@ const spoken = "So the goal was simple: get people through checkout faster. We c
 const notes = "Keep: small PRs, peer review.";
 const slide = (id: string, text: string) => ({ id, paragraphs: [text], concise: "The form got faster." });
 
-test("a retry wins only when it is no worse and covers every slide", () => {
+test("flags sales-deck language", () => {
+  assert.match(spokenProblems(["This is a real game-changer for the team."]).join(" "), /sales-deck/);
+  assert.match(spokenProblems(["Let's delve into the numbers."]).join(" "), /sales-deck/);
+});
+
+test("flags figures the source material doesn't contain, but not small counts", () => {
+  const source = "Activation rose from 61% to 74% in six weeks. Twelve body areas. Revenue $1,200,000.";
+  assert.deepEqual(ungroundedFigures(["Activation went from 61% to 74%, across 12 areas, about 1,200,000 dollars, in two steps and 3 weeks."], source), []);
+  assert.deepEqual(ungroundedFigures(["Activation jumped 83% and saved 40 hours, fixing #42."], source), ["83", "40"]);
+  assert.match(spokenProblems(["Activation jumped 83% in a month."], source).join(" "), /"83"/);
+  assert.deepEqual(spokenProblems(["Activation jumped 83% in a month."]), [], "no source, no grounding check");
+});
+
+test("a retry replaces only the slides it improved", () => {
   const first = { slides: [slide("a", notes), slide("b", spoken)] };
   const fixed = { slides: [slide("a", spoken), slide("b", spoken)] };
-  assert.equal(pickDraft(first, fixed), fixed);
-  // A failed retry, or one that drops a slide, keeps the first draft.
-  assert.equal(pickDraft(first, null), first);
-  assert.equal(pickDraft(first, { slides: [slide("a", spoken)] }), first);
-  // A retry with more failing slides loses; label openers in the concise summary count too.
-  assert.equal(pickDraft(first, { slides: [slide("a", notes), { ...slide("b", spoken), concise: "Result: faster." }] }), first);
+  assert.deepEqual(pickDraft(first, fixed), fixed);
+  assert.equal(pickDraft(first, null), first, "a failed retry keeps the first draft");
+  // A slide the retry dropped, or made worse, keeps its first version; label openers in the concise summary count too.
+  const worse = { ...slide("b", spoken), concise: "Result: faster." };
+  assert.deepEqual(pickDraft(first, { slides: [slide("a", spoken), worse] }).slides, [slide("a", spoken), slide("b", spoken)]);
+  assert.deepEqual(pickDraft(first, { slides: [slide("a", spoken)] }).slides, [slide("a", spoken), slide("b", spoken)]);
 });

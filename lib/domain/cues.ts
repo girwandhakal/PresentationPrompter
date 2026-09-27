@@ -19,8 +19,8 @@ export type MarkType = "bold" | "slow";
 
 /** Anchored after sentence `afterSentence` of a one-based paragraph; 0 means before its first sentence. */
 export type PlacedCue = { paragraph: number; afterSentence: number; type: CueType; text: string };
-/** Formats the first occurrence of `text` within a one-based paragraph. */
-export type PlacedMark = { paragraph: number; text: string; mark: MarkType };
+/** Formats `text` inside one-based sentence `sentence` of one-based paragraph `paragraph`. */
+export type PlacedMark = { paragraph: number; sentence: number; text: string; mark: MarkType };
 
 export type DeliveryContext = {
   paragraphs: string[];
@@ -129,18 +129,14 @@ function cueCandidates(sentences: Sentence[], context: DeliveryContext): Candida
   return result;
 }
 
-function markCandidates(sentences: Sentence[], context: DeliveryContext): MarkCandidate[] {
+function markCandidates(sentences: Sentence[]): MarkCandidate[] {
   const result: MarkCandidate[] = [];
-  const key = keySentence(sentences, context);
   sentences.forEach((sentence, index) => {
     const found = figure(sentence.text);
     if (found) result.push({ sentence: index, text: found.value, mark: "bold", score: found.score });
 
-    // Slow down for dense detail, a long sentence, or the slide's point when it closes the slide.
-    const figures = sentence.text.match(STRONG_FIGURE)?.length ?? 0;
-    const closingPoint = key?.index === index && index === sentences.length - 1;
-    const slow = figures >= 2 ? 3.5 : closingPoint ? 2.5 + 1.5 * key.ratio : sentence.words >= 28 ? 2.5 : 0;
-    if (slow) result.push({ sentence: index, text: sentence.text, mark: "slow", score: slow });
+    // Slow down only for detail the audience must catch exactly, the same test the AI coach applies.
+    if ((sentence.text.match(STRONG_FIGURE)?.length ?? 0) >= 2) result.push({ sentence: index, text: sentence.text, mark: "slow", score: 3.5 });
   });
   return result;
 }
@@ -200,7 +196,7 @@ function select(sentences: Sentence[], density: CueDensity, cuePool: Candidate[]
       }),
     marks: marks
       .sort((a, b) => a.sentence - b.sentence)
-      .map((mark) => ({ paragraph: sentences[mark.sentence].paragraph, text: mark.text, mark: mark.mark })),
+      .map((mark) => ({ paragraph: sentences[mark.sentence].paragraph, sentence: sentences[mark.sentence].index, text: mark.text, mark: mark.mark })),
   };
 }
 
@@ -211,7 +207,7 @@ export function placeDelivery(context: DeliveryContext): Delivery {
   if (!sentences.length) return EMPTY;
   // A small seeded jitter breaks ties differently on each slide, so equal-looking slides don't get identical rhythm.
   const cuePool = cueCandidates(sentences, context).map((cue) => ({ ...cue, score: cue.score + jitter(context.seed, `${cue.gap}:${cue.type}`) }));
-  const markPool = markCandidates(sentences, context).map((mark) => ({ ...mark, score: mark.score + jitter(context.seed, `${mark.sentence}:${mark.mark}`) }));
+  const markPool = markCandidates(sentences).map((mark) => ({ ...mark, score: mark.score + jitter(context.seed, `${mark.sentence}:${mark.mark}`) }));
   return select(sentences, context.density, cuePool, markPool, THRESHOLD[context.density]);
 }
 
@@ -230,6 +226,13 @@ export type SentenceNotes = {
 
 const FIGURE_WORDS = /\d|\b(?:half|double[ds]?|twice|triple[ds]?|zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|twenty|thirty|forty|fifty|hundred|thousand|million|billion|percent)\b/i;
 const CONTRAST_WORDS = /\b(?:not|never|no longer|only|none|nothing|instead|but|without|all|every)\b|n't\b/i;
+
+/** Where `phrase` appears in `text` as whole words ("3" is not found inside "Q3"), case-insensitively; -1 if not. */
+function wholeWordIndex(text: string, phrase: string) {
+  if (!phrase) return -1;
+  const escaped = phrase.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`(?<![\\p{L}\\p{N}])${escaped}(?![\\p{L}\\p{N}])`, "iu").exec(text)?.index ?? -1;
+}
 
 /** A fact behind a cue counts when a strict majority of reads saw it. */
 const AGREED = 0.5;
@@ -263,11 +266,10 @@ export function applySentenceNotes(context: DeliveryContext, notes: SentenceNote
     if (note.turnsArgument > AGREED && index > 0) cues.push({ gap: index, type: "pause", text: "Pause", score: 3 + sure(note.turnsArgument) });
 
     if (note.mustCatchExactly >= UNANIMOUS) marks.push({ sentence: index, text: sentences[index].text, mark: "slow", score: 3.5 });
-    else if (index === main && index === last) marks.push({ sentence: index, text: sentences[index].text, mark: "slow", score: 3 });
 
     // `stress` only survives voting when every read chose the same words.
     const phrase = note.stress.trim().replace(/^["“'‘]|["”'’.,]$/g, "");
-    const start = phrase ? sentences[index].text.toLowerCase().indexOf(phrase.toLowerCase()) : -1;
+    const start = wholeWordIndex(sentences[index].text, phrase);
     // Bold is kept for what a listener must not miss: the slide's point, a figure, or a contrast.
     // Other words the coach would stress are left to the presenter's natural delivery.
     const tier = index === main ? 3.6 : FIGURE_WORDS.test(phrase) ? 3.3 : CONTRAST_WORDS.test(phrase) ? 3 : 0;

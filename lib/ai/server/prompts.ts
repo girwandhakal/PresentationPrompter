@@ -96,10 +96,11 @@ ${VOICE}
 Task: plan the spoken narrative before any script is written.
 
 - arc: 2–4 sentences describing the through-line of the talk: how it opens, builds, and closes toward the presenter's goal.
+- voice: 2–3 sentences that every slide's script will follow, so the talk sounds like one person throughout. Say how formal to be, what this audience already knows (so what to explain and what to skip), whether the presenter speaks as "I" or "we", and any terms to keep exactly as written. The presenter's brief outranks what the deck suggests.
 - slides: one entry per slide id, same order:
   - role: what this slide does in the story (e.g. "sets up the problem", "evidence for the claim").
   - keyIdea: the one thing to land on this slide, grounded in its content.
-  - transition: one short spoken sentence that bridges from this slide into the next. For the final slide, a closing line (or a handoff to questions if time is reserved).
+  - transition: one short spoken sentence that bridges from this slide into the next. For the final slide, a closing line (or a handoff to questions if time is reserved). Vary them: don't start two transitions the same way.
   Optional slides should still get a role and a transition that reads naturally.
 `.trim();
 
@@ -157,6 +158,8 @@ The presenter's plan is a hard constraint:
 ${SPOKEN_STYLE}
 
 Also:
+- Follow the talk's voice on every slide; other slides are being written at the same time from the same voice.
+- Open each slide by picking up from how the previous slide ends, without repeating that line. Slides must not all open the same way ("Now,", "So,", "Next,").
 - Use the outline's transition as a guide for how each slide hands off to the next.
 - Split the script into 1–4 paragraphs, each a natural breath group.
 - Only words to be spoken: no stage directions, bracketed notes, or delivery instructions. Delivery cues are added separately.
@@ -179,6 +182,7 @@ function slideBlock(slide: WriteSlideInput, total: number) {
     `Title: ${slide.title}`,
     `Role in the story: ${slide.role || "—"}`,
     `Key idea: ${slide.keyIdea || slide.analysis?.mainPoint || "—"}`,
+    `The previous slide ends with: ${slide.previousTransition ? `“${slide.previousTransition}”` : "(this is the first slide)"}`,
     `Planned transition to next: ${slide.transition || "—"}`,
     `Previous slide: ${slide.previousTitle || "(this is the first slide)"} · Next slide: ${slide.nextTitle || "(this is the last slide)"}`,
     `Slide text:\n${slide.text || "(no extractable text)"}`,
@@ -194,6 +198,7 @@ export function writeText(request: WriteRequest) {
     `Presentation: ${request.title}`,
     request.context && `Deck context: ${request.context.summary}`,
     `Narrative arc: ${request.arc || "—"}`,
+    request.voice && `Voice for the whole talk (follow it on every slide): ${request.voice}`,
     briefBlock(request.brief),
     request.slides.map((slide) => slideBlock(slide, request.totalSlides)).join("\n\n"),
   ].filter(Boolean).join("\n\n");
@@ -249,8 +254,9 @@ function rewriteSlideBlock(title: string, slide: SlideContext, paragraphs: strin
   ].filter(Boolean).join("\n\n");
 }
 
-const SCRIPT_ACTIONS: Record<Extract<RewriteRequest, { kind: "script" }>["action"], (target: number, slide: SlideContext) => string> = {
-  fit: (target) => `Rewrite this slide's script to about ${target} words (±10%). Keep every essential claim; cut repetition and preamble first when shortening, and deepen the explanation of what's on the slide when lengthening.`,
+const SCRIPT_ACTIONS: Record<Extract<RewriteRequest, { kind: "script" }>["action"], (target: number, slide: SlideContext, current: number) => string> = {
+  // Models under-correct when told only the target, so the task states the current length and the exact range.
+  fit: (target, _slide, current) => `Rewrite this slide's script to ${Math.round(target * 0.9)}–${Math.round(target * 1.1)} words. The current version is ${current} words, so ${current > target ? `cut about ${current - target}` : `add about ${target - current}`}. Keep every essential claim; cut repetition and preamble first when shortening, and deepen the explanation of what's on the slide when lengthening. Count your words before answering.`,
   conversational: (target) => `Make it sound more like natural speech: warmer, simpler rhythm, contractions. No filler, no hype. Stay near ${target} words.`,
   simpler: (target) => `Use plainer words and shorter sentences for a non-specialist. Keep required technical terms, but explain each briefly the first time. Stay near ${target} words.`,
   transition: (target, slide) => `Strengthen how this slide opens from “${slide.previousTitle || "the start of the talk"}” and hands off to “${slide.nextTitle || "the close"}”. Keep the body's substance. Stay near ${target} words.`,
@@ -268,7 +274,8 @@ const SELECTION_ACTIONS: Record<Extract<RewriteRequest, { kind: "selection" }>["
 export function rewriteInstructions(request: RewriteRequest) {
   const common = `${VOICE}\n\n${briefBlock(request.brief)}${request.kind === "script" || request.kind === "selection" ? `\n\n${SPOKEN_STYLE}` : ""}`;
   if (request.kind === "script") {
-    return `${common}\n\nTask: ${SCRIPT_ACTIONS[request.action](request.targetWords, request.slide)}\n\nReturn the full revised script as 1–4 paragraphs of spoken words only, with no stage directions. ${DEPTH_GUIDE[request.brief.depth]}`;
+    const current = request.paragraphs.join(" ").split(/\s+/).filter(Boolean).length;
+    return `${common}\n\nTask: ${SCRIPT_ACTIONS[request.action](request.targetWords, request.slide, current)}\n\nReturn the full revised script as 1–4 paragraphs of spoken words only, with no stage directions. ${DEPTH_GUIDE[request.brief.depth]}`;
   }
   if (request.kind === "selection") {
     return `${common}\n\nTask: ${SELECTION_ACTIONS[request.action]} Return only the replacement text, written to fit seamlessly where the selection was. No quotation marks, no commentary.`;

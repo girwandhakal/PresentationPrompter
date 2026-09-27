@@ -80,6 +80,7 @@ AI gateway: schema-validated requests → OpenAI structured outputs → validati
 | `npm run preview` | Serve the production build locally in workerd, including security headers |
 | `npm run lint` · `npm run typecheck` | ESLint · TypeScript |
 | `npm test` | Unit and API integration tests (demo provider, no network) |
+| `npm run eval` | Runs the fixture decks in `tests/fixtures/eval-decks.json` through the real AI pipeline and scores word fit, speech checks, invented figures, repeated openers, and delivery marks; full scripts go to `outputs/`. Needs `OPENAI_API_KEY`. Add `--runs=3` or `--deck=<name>`. Rerun after any prompt or model change |
 | `npm run test:e2e` | Playwright end-to-end tests. They use your installed Chrome; set `PLAYWRIGHT_CHANNEL=msedge` or `""` for bundled Chromium |
 | `npm run check` | Lint, typecheck, unit tests, and build |
 | `npm run sample-deck` | Regenerate `public/sample-deck.pdf` (the first-run sample, also a test fixture) |

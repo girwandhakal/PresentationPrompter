@@ -1,14 +1,16 @@
 import { handleAi, mapLimit } from "@/lib/ai/server/http";
 import { WriteRequest, type WrittenSlideOutput } from "@/lib/ai/schemas";
-import { deliverSlides } from "@/lib/ai/server/delivery";
-import { deliveryContext, finalizeWrittenSlide, fitRatio, needsRepair, paragraphsWords, sanitizeParagraphs } from "@/lib/ai/validate";
+import { finalizeWrittenSlide, fitRatio, needsRepair, paragraphsWords, sanitizeParagraphs } from "@/lib/ai/validate";
 
 export const dynamic = "force-dynamic";
 
 /**
- * Writes a batch of slides, validates each against the plan (ids and word budget), then marks
- * delivery (pauses, points, slow, bold) on the final prose. Slides that miss their budget get one targeted repair attempt; the closer of the two
- * versions is kept.
+ * Writes a batch of slides and validates each against the plan (ids and word budget). Slides that
+ * miss their budget get one targeted repair attempt; the closer of the two versions is kept, and a
+ * kept repair gets fresh support notes so they describe the words actually spoken.
+ *
+ * Cues and marks returned here come from rules; the browser replaces them with the delivery pass
+ * (/api/ai/deliver) once the whole deck is written.
  */
 export function POST(request: Request) {
   return handleAi(request, WriteRequest, async (provider, input, signal) => {
@@ -25,36 +27,27 @@ export function POST(request: Request) {
       if (!draft) return null;
       const words = paragraphsWords(draft.paragraphs);
       if (!needsRepair(words, slide.targetWords, input.brief.depth)) return draft;
+      const context = { title: slide.title, text: slide.text, notes: slide.notes, analysis: slide.analysis, previousTitle: slide.previousTitle, nextTitle: slide.nextTitle };
       try {
-        const fixed = await provider.rewriteScript({
-          kind: "script",
-          action: "fit",
-          brief: input.brief,
-          title: input.title,
-          slide: { title: slide.title, text: slide.text, notes: slide.notes, analysis: slide.analysis, previousTitle: slide.previousTitle, nextTitle: slide.nextTitle },
-          paragraphs: draft.paragraphs,
-          targetWords: slide.targetWords,
-        }, signal);
+        const fixed = await provider.rewriteScript({ kind: "script", action: "fit", brief: input.brief, title: input.title, slide: context, paragraphs: draft.paragraphs, targetWords: slide.targetWords }, signal);
         const paragraphs = sanitizeParagraphs(fixed.paragraphs);
-        const fixedWords = paragraphsWords(paragraphs);
-        const better = paragraphs.length && Math.abs(fitRatio(fixedWords, slide.targetWords) - 1) < Math.abs(fitRatio(words, slide.targetWords) - 1);
-        if (better) {
-          return finalizeWrittenSlide({ ...draft, paragraphs }, slide, input.brief);
-        }
+        const better = paragraphs.length && Math.abs(fitRatio(paragraphsWords(paragraphs), slide.targetWords) - 1) < Math.abs(fitRatio(words, slide.targetWords) - 1);
+        if (!better) return draft;
+        // The first draft's summary, keywords, and transition described text that was just replaced.
+        const support = await provider.support({ kind: "support", brief: input.brief, title: input.title, slide: context, paragraphs }, signal).catch((error) => {
+          if (signal.aborted) throw error;
+          return null;
+        });
+        return finalizeWrittenSlide({ ...draft, paragraphs, ...(support ?? {}) }, slide, input.brief);
       } catch (error) {
         if (signal.aborted) throw error;
         // A failed repair keeps the original draft.
+        return draft;
       }
-      return draft;
     });
 
-    // Delivery is marked on the final prose, after any repair, in one pass for the whole batch.
-    const written = input.slides.flatMap((slide, index) => repaired[index] ? [{ slide, script: repaired[index]! }] : []);
-    const delivered = await deliverSlides(provider, written.map(({ slide, script }) => deliveryContext(script.paragraphs, slide, input.brief)), signal);
-    const scripts = new Map(written.map(({ slide, script }, index) => [slide.id, { ...script, ...delivered[index] }]));
-
     return {
-      slides: input.slides.map((slide) => ({ id: slide.id, script: scripts.get(slide.id) ?? null })),
+      slides: input.slides.map((slide, index) => ({ id: slide.id, script: repaired[index] })),
     };
   }, { maxBytes: 1024 * 1024 });
 }

@@ -24,7 +24,7 @@ test("the only cue line is Pause, even when a sentence refers to the visual", ()
 
 test("a key figure is bolded instead of getting a cue line", () => {
   const { cues, marks } = place({ paragraphs: ["We simplified the signup form. Completion rose to 65% in a month. That held for every region."], density: "light" });
-  assert.deepEqual(marks, [{ paragraph: 1, text: "65%", mark: "bold" }]);
+  assert.deepEqual(marks, [{ paragraph: 1, sentence: 2, text: "65%", mark: "bold" }]);
   assert.ok(cues.every((cue) => cue.type !== ("emphasis" as string)));
 });
 
@@ -54,7 +54,7 @@ test("the sentence closest to the key idea gets a pause after it", () => {
 test("a sentence dense with figures is read slowly instead of bolded, never given a cue line", () => {
   const dense = "Plans start at $12 a month, or $99 a year for teams.";
   const { cues, marks } = place({ paragraphs: [`Pricing is simple. ${dense} Most people pick the yearly plan.`] });
-  assert.deepEqual(marks, [{ paragraph: 1, text: dense, mark: "slow" }]);
+  assert.deepEqual(marks, [{ paragraph: 1, sentence: 2, text: dense, mark: "slow" }]);
   assert.ok(cues.every((cue) => cue.type === "pause"));
 });
 
@@ -64,13 +64,22 @@ test("filler with nothing worth marking gets nothing at light density", () => {
 
 test("marks become bold and slow runs in the document", () => {
   const dense = "Plans start at $12 a month, or $99 a year for teams.";
-  const document = documentFromAi([`Pricing is simple. ${dense}`], [], [{ paragraph: 1, text: dense, mark: "slow" }, { paragraph: 1, text: "$12", mark: "bold" }]);
+  const document = documentFromAi([`Pricing is simple. ${dense}`], [], [{ paragraph: 1, sentence: 2, text: dense, mark: "slow" }, { paragraph: 1, text: "$12", mark: "bold" }]);
   const runs = document.paragraphs[0].children;
   assert.deepEqual(runs.map((run) => run.type === "text" ? [run.text, Boolean(run.bold), Boolean(run.slow)] : []), [
     ["Pricing is simple. ", false, false],
     ["Plans start at ", false, true],
     ["$12", true, true],
     [" a month, or $99 a year for teams.", false, true],
+  ]);
+});
+
+test("a mark formats its own sentence even when the words appear earlier in the paragraph", () => {
+  const document = documentFromAi(["The keys expired once. Then they expired again, which broke the form."], [], [{ paragraph: 1, sentence: 2, text: "expired", mark: "bold" }]);
+  assert.deepEqual(document.paragraphs[0].children.map((run) => run.type === "text" ? [run.text, Boolean(run.bold)] : []), [
+    ["The keys expired once. Then they ", false],
+    ["expired", true],
+    [" again, which broke the form.", false],
   ]);
 });
 

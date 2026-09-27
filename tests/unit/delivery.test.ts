@@ -31,9 +31,16 @@ test("agreed facts become cues and marks by fixed rules", () => {
     { paragraph: 1, afterSentence: 2, type: "pause", text: "Pause" },
   ], "question and main point get pauses; the turn falls in the same gap as the main point");
   assert.deepEqual(result.marks, [
-    { paragraph: 1, text: "expired", mark: "bold" },
-    { paragraph: 2, text: "96%", mark: "bold" },
+    { paragraph: 1, sentence: 2, text: "expired", mark: "bold" },
+    { paragraph: 2, sentence: 1, text: "96%", mark: "bold" },
   ]);
+});
+
+test("stress words must be whole words in their sentence", () => {
+  const quarter: DeliveryContext = { ...context, paragraphs: ["We plan for Q3 and ship in 3 weeks."] };
+  assert.deepEqual(applySentenceNotes(quarter, [note({ stress: "3" })]).marks, [{ paragraph: 1, sentence: 1, text: "3", mark: "bold" }]);
+  const document = applySentenceNotes({ ...context, paragraphs: ["Q3 planning starts now."] }, [note({ stress: "3" })]);
+  assert.deepEqual(document.marks, []);
 });
 
 test("a fact only counts with majority agreement, and slow and stress need every read", () => {
@@ -54,7 +61,7 @@ test("bold is kept for the slide's point, figures, and contrasts, and must be qu
     note({ stress: "ninety-six percent" }),
     note({ stress: "every week" }),
   ]);
-  assert.deepEqual(result.marks, [{ paragraph: 2, text: "every week", mark: "bold" }]);
+  assert.deepEqual(result.marks, [{ paragraph: 2, sentence: 2, text: "every week", mark: "bold" }]);
 });
 
 test("notes that don't match the script fall back to rules", () => {

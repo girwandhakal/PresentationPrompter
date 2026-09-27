@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { beforeEach, test } from "node:test";
 import { POST as analyze } from "../../app/api/ai/analyze/route";
 import { POST as context } from "../../app/api/ai/context/route";
+import { POST as deliver } from "../../app/api/ai/deliver/route";
 import { POST as outline } from "../../app/api/ai/outline/route";
 import { POST as rewrite } from "../../app/api/ai/rewrite/route";
 import { GET as status } from "../../app/api/ai/status/route";
@@ -95,6 +96,23 @@ test("the full pipeline returns grounded, budgeted scripts for every slide", asy
     for (const cue of entry.script.cues) assert.ok(cue.paragraph >= 1 && cue.paragraph <= entry.script.paragraphs.length);
     assert.ok(entry.script.questions.length >= 1);
   }
+});
+
+test("deliver marks pauses, bold and slow across a written deck", async () => {
+  const response = await deliver(post({
+    density: "detailed",
+    slides: [
+      { id: "a1", title: "A quieter way to launch", kind: "title", keyIdea: "", first: true, paragraphs: ["Thanks for being here. Today is about launching quietly."] },
+      { id: "b2", title: "Clarity is compounding", kind: "chart", keyIdea: "Activation rose from 61% to 74% in six weeks", first: false, paragraphs: ["Why does clarity matter? Activation rose from 61% to 74% in six weeks.", "But traffic stayed flat, so the gain came from the product itself."] },
+    ],
+  }));
+  assert.equal(response.status, 200);
+  const { slides: delivered } = await body(response);
+  assert.deepEqual(delivered.map((slide: { id: string }) => slide.id), ["a1", "b2"]);
+  const chart = delivered[1];
+  assert.ok(chart.cues.length >= 1 && chart.cues.every((cue: { text: string }) => cue.text === "Pause"));
+  assert.ok(chart.cues.some((cue: { paragraph: number; afterSentence: number }) => cue.paragraph === 1 && cue.afterSentence === 1), "the question gets a pause");
+  assert.ok(chart.marks.every((mark: { sentence: number }) => mark.sentence >= 1));
 });
 
 test("rewrite supports script, selection, support, and questions requests", async () => {

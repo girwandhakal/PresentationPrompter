@@ -28,7 +28,7 @@ import {
   writeInstructions,
   writeText,
 } from "./prompts";
-import { draftProblems, pickDraft, spokenProblems } from "./spoken-lint";
+import { draftProblems, pickDraft, rewriteSource, spokenProblems, writeSources } from "./spoken-lint";
 
 type Effort = "none" | "low" | "medium" | "high";
 
@@ -95,25 +95,27 @@ export function createOpenAiProvider({ apiKey, model, deliveryModel = model, bas
       const instructions = writeInstructions(request.brief);
       const text = writeText(request);
       const first = await structured(WriteOutput, "slide_scripts", instructions, [input(text)], { effort: "low", signal });
-      const failing = draftProblems(first.slides);
+      const sources = writeSources(request);
+      const failing = draftProblems(first.slides, sources);
       if (!failing.length) return first;
       const feedback = failing.map((item) => `- Slide id ${item.id}: ${item.problems.join(" ")}`).join("\n");
       const second = await retry(() => structured(WriteOutput, "slide_scripts", instructions, [
-        input(`${text}\n\nA previous draft was rejected because parts of it read like slide notes, not speech:\n${feedback}\n\nRewrite the whole set. Fix these slides and keep the rest of the same quality, word targets, and structure.`),
+        input(`${text}\n\nA previous draft was rejected for these problems:\n${feedback}\n\nRewrite the whole set. Fix these slides and keep the rest of the same quality, word targets, and structure.`),
       ], { effort: "low", signal }), signal);
-      return pickDraft(first, second);
+      return pickDraft(first, second, sources);
     },
 
     rewriteScript: async (request, signal) => {
       const instructions = rewriteInstructions(request);
       const text = rewriteText(request);
+      const source = rewriteSource(request);
       const first = await structured(ScriptRewriteOutput, "script_rewrite", instructions, [input(text)], { effort: "low", signal });
-      const problems = spokenProblems(first.paragraphs);
+      const problems = spokenProblems(first.paragraphs, source);
       if (!problems.length) return first;
       const second = await retry(() => structured(ScriptRewriteOutput, "script_rewrite", instructions, [
-        input(`${text}\n\nA previous draft was rejected because it read like slide notes, not speech:\n${problems.map((problem) => `- ${problem}`).join("\n")}\n\nWrite it again as natural spoken sentences.`),
+        input(`${text}\n\nA previous draft was rejected for these problems:\n${problems.map((problem) => `- ${problem}`).join("\n")}\n\nWrite it again as natural spoken sentences.`),
       ], { effort: "low", signal }), signal);
-      return second && spokenProblems(second.paragraphs).length <= problems.length ? second : first;
+      return second && spokenProblems(second.paragraphs, source).length <= problems.length ? second : first;
     },
 
     rewriteSelection: (request, signal) => structured(SelectionRewriteOutput, "selection_rewrite", rewriteInstructions(request), [input(rewriteText(request))], { effort: "low", verbosity: "low", signal }),

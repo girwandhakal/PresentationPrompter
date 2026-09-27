@@ -29,6 +29,7 @@ const input: WriteSlideInput = {
   role: "",
   keyIdea: "",
   transition: "",
+  previousTransition: "",
   targetWords: 60,
   previousTitle: "",
   nextTitle: "",
@@ -58,7 +59,7 @@ test("finalize places cues and marks from the prose and respects the density set
   const paragraphs = ["Why did activation move? We changed one thing in onboarding, and activation rose to 74% in six weeks.", "Traffic stayed flat, so the gain came from clarity."];
   const light = finalizeWrittenSlide(output({ paragraphs }), input, brief);
   assert.deepEqual(light.cues, [{ paragraph: 1, afterSentence: 1, type: "pause", text: "Pause" }]);
-  assert.deepEqual(light.marks, [{ paragraph: 1, text: "74%", mark: "bold" }]);
+  assert.deepEqual(light.marks, [{ paragraph: 1, sentence: 2, text: "74%", mark: "bold" }]);
   const none = finalizeWrittenSlide(output({ paragraphs }), input, { ...brief, cueDensity: "none" });
   assert.deepEqual([none.cues, none.marks], [[], []]);
 });

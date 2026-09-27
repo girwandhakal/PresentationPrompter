@@ -183,15 +183,26 @@ export function splitSentences(text: string): string[] {
 }
 
 export type AiCuePlacement = { paragraph: number; afterSentence: number; label: string };
-export type AiTextMark = { paragraph: number; text: string; mark: "bold" | "slow" };
+/** Formats `text` inside one-based `sentence` of `paragraph`; without a sentence, its first occurrence in the paragraph. */
+export type AiTextMark = { paragraph: number; sentence?: number; text: string; mark: "bold" | "slow" };
 
-/** Splits a line into runs, formatting the first occurrence of each mark's text. Unmatched marks are ignored. */
-function markedRuns(line: string, marks: AiTextMark[], used: Set<AiTextMark>): ScriptText[] {
+/**
+ * Splits a line of sentences into runs. Each mark formats its text inside its own sentence, so a
+ * word that also appears earlier in the paragraph isn't the one that gets bolded. Unmatched marks
+ * are ignored.
+ */
+function markedRuns(sentences: { text: string; index: number }[], marks: AiTextMark[], used: Set<AiTextMark>): ScriptText[] {
+  const line = sentences.map((sentence) => sentence.text).join(" ");
   const flags = Array.from({ length: line.length }, () => ({ bold: false, slow: false }));
+  const offsets = sentences.map((_, position) => sentences.slice(0, position).reduce((sum, sentence) => sum + sentence.text.length + 1, 0));
   for (const mark of marks) {
-    const start = mark.text ? line.indexOf(mark.text) : -1;
-    if (used.has(mark) || start < 0) continue;
+    if (used.has(mark) || !mark.text) continue;
+    const position = mark.sentence == null ? -1 : sentences.findIndex((sentence) => sentence.index === mark.sentence);
+    if (mark.sentence != null && position < 0) continue;
+    const found = position < 0 ? line.indexOf(mark.text) : sentences[position].text.indexOf(mark.text);
+    if (found < 0) continue;
     used.add(mark);
+    const start = position < 0 ? found : offsets[position] + found;
     for (let index = start; index < start + mark.text.length; index += 1) flags[index][mark.mark] = true;
   }
   const runs: ScriptText[] = [];
@@ -208,7 +219,7 @@ function markedRuns(line: string, marks: AiTextMark[], used: Set<AiTextMark>): S
 /**
  * Builds a script document from AI prose. Cues are anchored after a one-based sentence of a
  * one-based paragraph (0 = before its first sentence) and become their own cue line, matching how
- * the editor isolates cues. Marks bold or slow a phrase within their paragraph.
+ * the editor isolates cues. Marks bold or slow a phrase within their sentence.
  */
 export function documentFromAi(paragraphs: string[], cues: AiCuePlacement[] = [], marks: AiTextMark[] = []): ScriptDocument {
   const result: ScriptParagraph[] = [];
@@ -222,14 +233,14 @@ export function documentFromAi(paragraphs: string[], cues: AiCuePlacement[] = []
     const anchored = cues.filter((cue) => cue.label.trim() && Math.min(Math.max(cue.paragraph, 1), cleaned.length) === paragraphIndex + 1);
     const paragraphMarks = marks.filter((mark) => mark.paragraph === paragraphIndex + 1);
     const at = (cue: AiCuePlacement) => Math.min(Math.max(Math.round(cue.afterSentence) || 0, 0), sentences.length);
-    let buffer: string[] = [];
+    let buffer: { text: string; index: number }[] = [];
     const flush = () => {
-      if (buffer.length) result.push({ id: makeId("paragraph"), children: markedRuns(buffer.join(" "), paragraphMarks, used) });
+      if (buffer.length) result.push({ id: makeId("paragraph"), children: markedRuns(buffer, paragraphMarks, used) });
       buffer = [];
     };
     cueLines(anchored.filter((cue) => at(cue) === 0));
     sentences.forEach((sentence, sentenceIndex) => {
-      buffer.push(sentence);
+      buffer.push({ text: sentence, index: sentenceIndex + 1 });
       const here = anchored.filter((cue) => at(cue) === sentenceIndex + 1);
       if (here.length) {
         flush();

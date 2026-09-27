@@ -123,6 +123,7 @@ export function createDemoProvider(): AiProvider {
       const included = request.slides;
       return {
         arc: `Open with ${included[0]?.title}, build through the main points, and close on ${included.at(-1)?.title}.`,
+        voice: `Plain and conversational, speaking as "we" to ${request.brief.audience || "colleagues"}.`,
         slides: included.map((slide, index) => ({
           id: slide.id,
           role: index === 0 ? "Opens the talk" : index === included.length - 1 ? "Closes the talk" : "Develops the argument",
@@ -198,6 +199,29 @@ export function createDemoProvider(): AiProvider {
         keywords: keywords(`${request.slide.title} ${all}`),
         recovery: `The point here is simple: ${sentences[0] ?? request.slide.title}`,
         transition: request.slide.nextTitle ? `That leads us to ${request.slide.nextTitle.toLowerCase()}.` : "Thank you.",
+      };
+    },
+
+    // Plain-text answers to the coach's questions, so demo runs exercise the same vote-then-place path.
+    async delivery(request) {
+      await delay();
+      return {
+        slides: request.slides.map((slide) => {
+          const key = new Set(keywords(slide.keyIdea));
+          const shared = slide.sentences.map((text) => keywords(text).filter((word) => key.has(word)).length);
+          const main = shared.indexOf(Math.max(2, ...shared));
+          return {
+            id: slide.id,
+            sentences: slide.sentences.map((text, index) => ({
+              n: index + 1,
+              asksAudience: text.trim().endsWith("?"),
+              statesMainPoint: index === main,
+              turnsArgument: /^(?:but|however|yet|instead|that said|the catch|the problem)\b/i.test(text.trim()),
+              mustCatchExactly: (text.match(/(?<!\w)\d[\d,.]*%?/g) ?? []).length >= 2,
+              stress: text.match(/(?<!\w)\d[\d,]*%?/)?.[0] ?? "",
+            })),
+          };
+        }),
       };
     },
 

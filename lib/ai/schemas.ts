@@ -112,6 +112,7 @@ export type OutlineRequest = z.infer<typeof OutlineRequest>;
 
 export const OutlineOutput = z.object({
   arc: z.string(),
+  voice: z.string(),
   slides: z.array(z.object({ id: z.string(), role: z.string(), keyIdea: z.string(), transition: z.string() })),
 });
 export type OutlineOutput = z.infer<typeof OutlineOutput>;
@@ -128,6 +129,8 @@ export const WriteSlideInput = z.object({
   role: text(400),
   keyIdea: text(600),
   transition: text(600),
+  /** The previous slide's planned closing line, so this slide can pick up where it left off. */
+  previousTransition: text(600).default(""),
   targetWords: z.number().int().min(0).max(5000),
   previousTitle: text(300),
   nextTitle: text(300),
@@ -139,6 +142,8 @@ export const WriteRequest = z.object({
   context: ContextInput,
   title: text(200),
   arc: text(2000),
+  /** How every slide should sound, set once by the outline so batches written in parallel match. */
+  voice: text(1200).default(""),
   totalSlides: z.number().int().min(1).max(200),
   slides: z.array(WriteSlideInput).min(1).max(6),
 });
@@ -153,6 +158,7 @@ export const CueOutput = z.object({
 
 export const MarkOutput = z.object({
   paragraph: z.number(),
+  sentence: z.number(),
   text: z.string(),
   mark: z.enum(["bold", "slow"]),
 });
@@ -176,7 +182,24 @@ export type WrittenSlideDraft = z.infer<typeof WrittenSlideDraft>;
 export const WriteOutput = z.object({ slides: z.array(WrittenSlideDraft) });
 export type WriteOutput = z.infer<typeof WriteOutput>;
 
-// ── Delivery (server-internal: runs after writing, never called from the browser) ──
+// ── Delivery ────────────────────────────────────────────────────────────────
+
+/** Marks pauses, bold and slow across a whole written deck, once every slide's prose is final. */
+export const DeliverRequest = z.object({
+  density: z.enum(["none", "light", "detailed"]),
+  slides: z.array(z.object({
+    id: text(40).min(1),
+    title: text(300),
+    kind: text(20),
+    keyIdea: text(600),
+    first: z.boolean(),
+    paragraphs: z.array(text(4000)).max(40),
+  })).min(1).max(200),
+});
+export type DeliverRequest = z.infer<typeof DeliverRequest>;
+export type DeliveredSlide = { id: string } & Pick<WrittenSlideOutput, "cues" | "marks">;
+
+// What the delivery coach is sent (server-internal).
 
 export type DeliverySlideInput = {
   id: string;
