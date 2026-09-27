@@ -4,8 +4,8 @@ import { ArrowLeft, ArrowRight, Check, ChevronDown, History, LoaderCircle, Panel
 import { m } from "motion/react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { AiRequestError, rewriteScript, rewriteSelection, useAiStatus, type ScriptAction, type SelectionAction } from "@/lib/ai/client";
-import { documentFromAi, documentToWordCount, type ScriptDocument } from "@/lib/domain/script";
+import { AiRequestError, documentFromWritten, rewriteScript, rewriteSelection, useAiStatus, type ScriptAction, type SelectionAction } from "@/lib/ai/client";
+import { documentToWordCount, type ScriptDocument } from "@/lib/domain/script";
 import { formatClock } from "@/lib/domain/format";
 import { planPresentation, USABLE_FACTOR, DEPTH_FACTOR } from "@/lib/domain/planner";
 import type { Project, Slide, SlideScript } from "@/lib/domain/types";
@@ -183,7 +183,7 @@ export function ScriptEditor({ project, initialSlideId }: { project: Project; in
     setPending(label);
     try {
       const result = await rewriteScript({ ...working, slides: latest.current }, slide, action, Math.max(10, targetWords), controller.current.signal);
-      const document = documentFromAi(result.paragraphs, result.cues.map((cue) => ({ paragraph: cue.paragraph, afterSentence: cue.afterSentence, label: cue.text })));
+      const document = documentFromWritten(result);
       setProposal({ kind: "script", label, slideId: slide.id, document, before: documentToWordCount(slide.script.document), after: documentToWordCount(document) });
     } catch (error) {
       if (!controller.current?.signal.aborted) toast({ message: error instanceof AiRequestError ? error.message : "That rewrite didn't work. Try again.", tone: "error" });

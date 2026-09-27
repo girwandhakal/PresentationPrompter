@@ -5,6 +5,7 @@ import type { z } from "zod";
 import {
   AnalyzeOutput,
   ContextOutput,
+  DeliveryOutput,
   OutlineOutput,
   QuestionsOutput,
   ScriptRewriteOutput,
@@ -18,6 +19,8 @@ import {
   analyzeText,
   CONTEXT_INSTRUCTIONS,
   contextText,
+  DELIVERY_INSTRUCTIONS,
+  deliveryText,
   OUTLINE_INSTRUCTIONS,
   outlineText,
   rewriteInstructions,
@@ -25,14 +28,17 @@ import {
   writeInstructions,
   writeText,
 } from "./prompts";
-import { draftProblems, pickDraft, spokenProblems } from "./spoken-lint";
+import { draftProblems, pickDraft, rewriteSource, spokenProblems, writeSources } from "./spoken-lint";
 
-type Effort = "low" | "medium" | "high";
+type Effort = "none" | "low" | "medium" | "high";
 
 export class AiOutputError extends Error {}
 
-export function createOpenAiProvider({ apiKey, model, baseURL }: { apiKey: string; model: string; baseURL?: string }): AiProvider {
-  const reasoningModel = /^(gpt-5|o\d)/i.test(model);
+const isReasoningModel = (name: string) => /^(gpt-5|o\d)/i.test(name);
+// gpt-5.1 and later can switch reasoning off, which is also the only mode that accepts a temperature.
+const canDisableReasoning = (name: string) => /^gpt-5\.\d/i.test(name);
+
+export function createOpenAiProvider({ apiKey, model, deliveryModel = model, baseURL }: { apiKey: string; model: string; deliveryModel?: string; baseURL?: string }): AiProvider {
   const client = new OpenAI({ apiKey, baseURL, timeout: 110_000, maxRetries: 2 });
 
   async function structured<T extends z.ZodType>(
@@ -40,14 +46,17 @@ export function createOpenAiProvider({ apiKey, model, baseURL }: { apiKey: strin
     name: string,
     instructions: string,
     content: ResponseInputContent[],
-    { effort = "low", verbosity = "medium", signal }: { effort?: Effort; verbosity?: "low" | "medium"; signal?: AbortSignal } = {},
+    { effort = "low", verbosity = "medium", signal, use = model }: { effort?: Effort; verbosity?: "low" | "medium"; signal?: AbortSignal; use?: string } = {},
   ): Promise<z.infer<T>> {
+    const reasoningModel = isReasoningModel(use);
     const response = await client.responses.parse({
-      model,
+      model: use,
       store: false,
       // Reasoning effort and verbosity exist only on reasoning models (gpt-5, o-series). Sending them to
       // gpt-4.x/4o is a 400, so non-reasoning models (which are also the fastest) just skip them.
       ...(reasoningModel ? { reasoning: { effort } } : {}),
+      // With reasoning off, temperature 0 makes repeated reads of the same script agree more often.
+      ...(effort === "none" ? { temperature: 0 } : {}),
       instructions,
       input: [{ role: "user", content }],
       text: { ...(reasoningModel ? { verbosity } : {}), format: zodTextFormat(schema, name) },
@@ -86,25 +95,27 @@ export function createOpenAiProvider({ apiKey, model, baseURL }: { apiKey: strin
       const instructions = writeInstructions(request.brief);
       const text = writeText(request);
       const first = await structured(WriteOutput, "slide_scripts", instructions, [input(text)], { effort: "low", signal });
-      const failing = draftProblems(first.slides);
+      const sources = writeSources(request);
+      const failing = draftProblems(first.slides, sources);
       if (!failing.length) return first;
       const feedback = failing.map((item) => `- Slide id ${item.id}: ${item.problems.join(" ")}`).join("\n");
       const second = await retry(() => structured(WriteOutput, "slide_scripts", instructions, [
-        input(`${text}\n\nA previous draft was rejected because parts of it read like slide notes, not speech:\n${feedback}\n\nRewrite the whole set. Fix these slides and keep the rest of the same quality, word targets, and structure.`),
+        input(`${text}\n\nA previous draft was rejected for these problems:\n${feedback}\n\nRewrite the whole set. Fix these slides and keep the rest of the same quality, word targets, and structure.`),
       ], { effort: "low", signal }), signal);
-      return pickDraft(first, second);
+      return pickDraft(first, second, sources);
     },
 
     rewriteScript: async (request, signal) => {
       const instructions = rewriteInstructions(request);
       const text = rewriteText(request);
+      const source = rewriteSource(request);
       const first = await structured(ScriptRewriteOutput, "script_rewrite", instructions, [input(text)], { effort: "low", signal });
-      const problems = spokenProblems(first.paragraphs);
+      const problems = spokenProblems(first.paragraphs, source);
       if (!problems.length) return first;
       const second = await retry(() => structured(ScriptRewriteOutput, "script_rewrite", instructions, [
-        input(`${text}\n\nA previous draft was rejected because it read like slide notes, not speech:\n${problems.map((problem) => `- ${problem}`).join("\n")}\n\nWrite it again as natural spoken sentences.`),
+        input(`${text}\n\nA previous draft was rejected for these problems:\n${problems.map((problem) => `- ${problem}`).join("\n")}\n\nWrite it again as natural spoken sentences.`),
       ], { effort: "low", signal }), signal);
-      return second && spokenProblems(second.paragraphs).length <= problems.length ? second : first;
+      return second && spokenProblems(second.paragraphs, source).length <= problems.length ? second : first;
     },
 
     rewriteSelection: (request, signal) => structured(SelectionRewriteOutput, "selection_rewrite", rewriteInstructions(request), [input(rewriteText(request))], { effort: "low", verbosity: "low", signal }),
@@ -112,5 +123,14 @@ export function createOpenAiProvider({ apiKey, model, baseURL }: { apiKey: strin
     support: (request, signal) => structured(SupportOutput, "slide_support", rewriteInstructions(request), [input(rewriteText(request))], { effort: "low", verbosity: "low", signal }),
 
     questions: (request, signal) => structured(QuestionsOutput, "audience_questions", rewriteInstructions(request), [input(rewriteText(request))], { effort: "low", signal }),
+
+    // Measured on real decks: a full-size model with reasoning off and temperature 0 gave the most
+    // repeatable answers, in about six seconds. Models that can't turn reasoning off use low effort.
+    delivery: (request, signal) => structured(DeliveryOutput, "delivery_marks", DELIVERY_INSTRUCTIONS, [input(deliveryText(request))], {
+      use: deliveryModel,
+      effort: canDisableReasoning(deliveryModel) ? "none" : "low",
+      verbosity: "low",
+      signal,
+    }),
   };
 }

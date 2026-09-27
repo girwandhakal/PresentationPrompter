@@ -1,5 +1,5 @@
-import { splitSentences } from "../domain/script";
-import type { BriefInput, WriteSlideInput, WrittenSlideOutput } from "./schemas";
+import { placeDelivery, type DeliveryContext } from "../domain/cues";
+import type { BriefInput, WriteSlideInput, WrittenSlideDraft, WrittenSlideOutput } from "./schemas";
 
 /**
  * Deterministic checks applied to every model response before it reaches the presenter.
@@ -27,31 +27,9 @@ export function needsRepair(words: number, target: number, depth: BriefInput["de
   return Math.abs(fitRatio(words, target) - 1) > FIT_TOLERANCE[depth];
 }
 
-const MAX_CUES: Record<BriefInput["cueDensity"], number> = { none: 0, light: 1, detailed: 3 };
-
 function clean(value: string, max: number) {
   const trimmed = value.replace(/\s+/g, " ").trim();
   return trimmed.length > max ? `${trimmed.slice(0, max - 1).trimEnd()}…` : trimmed;
-}
-
-export function sentenceCount(paragraph: string) {
-  return splitSentences(paragraph).length;
-}
-
-type Cue = WrittenSlideOutput["cues"][number];
-
-export function sanitizeCues(cues: Cue[], paragraphs: string[], density: BriefInput["cueDensity"]): Cue[] {
-  if (!paragraphs.length) return [];
-  return cues
-    .filter((cue) => cue.text.trim())
-    .map((cue) => {
-      const paragraph = Math.min(Math.max(1, Math.round(cue.paragraph) || 1), paragraphs.length);
-      const sentences = Math.max(1, sentenceCount(paragraphs[paragraph - 1]));
-      return { ...cue, paragraph, afterSentence: Math.min(Math.max(1, Math.round(cue.afterSentence) || 1), sentences), text: clean(cue.text, 40) };
-    })
-    // A pause after the script's final sentence has nothing left to precede; the slide change is the pause.
-    .filter((cue) => !(cue.type === "pause" && cue.paragraph === paragraphs.length && cue.afterSentence === Math.max(1, sentenceCount(paragraphs[paragraphs.length - 1]))))
-    .slice(0, MAX_CUES[density]);
 }
 
 export function sanitizeParagraphs(paragraphs: string[]) {
@@ -66,14 +44,32 @@ export function sanitizeParagraphs(paragraphs: string[]) {
     .slice(0, 8);
 }
 
-/** Normalizes one written slide against its input and the brief. */
-export function finalizeWrittenSlide(output: WrittenSlideOutput, input: WriteSlideInput, brief: BriefInput): WrittenSlideOutput {
+/** What cue placement needs to know about a written slide. */
+function deliveryContext(paragraphs: string[], input: WriteSlideInput, brief: BriefInput): DeliveryContext {
+  return {
+    paragraphs,
+    density: brief.cueDensity,
+    seed: input.id,
+    title: input.title,
+    keyIdea: input.keyIdea || input.analysis?.mainPoint,
+    kind: input.analysis?.kind,
+    first: input.index === 1,
+  };
+}
+
+/**
+ * Normalizes one written slide against its input and the brief. Cues and marks come from the rules
+ * here; the write route replaces them with the AI delivery pass when it runs.
+ */
+export function finalizeWrittenSlide(output: WrittenSlideDraft, input: WriteSlideInput, brief: BriefInput): WrittenSlideOutput {
   const paragraphs = sanitizeParagraphs(output.paragraphs);
+  const { cues, marks } = placeDelivery(deliveryContext(paragraphs, input, brief));
   return {
     id: input.id,
     purpose: clean(output.purpose, 300),
     paragraphs,
-    cues: sanitizeCues(output.cues, paragraphs, brief.cueDensity),
+    cues,
+    marks,
     concise: clean(output.concise, 500),
     keywords: output.keywords.map((keyword) => clean(keyword, 60)).filter(Boolean).slice(0, 6),
     recovery: clean(output.recovery, 300),

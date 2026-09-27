@@ -4,6 +4,8 @@ import type {
   AnalyzeRequest,
   ContextOutput,
   ContextRequest,
+  DeliveryOutput,
+  DeliveryRequest,
   OutlineOutput,
   OutlineRequest,
   QuestionsOutput,
@@ -32,6 +34,8 @@ export interface AiProvider {
   rewriteSelection(request: SelectionRewriteRequest, signal?: AbortSignal): Promise<SelectionRewriteOutput>;
   support(request: SupportRequest, signal?: AbortSignal): Promise<SupportOutput>;
   questions(request: QuestionsRequest, signal?: AbortSignal): Promise<QuestionsOutput>;
+  /** Marks pauses, points, slow and bold in finished scripts. Optional: without it, rules place them. */
+  delivery?(request: DeliveryRequest, signal?: AbortSignal): Promise<DeliveryOutput>;
 }
 
 function env(name: string) {
@@ -49,7 +53,14 @@ export function getProvider(): AiProvider | null {
   const mode = env("AI_PROVIDER")?.toLowerCase();
   const key = env("OPENAI_API_KEY");
   if (mode === "demo") return createDemoProvider();
-  if (key) return createOpenAiProvider({ apiKey: key, model: env("OPENAI_MODEL") ?? "gpt-5.4-mini", baseURL: env("OPENAI_BASE_URL") });
+  if (key) {
+    return createOpenAiProvider({
+      apiKey: key,
+      model: env("OPENAI_MODEL") ?? "gpt-5.4-mini",
+      deliveryModel: env("OPENAI_DELIVERY_MODEL") ?? "gpt-5.4",
+      baseURL: env("OPENAI_BASE_URL"),
+    });
+  }
   if (process.env.NODE_ENV === "development") return createDemoProvider();
   return null;
 }

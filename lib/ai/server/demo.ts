@@ -123,6 +123,7 @@ export function createDemoProvider(): AiProvider {
       const included = request.slides;
       return {
         arc: `Open with ${included[0]?.title}, build through the main points, and close on ${included.at(-1)?.title}.`,
+        voice: `Plain and conversational, speaking as "we" to ${request.brief.audience || "colleagues"}.`,
         slides: included.map((slide, index) => ({
           id: slide.id,
           role: index === 0 ? "Opens the talk" : index === included.length - 1 ? "Closes the talk" : "Develops the argument",
@@ -142,15 +143,10 @@ export function createDemoProvider(): AiProvider {
             : request.brief.depth === "notes"
               ? sentences.map((value) => value.replace(/\.$/, "")).slice(0, 5)
               : keywords(`${slide.title} ${slide.text}`).slice(0, 5);
-          const cues = request.brief.cueDensity === "none" ? [] : [
-            { paragraph: 1, afterSentence: 1, type: "pause" as const, text: "Pause and let the slide land" },
-            ...(request.brief.cueDensity === "detailed" ? [{ paragraph: Math.min(2, paragraphs.length), afterSentence: 1, type: "look" as const, text: "Look up at the room" }] : []),
-          ];
           return {
             id: slide.id,
             purpose: slide.role || `Covers ${slide.title}.`,
             paragraphs: paragraphs.length ? paragraphs : [sentence(slide.title)],
-            cues,
             concise: sentences.slice(0, 2).join(" "),
             keywords: keywords(`${slide.title} ${slide.text} ${slide.notes}`),
             recovery: `The point here is simple: ${slide.keyIdea || slide.title}`,
@@ -182,7 +178,7 @@ export function createDemoProvider(): AiProvider {
         words += countWords(value);
       }
       const paragraphs = toParagraphs(trimmed);
-      return { paragraphs, cues: request.brief.cueDensity === "none" ? [] : [{ paragraph: 1, afterSentence: 1, type: "pause" as const, text: "Pause here" }] };
+      return { paragraphs };
     },
 
     async rewriteSelection(request) {
@@ -203,6 +199,29 @@ export function createDemoProvider(): AiProvider {
         keywords: keywords(`${request.slide.title} ${all}`),
         recovery: `The point here is simple: ${sentences[0] ?? request.slide.title}`,
         transition: request.slide.nextTitle ? `That leads us to ${request.slide.nextTitle.toLowerCase()}.` : "Thank you.",
+      };
+    },
+
+    // Plain-text answers to the coach's questions, so demo runs exercise the same vote-then-place path.
+    async delivery(request) {
+      await delay();
+      return {
+        slides: request.slides.map((slide) => {
+          const key = new Set(keywords(slide.keyIdea));
+          const shared = slide.sentences.map((text) => keywords(text).filter((word) => key.has(word)).length);
+          const main = shared.indexOf(Math.max(2, ...shared));
+          return {
+            id: slide.id,
+            sentences: slide.sentences.map((text, index) => ({
+              n: index + 1,
+              asksAudience: text.trim().endsWith("?"),
+              statesMainPoint: index === main,
+              turnsArgument: /^(?:but|however|yet|instead|that said|the catch|the problem)\b/i.test(text.trim()),
+              mustCatchExactly: (text.match(/(?<!\w)\d[\d,.]*%?/g) ?? []).length >= 2,
+              stress: text.match(/(?<!\w)\d[\d,]*%?/)?.[0] ?? "",
+            })),
+          };
+        }),
       };
     },
 

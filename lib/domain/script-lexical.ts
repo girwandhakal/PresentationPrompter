@@ -13,6 +13,9 @@ import type { ScriptDocument, ScriptInline, ScriptParagraph } from "./script";
 import { makeId } from "./script";
 import { CueNode, ScriptParagraphNode, $createCueNode, $createScriptParagraphNode } from "./script-nodes";
 
+/** Lexical has no custom text formats, so the unused highlight bit carries "read slowly". */
+export const SLOW_FORMAT = "highlight";
+
 export function loadScriptDocument(editor: LexicalEditor, document: ScriptDocument) {
   editor.update(() => {
     const root = $getRoot();
@@ -26,6 +29,7 @@ export function loadScriptDocument(editor: LexicalEditor, document: ScriptDocume
           const text = $createTextNode(child.text);
           if (child.bold) text.toggleFormat("bold");
           if (child.italic) text.toggleFormat("italic");
+          if (child.slow) text.toggleFormat(SLOW_FORMAT);
           node.append(text);
         }
       }
@@ -45,7 +49,7 @@ function paragraphFromNode(node: ElementNode): ScriptParagraph {
     else if ($isLineBreakNode(child)) children.push({ type: "break" });
     else if ($isTextNode(child)) {
       const text = child.getTextContent();
-      if (text || !children.length) children.push({ type: "text", text, ...(child.hasFormat("bold") ? { bold: true } : {}), ...(child.hasFormat("italic") ? { italic: true } : {}) });
+      if (text || !children.length) children.push({ type: "text", text, ...(child.hasFormat("bold") ? { bold: true } : {}), ...(child.hasFormat("italic") ? { italic: true } : {}), ...(child.hasFormat(SLOW_FORMAT) ? { slow: true } : {}) });
     }
   }
   const id = node instanceof ScriptParagraphNode ? node.__paragraphId : makeId("paragraph");

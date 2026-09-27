@@ -1,6 +1,7 @@
 import { handleAi } from "@/lib/ai/server/http";
 import { RewriteRequest } from "@/lib/ai/schemas";
-import { sanitizeCues, sanitizeParagraphs } from "@/lib/ai/validate";
+import { sanitizeParagraphs } from "@/lib/ai/validate";
+import { deliverSlides } from "@/lib/ai/server/delivery";
 
 export const dynamic = "force-dynamic";
 
@@ -12,7 +13,16 @@ export function POST(request: Request) {
       case "script": {
         const result = await provider.rewriteScript(input, signal);
         const paragraphs = sanitizeParagraphs(result.paragraphs);
-        return { kind: "script", paragraphs, cues: sanitizeCues(result.cues, paragraphs, input.brief.cueDensity) };
+        const [{ cues, marks }] = await deliverSlides(provider, [{
+          paragraphs,
+          density: input.brief.cueDensity,
+          seed: input.slide.title || "slide",
+          title: input.slide.title,
+          keyIdea: input.slide.analysis?.mainPoint,
+          kind: input.slide.analysis?.kind,
+          first: !input.slide.previousTitle,
+        }], signal);
+        return { kind: "script", paragraphs, cues, marks };
       }
       case "selection": {
         const result = await provider.rewriteSelection(input, signal);

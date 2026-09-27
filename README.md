@@ -26,6 +26,7 @@ Requires Node.js 22.13 or newer.
 | --- | --- | --- |
 | `OPENAI_API_KEY` | For AI writing | Server-side key for the OpenAI Responses API. Never sent to the browser. |
 | `OPENAI_MODEL` | No | Model used for analysis and writing (default `gpt-5.4-mini`). Must support structured outputs and image input. |
+| `OPENAI_DELIVERY_MODEL` | No | Model that marks pauses, pointing, slow and bold in finished scripts (default `gpt-5.4`). If it's unavailable to your key, cues fall back to built-in rules. |
 | `OPENAI_BASE_URL` | No | Point at an OpenAI-compatible proxy or gateway. |
 | `AI_PROVIDER` | No | `demo` forces the keyless demo provider (development and tests). |
 
@@ -79,6 +80,7 @@ AI gateway: schema-validated requests → OpenAI structured outputs → validati
 | `npm run preview` | Serve the production build locally in workerd, including security headers |
 | `npm run lint` · `npm run typecheck` | ESLint · TypeScript |
 | `npm test` | Unit and API integration tests (demo provider, no network) |
+| `npm run eval` | Runs the fixture decks in `tests/fixtures/eval-decks.json` through the real AI pipeline and scores word fit, speech checks, invented figures, repeated openers, and delivery marks; full scripts go to `outputs/`. Needs `OPENAI_API_KEY`. Add `--runs=3` or `--deck=<name>`. Rerun after any prompt or model change |
 | `npm run test:e2e` | Playwright end-to-end tests. They use your installed Chrome; set `PLAYWRIGHT_CHANNEL=msedge` or `""` for bundled Chromium |
 | `npm run check` | Lint, typecheck, unit tests, and build |
 | `npm run sample-deck` | Regenerate `public/sample-deck.pdf` (the first-run sample, also a test fixture) |

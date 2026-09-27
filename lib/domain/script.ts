@@ -3,6 +3,8 @@ export type ScriptText = {
   text: string;
   bold?: boolean;
   italic?: boolean;
+  /** Read this passage more slowly. */
+  slow?: boolean;
 };
 
 export type ScriptCue = {
@@ -29,8 +31,8 @@ export function makeId(prefix: string) {
   return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
 }
 
-function textInline(text: string, marks: { bold?: boolean; italic?: boolean } = {}): ScriptText {
-  return { type: "text", text, ...(marks.bold ? { bold: true } : {}), ...(marks.italic ? { italic: true } : {}) };
+function textInline(text: string, marks: { bold?: boolean; italic?: boolean; slow?: boolean } = {}): ScriptText {
+  return { type: "text", text, ...(marks.bold ? { bold: true } : {}), ...(marks.italic ? { italic: true } : {}), ...(marks.slow ? { slow: true } : {}) };
 }
 
 function splitLegacyCues(child: ScriptText, idPrefix: string): ScriptInline[] {
@@ -181,28 +183,68 @@ export function splitSentences(text: string): string[] {
 }
 
 export type AiCuePlacement = { paragraph: number; afterSentence: number; label: string };
+/** Formats `text` inside one-based `sentence` of `paragraph`; without a sentence, its first occurrence in the paragraph. */
+export type AiTextMark = { paragraph: number; sentence?: number; text: string; mark: "bold" | "slow" };
+
+/**
+ * Splits a line of sentences into runs. Each mark formats its text inside its own sentence, so a
+ * word that also appears earlier in the paragraph isn't the one that gets bolded. Unmatched marks
+ * are ignored.
+ */
+function markedRuns(sentences: { text: string; index: number }[], marks: AiTextMark[], used: Set<AiTextMark>): ScriptText[] {
+  const line = sentences.map((sentence) => sentence.text).join(" ");
+  const flags = Array.from({ length: line.length }, () => ({ bold: false, slow: false }));
+  const offsets = sentences.map((_, position) => sentences.slice(0, position).reduce((sum, sentence) => sum + sentence.text.length + 1, 0));
+  for (const mark of marks) {
+    if (used.has(mark) || !mark.text) continue;
+    const position = mark.sentence == null ? -1 : sentences.findIndex((sentence) => sentence.index === mark.sentence);
+    if (mark.sentence != null && position < 0) continue;
+    const found = position < 0 ? line.indexOf(mark.text) : sentences[position].text.indexOf(mark.text);
+    if (found < 0) continue;
+    used.add(mark);
+    const start = position < 0 ? found : offsets[position] + found;
+    for (let index = start; index < start + mark.text.length; index += 1) flags[index][mark.mark] = true;
+  }
+  const runs: ScriptText[] = [];
+  let start = 0;
+  for (let index = 1; index <= line.length; index += 1) {
+    const same = index < line.length && flags[index].bold === flags[start].bold && flags[index].slow === flags[start].slow;
+    if (same) continue;
+    runs.push(textInline(line.slice(start, index), flags[start]));
+    start = index;
+  }
+  return runs.length ? runs : [textInline(line)];
+}
 
 /**
  * Builds a script document from AI prose. Cues are anchored after a one-based sentence of a
- * one-based paragraph and become their own cue line, matching how the editor isolates cues.
+ * one-based paragraph (0 = before its first sentence) and become their own cue line, matching how
+ * the editor isolates cues. Marks bold or slow a phrase within their sentence.
  */
-export function documentFromAi(paragraphs: string[], cues: AiCuePlacement[] = []): ScriptDocument {
+export function documentFromAi(paragraphs: string[], cues: AiCuePlacement[] = [], marks: AiTextMark[] = []): ScriptDocument {
   const result: ScriptParagraph[] = [];
   const cleaned = paragraphs.map((paragraph) => paragraph.trim()).filter(Boolean);
+  const used = new Set<AiTextMark>();
+  const cueLines = (list: AiCuePlacement[]) => {
+    for (const cue of list) result.push({ id: makeId("paragraph"), children: [{ type: "cue", id: makeId("cue"), label: cue.label.trim() }] });
+  };
   cleaned.forEach((paragraph, paragraphIndex) => {
     const sentences = splitSentences(paragraph);
     const anchored = cues.filter((cue) => cue.label.trim() && Math.min(Math.max(cue.paragraph, 1), cleaned.length) === paragraphIndex + 1);
-    let buffer: string[] = [];
+    const paragraphMarks = marks.filter((mark) => mark.paragraph === paragraphIndex + 1);
+    const at = (cue: AiCuePlacement) => Math.min(Math.max(Math.round(cue.afterSentence) || 0, 0), sentences.length);
+    let buffer: { text: string; index: number }[] = [];
     const flush = () => {
-      if (buffer.length) result.push({ id: makeId("paragraph"), children: [textInline(buffer.join(" "))] });
+      if (buffer.length) result.push({ id: makeId("paragraph"), children: markedRuns(buffer, paragraphMarks, used) });
       buffer = [];
     };
+    cueLines(anchored.filter((cue) => at(cue) === 0));
     sentences.forEach((sentence, sentenceIndex) => {
-      buffer.push(sentence);
-      const here = anchored.filter((cue) => Math.min(Math.max(cue.afterSentence, 1), sentences.length) === sentenceIndex + 1);
+      buffer.push({ text: sentence, index: sentenceIndex + 1 });
+      const here = anchored.filter((cue) => at(cue) === sentenceIndex + 1);
       if (here.length) {
         flush();
-        for (const cue of here) result.push({ id: makeId("paragraph"), children: [{ type: "cue", id: makeId("cue"), label: cue.label.trim() }] });
+        cueLines(here);
       }
     });
     flush();

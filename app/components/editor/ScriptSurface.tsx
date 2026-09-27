@@ -10,21 +10,26 @@ import { RichTextPlugin } from "@lexical/react/LexicalRichTextPlugin";
 import {
   $getRoot,
   $getSelection,
+  $isElementNode,
   $isRangeSelection,
   $isTextNode,
   $setSelection,
+  COMMAND_PRIORITY_CRITICAL,
   COMMAND_PRIORITY_LOW,
   FORMAT_TEXT_COMMAND,
   KEY_DOWN_COMMAND,
+  PASTE_COMMAND,
   REDO_COMMAND,
+  SELECTION_INSERT_CLIPBOARD_NODES_COMMAND,
   UNDO_COMMAND,
   type BaseSelection,
   type EditorState,
   type LexicalEditor,
+  type LexicalNode,
 } from "lexical";
-import { Bold, Eye, Hand, Italic, MessageSquarePlus, Pause, Redo2, Undo2, Wind } from "lucide-react";
+import { Bold, Italic, MessageSquarePlus, Pause, Redo2, Snail, Undo2 } from "lucide-react";
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
-import { documentFromLexicalState, loadScriptDocument } from "@/lib/domain/script-lexical";
+import { documentFromLexicalState, loadScriptDocument, SLOW_FORMAT } from "@/lib/domain/script-lexical";
 import { $createCueNode, CueNode, PARAGRAPH_REPLACEMENT, ScriptParagraphNode } from "@/lib/domain/script-nodes";
 import { makeId, type ScriptDocument } from "@/lib/domain/script";
 import type { SelectionAction } from "@/lib/ai/client";
@@ -36,9 +41,6 @@ export type ScriptSurfaceHandle = {
 
 export const CUE_PRESETS = [
   { label: "Pause", icon: Pause },
-  { label: "Look up", icon: Eye },
-  { label: "Point to the slide", icon: Hand },
-  { label: "Breathe", icon: Wind },
 ];
 
 const SELECTION_ACTIONS: { action: SelectionAction; label: string }[] = [
@@ -61,13 +63,13 @@ type Props = {
 
 /**
  * The teleprompter script editor. Cues are atomic private nodes on their own line; formatting is
- * limited to what renders in Presenter (bold, italic). Remount with a new `key` to load new content.
+ * limited to what renders in Presenter (bold, italic, slow). Remount with a new `key` to load new content.
  */
 export const ScriptSurface = forwardRef<ScriptSurfaceHandle, Props>(function ScriptSurface({ document, onChange, locked, aiEnabled, onSelectionRewrite, toolbarEnd, label, autoFocus }, ref) {
   const config = useMemo(() => ({
     namespace: "CueframeScript",
     nodes: [ScriptParagraphNode, CueNode, PARAGRAPH_REPLACEMENT],
-    theme: { paragraph: "script-paragraph", text: { bold: "script-bold", italic: "script-italic" } },
+    theme: { paragraph: "script-paragraph", text: { bold: "script-bold", italic: "script-italic", [SLOW_FORMAT]: "script-slow" } },
     onError: (error: Error) => { throw error; },
   }), []);
   const surfaceRef = useRef<HTMLDivElement>(null);
@@ -89,6 +91,7 @@ export const ScriptSurface = forwardRef<ScriptSurfaceHandle, Props>(function Scr
       <DocumentPlugin document={document} onChange={onChange} />
       <EditablePlugin editable={!locked} />
       <KeyboardPlugin />
+      <ClipboardPlugin />
       <HandlePlugin ref={ref} />
     </LexicalComposer>
   );
@@ -170,12 +173,12 @@ function Placeholder() {
 
 function Toolbar({ end }: { end?: ReactNode }) {
   const [editor] = useLexicalComposerContext();
-  const [formats, setFormats] = useState({ bold: false, italic: false });
+  const [formats, setFormats] = useState({ bold: false, italic: false, slow: false });
 
   useEffect(() => editor.registerUpdateListener(({ editorState }) => {
     editorState.read(() => {
       const selection = $getSelection();
-      if ($isRangeSelection(selection)) setFormats({ bold: selection.hasFormat("bold"), italic: selection.hasFormat("italic") });
+      if ($isRangeSelection(selection)) setFormats({ bold: selection.hasFormat("bold"), italic: selection.hasFormat("italic"), slow: selection.hasFormat(SLOW_FORMAT) });
     });
   }), [editor]);
 
@@ -185,6 +188,7 @@ function Toolbar({ end }: { end?: ReactNode }) {
       <div className="editor-toolbar__group">
         <IconButton label="Bold (Ctrl+B)" size="sm" aria-pressed={formats.bold} onMouseDown={keep} onClick={() => editor.dispatchCommand(FORMAT_TEXT_COMMAND, "bold")}><Bold /></IconButton>
         <IconButton label="Italic (Ctrl+I)" size="sm" aria-pressed={formats.italic} onMouseDown={keep} onClick={() => editor.dispatchCommand(FORMAT_TEXT_COMMAND, "italic")}><Italic /></IconButton>
+        <IconButton label="Read slowly" size="sm" aria-pressed={formats.slow} onMouseDown={keep} onClick={() => editor.dispatchCommand(FORMAT_TEXT_COMMAND, SLOW_FORMAT)}><Snail /></IconButton>
       </div>
       <span className="editor-toolbar__divider" aria-hidden="true" />
       <div className="editor-toolbar__group">
@@ -225,6 +229,39 @@ function DocumentPlugin({ document, onChange }: { document: ScriptDocument; onCh
 function EditablePlugin({ editable }: { editable: boolean }) {
   const [editor] = useLexicalComposerContext();
   useEffect(() => { editor.setEditable(editable); }, [editor, editable]);
+  return null;
+}
+
+/**
+ * "Read slowly" rides on Lexical's highlight format, which pasted rich text can also carry (a <mark>
+ * from a web page or doc). Text pasted from outside Cueframe loses it; copies within the editor,
+ * which carry Lexical's own clipboard format, keep their marks.
+ */
+function ClipboardPlugin() {
+  const [editor] = useLexicalComposerContext();
+  useEffect(() => {
+    let external = false;
+    const offPaste = editor.registerCommand(PASTE_COMMAND, (event) => {
+      const types = "clipboardData" in event ? event.clipboardData?.types ?? [] : [];
+      external = !types.includes("application/x-lexical-editor");
+      return false;
+    }, COMMAND_PRIORITY_CRITICAL);
+    const offInsert = editor.registerCommand(SELECTION_INSERT_CLIPBOARD_NODES_COMMAND, ({ nodes }) => {
+      if (external) {
+        const strip = (node: LexicalNode) => {
+          if ($isTextNode(node) && node.hasFormat(SLOW_FORMAT)) node.toggleFormat(SLOW_FORMAT);
+          if ($isElementNode(node)) node.getChildren().forEach(strip);
+        };
+        nodes.forEach(strip);
+      }
+      external = false;
+      return false;
+    }, COMMAND_PRIORITY_CRITICAL);
+    return () => {
+      offPaste();
+      offInsert();
+    };
+  }, [editor]);
   return null;
 }
 

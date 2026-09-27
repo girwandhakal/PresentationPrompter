@@ -1,0 +1,48 @@
+[
+  {
+    "name": "capstone-review",
+    "brief": { "goal": "Show our sponsor and instructor what Iteration 1 delivered and what's left before submission", "audience": "Project sponsor and course instructor", "keyMessage": "The body map works end to end; two open PRs and the email fix remain", "minutes": 7, "style": "conversational", "depth": "full", "cueDensity": "light" },
+    "slides": [
+      { "title": "Naturallee Goode", "text": "Naturallee Goode\nPaid Pain Assessment\nIteration 1 Review\nSeptember 24, 2026\nGirwan Dhakal · Griffen Bon · Jay Roy · Lily Oswald\nCS 495 Capstone | Sponsor: Mia Miller" },
+      { "title": "Iteration 1 planned work", "text": "Iteration 1 planned work\nBody map data #42–#45\nClient interaction #46–#51\nIntegration and acceptance #52–#53\nSubmission and deployment #5, #40, #61\nEngineering quality: CI, architecture and tests\nScope change: Arm and Leg brought in from the backlog" },
+      { "title": "Completed on main", "text": "Completed on main\nViewer module\n12 stable body areas\nReadable muscle catalog\nMuscle-to-area mapping\nArea controls\nHighlighting and camera focus\nSelection and reset state\nUnit and browser CI" },
+      { "title": "Current main: demo path", "text": "Current main: demo path\n01 Choose a familiar body area — one area remains active at a time\n02 Inspect the model — highlighting and camera focus show the selected region\n03 Rotate and zoom — Upper Back and Lower Back lead to distinct views\n04 Change, clear or reset — a complete reset preserves the selection" },
+      { "title": "Sponsor need and iteration goal", "text": "Sponsor need\nHelp clients show where they hurt using familiar body areas and a visual map, while preserving the consultation form.\nIteration 1 goal\nBuild a reliable, testable body map. Let clients select an area and see the 3D model focus there. Investigate submission and deployment blockers." },
+      { "title": "Visual selection prototype", "text": "Visual selection prototype\nFeature branch · PRs #65–#66\nInteractive body map with area buttons: Neck, Shoulder, Upper Back, Lower Back, Arm, Elbow, Wrist, Hip, Leg, Knee, Ankle, Foot" },
+      { "title": "Form submission error", "text": "Form Submission Error\nBug fix\nBefore fix: submissions silently failed\nAfter fix: submission confirmed", "notes": "The EmailJS public key in the site didn't match the account, so nothing was sent." },
+      { "title": "Exact spot prototype", "text": "Exact spot prototype\nFeature branch · review and integration pending\nFocused region\nSelected spot" },
+      { "title": "Incomplete and blocked work", "text": "Incomplete and blocked work\nIntegration\n#51 Muscle data is not saved to form fields\n#62–#63 Email details and mobile/accessibility acceptance review\nExternal dependencies\n#8 EmailJS account/configuration blocks live submission\n#88 / #91 Deployment process and credentials need resolution\n#18 Deployment investigation has no final recommendation" },
+      { "title": "Explanation of change", "text": "Explanation of Change\n01 Discovered out-of-date EmailJS credentials — Public_Key in site didn't match Public_Key in account\n02 Replaced credentials with test credentials in repo — created new EmailJS account for testing functionality\n03 Noted correct EmailJS credentials — troubleshot with sponsor to find correct credential\n04 In the future, deploy code with correct credentials — the next deployment will fix the bug" },
+      { "title": "Team contributions", "text": "Team contributions\nJay Roy: backlog; architecture, state and browser tests. Visual workflow.\nLily Oswald: area controls, mapping and Arm/Leg expansion, spatial focus, peer reviews.\nGirwan Dhakal: CI, viewer cleanup, area data, muscle catalog and slide handling. Reviewed PRs.\nGriffen Bon: EmailJS investigation, sponsor troubleshooting, deployment and credential work." },
+      { "title": "Engineering and quality evidence", "text": "Engineering and quality evidence\n29 / 29 Node tests passing\nHTMLHint: 3 files, 0 errors\nPlaywright browser workflow: passing\nCI runs on pushes and pull requests\nBrowser coverage: all twelve areas and keyboard controls; responsive widths and camera focus; material restoration and model failures; accepted and canceled reset" },
+      { "title": "Design decisions", "text": "Design decisions\nFamiliar areas: expanded to twelve regions, including Arm and Leg\nVisual interaction: use the 3D map instead of asking for anatomical terms; exact spot remains optional\nStable architecture: separate model catalog, area mappings, focus rules and selection state\nReproducible testing: vendor model data locally and run browser tests in CI" },
+      { "title": "Stand-up evidence", "text": "Stand-up evidence\n#37 September 15\n#54 September 17\n#63 September 22\nEach in-class record includes all four members, individual outcomes, commitments, blockers and AI-use disclosure" },
+      { "title": "Review and retrospective", "text": "Review and retrospective\nKeep: small issues and PRs, peer review, automated CI\nFix: Project fields fell behind; deployment details stayed unresolved\nNext: branch from current main, close issues with evidence, update Project status at merge" },
+      { "title": "Before the submission tag", "text": "Before the submission tag\n01 Integrate PRs #65–#66 or mark #48–#49 as open\n02 Correct issue statuses and populate the Project views\n03 Capture planning, results, backlog and contribution evidence\n04 Finish planning, review and retrospective files\n05 Tag the final tested main commit and add its SHA" }
+    ]
+  },
+  {
+    "name": "launch-pitch",
+    "brief": { "goal": "Get approval for a one-month pilot", "audience": "Product leads", "keyMessage": "Start small and learn before we amplify", "minutes": 5, "style": "executive", "depth": "full", "cueDensity": "detailed" },
+    "slides": [
+      { "title": "A quieter way to launch", "text": "A quieter way to launch\nStart small, learn quickly, scale when the signal is clear.\nNorthwind Labs | Q3 planning" },
+      { "title": "Clarity is already compounding", "text": "Clarity is already compounding\nActivation rose from 61% to 74% in six weeks.\nThe first ten minutes got easier.\nWeek 1: 61% · Week 3: 68% · Week 6: 74%" },
+      { "title": "Three deliberate moves", "text": "Three deliberate moves\nInvite the users who feel the problem most sharply.\nGive them a guided first week.\nLet what we learn shape the public story." },
+      { "title": "What we will watch", "text": "What we will watch\nWeek-one activation, target 80%\nSupport tickets per new account\nShare of invited users who invite a teammate" },
+      { "title": "What could go wrong", "text": "What could go wrong\nA small cohort may not represent everyone.\nThe guided week needs two people from support.\nCompetitors may launch louder first." },
+      { "title": "The ask", "text": "The ask\nOne focused month.\nOne shared measure of success.\nPermission to learn before we amplify." }
+    ]
+  },
+  {
+    "name": "intro-lecture",
+    "brief": { "goal": "Help first-year students understand how photosynthesis turns light into stored energy", "audience": "First-year biology students", "keyMessage": "Light reactions capture energy; the Calvin cycle stores it in sugar", "minutes": 6, "style": "measured", "depth": "full", "cueDensity": "light" },
+    "slides": [
+      { "title": "Photosynthesis", "text": "Photosynthesis\nHow plants turn light into food\nBIO 101 · Week 4" },
+      { "title": "The overall equation", "text": "The overall equation\n6 CO2 + 6 H2O + light → C6H12O6 + 6 O2\nInputs: carbon dioxide, water, light\nOutputs: glucose, oxygen" },
+      { "title": "Where it happens", "text": "Where it happens\nChloroplasts\nThylakoid membranes: light reactions\nStroma: Calvin cycle" },
+      { "title": "Light reactions", "text": "Light reactions\nChlorophyll absorbs light\nWater is split, releasing O2\nEnergy is stored in ATP and NADPH" },
+      { "title": "The Calvin cycle", "text": "The Calvin cycle\nUses ATP and NADPH\nFixes CO2 into sugar\nRuBisCO is the key enzyme\n3 turns → 1 G3P molecule" },
+      { "title": "Why it matters", "text": "Why it matters\nNearly all food chains start here\nProduces the oxygen we breathe\nRemoves CO2 from the atmosphere\nQuestion for next week: what limits the rate?" }
+    ]
+  }
+]

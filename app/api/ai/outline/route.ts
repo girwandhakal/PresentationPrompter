@@ -11,6 +11,7 @@ export function POST(request: Request) {
     const byId = new Map(outline.slides.map((slide) => [slide.id, slide]));
     return {
       arc: trim(outline.arc, 1200),
+      voice: trim(outline.voice, 1200),
       slides: input.slides.map((slide, position) => {
         const planned = byId.get(slide.id) ?? outline.slides[position];
         return {
