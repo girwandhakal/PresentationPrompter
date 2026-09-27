@@ -1,6 +1,6 @@
 import OpenAI from "openai";
 import type { z } from "zod";
-import { AiOutputError } from "./openai";
+import { AiOutputError } from "./integrity";
 import { getProvider, type AiProvider } from "./provider";
 
 const WINDOW_MS = 60_000;
@@ -63,7 +63,8 @@ export async function handleAi<S extends z.ZodType>(
   if (!parsed.success) return failure(400, "invalid_request", "The request was incomplete or invalid.");
 
   try {
-    return json(await run(provider, parsed.data, request.signal));
+    const result = await run(provider, parsed.data, request.signal);
+    return json({ ...(result as object), telemetry: provider.telemetry?.() });
   } catch (error) {
     return mapError(error);
   }

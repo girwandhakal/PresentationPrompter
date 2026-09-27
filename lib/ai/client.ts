@@ -89,6 +89,7 @@ export function briefInput(brief: Brief): BriefInput {
     mustInclude: brief.mustInclude.slice(0, 1500),
     avoid: brief.avoid.slice(0, 800),
     presenterRole: brief.presenterRole.slice(0, 300),
+    voiceSample: brief.voiceSample?.slice(0, 1500),
     minutes: brief.minutes,
     qaMinutes: brief.qaMinutes,
     wpm: brief.wpm,
@@ -122,8 +123,9 @@ export function slideRewriteContext(project: Project, slide: Slide) {
     text: slide.text.slice(0, 6000),
     notes: slide.notes.slice(0, 4000),
     analysis: analysisInput(slide.analysis),
-    previousTitle: project.slides[index - 1]?.title.slice(0, 300) ?? "",
-    nextTitle: project.slides[index + 1]?.title.slice(0, 300) ?? "",
+    // Empty only at the ends of the talk: the server reads that as the first or last slide.
+    previousTitle: index > 0 ? (project.slides[index - 1].title || `Slide ${index}`).slice(0, 300) : "",
+    nextTitle: index < project.slides.length - 1 ? (project.slides[index + 1].title || `Slide ${index + 2}`).slice(0, 300) : "",
   };
 }
 

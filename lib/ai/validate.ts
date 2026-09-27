@@ -14,17 +14,12 @@ export function paragraphsWords(paragraphs: string[]) {
   return paragraphs.reduce((sum, paragraph) => sum + countWords(paragraph), 0);
 }
 
-/** How far from target a slide may land before an automatic repair pass is attempted. */
+/** How far from target a slide may land before the rebalance dialog offers to fit it. */
 export const FIT_TOLERANCE: Record<BriefInput["depth"], number> = { full: 0.2, notes: 0.35, cues: 0.6 };
-
-export function fitRatio(words: number, target: number) {
-  if (target <= 0) return 1;
-  return words / target;
-}
 
 export function needsRepair(words: number, target: number, depth: BriefInput["depth"]) {
   if (target < 15) return false;
-  return Math.abs(fitRatio(words, target) - 1) > FIT_TOLERANCE[depth];
+  return Math.abs(words / target - 1) > FIT_TOLERANCE[depth];
 }
 
 function clean(value: string, max: number) {
@@ -44,6 +39,27 @@ export function sanitizeParagraphs(paragraphs: string[]) {
     .slice(0, 8);
 }
 
+const GREETING = /^(?:hello|hi|hey|good (?:morning|afternoon|evening)|welcome|greetings)\b/i;
+const THANKS = /\bthank(?:s| you)\b/i;
+
+/**
+ * The talk opens with a greeting on its first slide and closes with thanks on its last, whatever
+ * the model wrote. Full scripts get the line inside the paragraph; notes and cues get their own line.
+ */
+export function frameTalk(paragraphs: string[], { first, last }: { first: boolean; last: boolean }, depth: BriefInput["depth"]) {
+  const result = [...paragraphs];
+  const inline = depth === "full" && result.length > 0;
+  if (first && !GREETING.test(result[0] ?? "")) {
+    if (inline) result[0] = `Hello, everyone. ${result[0]}`;
+    else result.unshift("Hello, everyone.");
+  }
+  if (last && !THANKS.test(result.at(-1) ?? "")) {
+    if (inline) result[result.length - 1] = `${result.at(-1)} Thank you, everyone.`;
+    else result.push("Thank you, everyone.");
+  }
+  return result;
+}
+
 /** What cue placement needs to know about a written slide. */
 function deliveryContext(paragraphs: string[], input: WriteSlideInput, brief: BriefInput): DeliveryContext {
   return {
@@ -53,16 +69,17 @@ function deliveryContext(paragraphs: string[], input: WriteSlideInput, brief: Br
     title: input.title,
     keyIdea: input.keyIdea || input.analysis?.mainPoint,
     kind: input.analysis?.kind,
-    first: input.index === 1,
   };
 }
 
 /**
- * Normalizes one written slide against its input and the brief. Cues and marks come from the rules
- * here; the write route replaces them with the AI delivery pass when it runs.
+ * Normalizes one written slide against its input and the brief. With `position`, the first and
+ * last slides of the talk get their greeting and thanks. Cues and marks come from the rules here;
+ * the orchestrator replaces them with the AI delivery pass when it runs.
  */
-export function finalizeWrittenSlide(output: WrittenSlideDraft, input: WriteSlideInput, brief: BriefInput): WrittenSlideOutput {
-  const paragraphs = sanitizeParagraphs(output.paragraphs);
+export function finalizeWrittenSlide(output: WrittenSlideDraft, input: WriteSlideInput, brief: BriefInput, position?: { first: boolean; last: boolean }): WrittenSlideOutput {
+  const sanitized = sanitizeParagraphs(output.paragraphs);
+  const paragraphs = position && sanitized.length ? frameTalk(sanitized, position, brief.depth) : sanitized;
   const { cues, marks } = placeDelivery(deliveryContext(paragraphs, input, brief));
   return {
     id: input.id,

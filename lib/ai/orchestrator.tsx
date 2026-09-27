@@ -7,7 +7,7 @@ import type { DeckContext, Project, Slide, SlideAnalysis } from "../domain/types
 import { useProjects } from "../store/projects";
 import { aiFetch, AiRequestError, analysisInput, briefInput, contextInput, scriptFromWritten, slideImageForAi } from "./client";
 import { aiLockName } from "./lock";
-import type { DeliveredSlide, WrittenSlideOutput } from "./schemas";
+import type { DeliveredSlide, WrittenSlideOutput, GenerationTelemetry, QualityIssue } from "./schemas";
 
 /**
  * Runs the AI pipeline for a project from the browser, one bounded request at a time:
@@ -21,8 +21,9 @@ import type { DeliveredSlide, WrittenSlideOutput } from "./schemas";
  */
 
 const ANALYZE_BATCH = 4;
-const WRITE_BATCH = 2;
-const CONCURRENCY = 6;
+// Four slides per call keeps neighbors in one voice and pays for the instructions once per four.
+const WRITE_BATCH = 4;
+const CONCURRENCY = 3;
 
 type Orchestrator = {
   analyze: (projectId: string) => Promise<void>;
@@ -70,6 +71,10 @@ async function holdLock(name: string): Promise<() => void> {
   return release;
 }
 
+function sourceFingerprint(project: Project) {
+  return JSON.stringify({ title: project.title, brief: project.brief, slides: project.slides.map((slide) => [slide.id, slide.title, slide.text, slide.notes, slide.imageKey, slide.optional, slide.targetSeconds, slide.analysis, slide.script]) });
+}
+
 function userMessage(error: unknown) {
   if (error instanceof AiRequestError) return error.message;
   if (error instanceof DOMException && error.name === "AbortError") return "Generation was cancelled.";
@@ -106,7 +111,7 @@ export function OrchestratorProvider({ children }: { children: ReactNode }) {
             notes: slide.notes.slice(0, 4000),
             image: await slideImageForAi(slide),
           })));
-          const result = await aiFetch<{ slides: { id: string; analysis: SlideAnalysis | null }[] }>("analyze", {
+          const result = await aiFetch<{ telemetry?: GenerationTelemetry; slides: { id: string; analysis: SlideAnalysis | null }[] }>("analyze", {
             fileName: project.source.fileName.slice(0, 260),
             slideCount: project.slides.length,
             slides,
@@ -114,6 +119,7 @@ export function OrchestratorProvider({ children }: { children: ReactNode }) {
           const byId = new Map(result.slides.map((entry) => [entry.id, entry.analysis]));
           await update(projectId, (current) => ({
             ...current,
+            analysis: { ...current.analysis, telemetry: [...(current.analysis.telemetry ?? []), ...(result.telemetry ? [result.telemetry] : [])] },
             slides: current.slides.map((slide) => byId.get(slide.id) ? { ...slide, analysis: byId.get(slide.id)! } : slide),
           }), { touch: false });
         } catch (error) {
@@ -134,7 +140,7 @@ export function OrchestratorProvider({ children }: { children: ReactNode }) {
     const analyzed = await latest(projectId);
     if (!analyzed.context) {
       try {
-        const result = await aiFetch<{ context: DeckContext }>("context", {
+        const result = await aiFetch<{ context: DeckContext; telemetry?: GenerationTelemetry }>("context", {
           fileName: analyzed.source.fileName.slice(0, 260),
           slides: analyzed.slides.map((slide, index) => ({
             index: index + 1,
@@ -143,12 +149,12 @@ export function OrchestratorProvider({ children }: { children: ReactNode }) {
             kind: slide.analysis?.kind ?? "content",
           })),
         }, signal);
-        await update(projectId, (current) => ({ ...current, context: result.context }), { touch: false });
+        await update(projectId, (current) => ({ ...current, context: result.context, analysis: { ...current.analysis, telemetry: [...(current.analysis.telemetry ?? []), ...(result.telemetry ? [result.telemetry] : [])] } }), { touch: false });
       } catch {
         // Context is only used for suggestions and flavor; never block on it.
       }
     }
-    await update(projectId, (current) => ({ ...current, analysis: { status: "done" } }), { touch: false });
+    await update(projectId, (current) => ({ ...current, analysis: { ...current.analysis, status: "done" } }), { touch: false });
   }, [latest, update]);
 
   const analyze = useCallback((projectId: string) => {
@@ -203,7 +209,10 @@ export function OrchestratorProvider({ children }: { children: ReactNode }) {
       const context = contextInput(project);
       const title = project.title.slice(0, 200);
 
-      const outline = await aiFetch<{ arc: string; voice: string; slides: { id: string; role: string; keyIdea: string; transition: string }[] }>("outline", {
+      const telemetry: GenerationTelemetry[] = [...(project.analysis.telemetry ?? [])];
+      const warnings: { id: string; issues: QualityIssue[] }[] = [];
+      const deliveryModes = new Map<string, "ai" | "fallback" | "none">(project.slides.map((slide) => [slide.id, brief.cueDensity === "none" ? "none" : "fallback"]));
+      const outline = await aiFetch<{ telemetry?: GenerationTelemetry; arc: string; voice: string; slides: { id: string; role: string; keyIdea: string; transition: string }[] }>("outline", {
         brief,
         context,
         title,
@@ -217,13 +226,14 @@ export function OrchestratorProvider({ children }: { children: ReactNode }) {
           optional: slide.optional,
         })),
       }, signal);
+      if (outline.telemetry) telemetry.push(outline.telemetry);
       const planned = new Map(outline.slides.map((entry) => [entry.id, entry]));
 
       const written = new Map<string, WrittenSlideOutput>();
       const batches = chunk(project.slides.map((slide, index) => ({ slide, index })), WRITE_BATCH);
       await runLimited(batches, CONCURRENCY, async (batch) => {
         if (signal.aborted) return;
-        const result = await aiFetch<{ slides: { id: string; script: WrittenSlideOutput | null }[] }>("write", {
+        const result = await aiFetch<{ telemetry?: GenerationTelemetry; notes?: { id: string; issues: QualityIssue[] }[]; slides: { id: string; script: WrittenSlideOutput | null }[] }>("write", {
           brief,
           context,
           title,
@@ -232,6 +242,8 @@ export function OrchestratorProvider({ children }: { children: ReactNode }) {
           totalSlides: project.slides.length,
           slides: batch.map(({ slide, index }) => slideWriteInput(project, slide, index, targets.get(slide.id) ?? 60, planned.get(slide.id), planned.get(project.slides[index - 1]?.id ?? "")?.transition)),
         }, signal);
+        if (result.telemetry) telemetry.push(result.telemetry);
+        warnings.push(...(result.notes?.filter((slide) => slide.issues.length) ?? []));
         for (const entry of result.slides) if (entry.script) written.set(entry.id, entry.script);
       });
       if (signal.aborted) throw new DOMException("Aborted", "AbortError");
@@ -243,18 +255,19 @@ export function OrchestratorProvider({ children }: { children: ReactNode }) {
       // each slide keeps the rule-based marks the write step already placed.
       if (brief.cueDensity !== "none") {
         try {
-          const delivered = await aiFetch<{ slides: DeliveredSlide[] }>("deliver", {
+          const delivered = await aiFetch<{ slides: DeliveredSlide[]; telemetry?: GenerationTelemetry }>("deliver", {
             density: brief.cueDensity,
-            slides: project.slides.map((slide, index) => ({
+            slides: project.slides.map((slide) => ({
               id: slide.id,
               title: slide.title.slice(0, 300),
               kind: slide.analysis?.kind ?? "content",
               keyIdea: (planned.get(slide.id)?.keyIdea || slide.analysis?.mainPoint || "").slice(0, 600),
-              first: index === 0,
               paragraphs: written.get(slide.id)!.paragraphs,
             })),
           }, signal);
+          if (delivered.telemetry) telemetry.push(delivered.telemetry);
           for (const entry of delivered.slides) {
+            deliveryModes.set(entry.id, entry.deliveryMode ?? "fallback");
             const script = written.get(entry.id);
             if (script) written.set(entry.id, { ...script, cues: entry.cues, marks: entry.marks });
           }
@@ -265,17 +278,22 @@ export function OrchestratorProvider({ children }: { children: ReactNode }) {
 
       // Keep what was there before, so regenerating is always reversible.
       const before = await latest(projectId);
+      if (sourceFingerprint(before) !== sourceFingerprint(project)) throw new AiRequestError("The presentation changed while writing. Generate again to use your latest edits.", 409, "changed");
       if (hasScript(before)) {
         await saveVersionSnapshot(before, "Before regenerating");
       }
 
-      const committed = await update(projectId, (current) => ({
-        ...current,
+      const committed = await update(projectId, (current) => {
+        if (sourceFingerprint(current) !== sourceFingerprint(project)) throw new AiRequestError("The presentation changed while writing. Generate again to use your latest edits.", 409, "changed");
+        return {
+          ...current,
         status: "ready",
         generation: { status: "idle" },
-        generatedWith: { minutes: current.brief.minutes, qaMinutes: current.brief.qaMinutes, wpm: current.brief.wpm, depth: current.brief.depth },
+        generatedWith: { minutes: brief.minutes, qaMinutes: brief.qaMinutes, wpm: brief.wpm, depth: brief.depth },
+        generationQuality: { reviewedAt: Date.now(), telemetry, warnings, delivery: [...deliveryModes].map(([id, mode]) => ({ id, mode })) },
         slides: current.slides.map((slide) => written.has(slide.id) ? { ...slide, script: scriptFromWritten(written.get(slide.id)!) } : slide),
-      }));
+        };
+      });
       if (committed) await saveVersionSnapshot(committed, "Generated draft");
     } catch (error) {
       await update(projectId, (current) => ({

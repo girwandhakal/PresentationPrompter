@@ -2,9 +2,7 @@
  * Script-generation eval: runs fixture decks through the real AI routes, the same pipeline the app
  * runs (analyze → context → plan → outline → write → deliver), and scores what comes back.
  *
- *   npm run eval                      every deck once
- *   npm run eval -- --runs=3          repeat, to see run-to-run spread
- *   npm run eval -- --deck=launch-pitch
+ * Paid calls require explicit --live=true, --deck=<name> and --budget=<token-cap>.
  *
  * Needs OPENAI_API_KEY in .env.local. Full scripts are written to outputs/ for reading; the console
  * shows the scores. Rerun after any prompt or model change and compare.
@@ -16,7 +14,7 @@ import { POST as deliverRoute } from "../app/api/ai/deliver/route";
 import { POST as outlineRoute } from "../app/api/ai/outline/route";
 import { POST as writeRoute } from "../app/api/ai/write/route";
 import type { BriefInput, DeliveredSlide, WriteRequest, WrittenSlideOutput } from "../lib/ai/schemas";
-import { spokenProblems, ungroundedFigures, writeSources } from "../lib/ai/server/spoken-lint";
+import { slideSource, spokenProblems, ungroundedFigures } from "../lib/ai/server/spoken-lint";
 import { paragraphsWords } from "../lib/ai/validate";
 import { placeDelivery } from "../lib/domain/cues";
 import { DEFAULT_BRIEF, planPresentation } from "../lib/domain/planner";
@@ -26,6 +24,10 @@ import type { Brief, SlideAnalysis } from "../lib/domain/types";
 type Fixture = { name: string; brief: Partial<Brief>; slides: { title: string; text: string; notes?: string }[] };
 
 const args = Object.fromEntries(process.argv.slice(2).map((arg) => arg.replace(/^--/, "").split("=")));
+const tokenCap = Number(args.budget);
+if (args.live !== "true" || !args.deck || !Number.isSafeInteger(tokenCap) || tokenCap <= 0) {
+  throw new Error("Paid evaluation is disabled by default. Supply --live=true, --deck=<one-named-fixture>, and --budget=<token-cap> only after agreeing on spending. npm run check makes no API calls.");
+}
 const runs = Number(args.runs ?? 1);
 const decks = (JSON.parse(readFileSync("tests/fixtures/eval-decks.json", "utf8")) as Fixture[]).filter((deck) => !args.deck || deck.name === args.deck);
 
@@ -34,11 +36,32 @@ if (!process.env.OPENAI_API_KEY) {
   process.exit(1);
 }
 
+// Reserve input plus maximum output before every request, including parallel delivery reads.
+// Token caps are not dollar caps: model rates and cache discounts differ.
+const originalFetch = globalThis.fetch;
+let spent = 0, reserved = 0;
+globalThis.fetch = async (input, init) => {
+  const body = typeof init?.body === "string" ? JSON.parse(init.body) : null;
+  if (!body?.model) return originalFetch(input, init);
+  const reservation = Math.ceil(JSON.stringify(body).length / 2) + (body.max_output_tokens ?? 48000);
+  if (spent + reserved + reservation > tokenCap) throw new Error("Evaluation token cap reached; no further API call was sent.");
+  reserved += reservation;
+  try {
+    const response = await originalFetch(input, init);
+    const result = await response.clone().json() as { usage?: { input_tokens: number; output_tokens: number } };
+    spent += result.usage ? result.usage.input_tokens + result.usage.output_tokens : response.ok ? reservation : 0;
+    console.log(`API usage: ${spent}/${tokenCap} tokens (input + output; reasoning included in output).`);
+    return response;
+  } finally { reserved -= reservation; }
+};
+
+const telemetry: import("../lib/ai/schemas").GenerationTelemetry[] = [];
 let client = 0;
 async function call<T>(route: (request: Request) => Promise<Response>, body: unknown): Promise<T> {
   // A distinct address per call keeps the route's per-client burst limit out of the way.
   const response = await route(new Request("http://localhost/api/ai", { method: "POST", headers: { "content-type": "application/json", "x-forwarded-for": `10.9.${Math.floor(++client / 250) % 250}.${client % 250}` }, body: JSON.stringify(body) }));
-  const json = await response.json();
+  const json = await response.json() as { telemetry?: import("../lib/ai/schemas").GenerationTelemetry; [key: string]: unknown };
+  if (json.telemetry) telemetry.push(json.telemetry);
   if (!response.ok) throw new Error(`${response.status} ${JSON.stringify(json)}`);
   return json as T;
 }
@@ -90,7 +113,7 @@ async function generate(fixture: Fixture) {
   }));
   const planned = new Map(outline.slides.map((entry) => [entry.id, entry]));
 
-  const requests: WriteRequest[] = chunk(slides, 2).map((batch) => ({
+  const requests: WriteRequest[] = chunk(slides, 4).map((batch) => ({
     brief: input, context, title: fixture.name, arc: outline.arc, voice: outline.voice, totalSlides: slides.length,
     slides: batch.map((slide) => {
       const analysis = analyses.get(slide.id);
@@ -104,23 +127,25 @@ async function generate(fixture: Fixture) {
       };
     }),
   }));
+  const notes: unknown[] = [];
   const written = new Map<string, WrittenSlideOutput>();
   await stage("write", () => limit(requests, 6, async (request) => {
-    const result = await call<{ slides: { id: string; script: WrittenSlideOutput | null }[] }>(writeRoute, request);
+    const result = await call<{ slides: { id: string; script: WrittenSlideOutput | null }[]; notes?: unknown }>(writeRoute, request);
+    if (result.notes) notes.push(result.notes);
     for (const entry of result.slides) if (entry.script) written.set(entry.id, entry.script);
   }));
 
   const delivered = await stage("deliver", () => call<{ slides: DeliveredSlide[] }>(deliverRoute, {
     density: input.cueDensity,
-    slides: slides.map((slide) => ({ id: slide.id, title: slide.title, kind: analyses.get(slide.id)?.kind ?? "content", keyIdea: planned.get(slide.id)?.keyIdea ?? "", first: slide.index === 1, paragraphs: written.get(slide.id)?.paragraphs ?? [] })),
+    slides: slides.map((slide) => ({ id: slide.id, title: slide.title, kind: analyses.get(slide.id)?.kind ?? "content", keyIdea: planned.get(slide.id)?.keyIdea ?? "", paragraphs: written.get(slide.id)?.paragraphs ?? [] })),
   }));
   for (const entry of delivered.slides) {
     const script = written.get(entry.id);
     if (script) written.set(entry.id, { ...script, cues: entry.cues, marks: entry.marks });
   }
 
-  const sources = new Map(requests.flatMap((request) => [...writeSources(request)]));
-  return { brief: input, slides, targets, planned, outline, written, sources, analyses, timings };
+  const sources = new Map(requests.flatMap((request) => request.slides.map((slide) => [slide.id, slideSource(slide, request.brief)])));
+  return { brief: input, slides, targets, planned, outline, written, sources, analyses, timings, notes, telemetry: [...telemetry] };
 }
 
 function score(result: Awaited<ReturnType<typeof generate>>) {
@@ -131,7 +156,7 @@ function score(result: Awaited<ReturnType<typeof generate>>) {
     const words = paragraphsWords(paragraphs);
     const target = targets.get(slide.id) ?? 0;
     const opener = (splitSentences(paragraphs[0] ?? "")[0] ?? "").toLowerCase().replace(/[^a-z' ]/g, "").split(" ").slice(0, 2).join(" ");
-    const rules = placeDelivery({ paragraphs, density: brief.cueDensity, seed: slide.id, title: slide.title, keyIdea: planned.get(slide.id)?.keyIdea, kind: analyses.get(slide.id)?.kind ?? "content", first: slide.index === 1 });
+    const rules = placeDelivery({ paragraphs, density: brief.cueDensity, seed: slide.id, title: slide.title, keyIdea: planned.get(slide.id)?.keyIdea, kind: analyses.get(slide.id)?.kind ?? "content" });
     return {
       id: slide.id,
       missing: !script,
@@ -183,13 +208,15 @@ function render(result: Awaited<ReturnType<typeof generate>>, scored: ReturnType
 mkdirSync("outputs", { recursive: true });
 const stamp = new Date().toISOString().replace(/[:.]/g, "-");
 const report: string[] = [];
-console.log(`Eval with ${process.env.OPENAI_MODEL ?? "gpt-5.4-mini"} (writing) and ${process.env.OPENAI_DELIVERY_MODEL ?? "gpt-5.4"} (delivery)\n`);
+console.log(`Eval with ${process.env.OPENAI_WRITER_MODEL || process.env.OPENAI_MODEL || "gpt-5.4-mini-2026-03-17"} (writing) and ${process.env.OPENAI_MODEL || "gpt-5.4-mini-2026-03-17"} (everything else)\n`);
 console.log("deck               run  time   fit±  off  lint  invented  repeated openers        pauses bold slow  none  coached");
 for (const fixture of decks) {
   for (let run = 1; run <= runs; run += 1) {
     const started = Date.now();
     try {
+      telemetry.length = 0;
       const result = await generate(fixture);
+      writeFileSync(`outputs/eval-${stamp}-${fixture.name}-${run}.json`, JSON.stringify(result, (_, value) => value instanceof Map ? Object.fromEntries(value) : value, 2));
       const scored = score(result);
       const seconds = (Date.now() - started) / 1000;
       const n = fixture.slides.length;

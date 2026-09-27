@@ -38,6 +38,7 @@ const AUDIENCES: Chip[] = [
 ];
 
 const EXTRAS = [
+  { key: "voiceSample", label: "Your speaking style", add: "Voice sample", icon: <Quote />, placeholder: "Optional: a few sentences you would naturally say. Used for style, not new facts.", maxLength: 1500 },
   { key: "mustInclude", label: "Must include", add: "Must include", icon: <ListChecks />, placeholder: "Facts, examples, or a call to action to cover", maxLength: 1500 },
   { key: "avoid", label: "Avoid", add: "Things to avoid", icon: <Ban />, placeholder: "Topics, claims, or phrasing to leave out", maxLength: 800 },
   { key: "presenterRole", label: "Your role", add: "Your role", icon: <UserRound />, placeholder: "e.g. New team lead presenting to peers", maxLength: 300 },
@@ -250,7 +251,7 @@ export function SetupView({ project }: { project: Project }) {
             </div>
             <ExtraFields
               fields={EXTRAS}
-              values={{ mustInclude: brief.mustInclude, avoid: brief.avoid, presenterRole: brief.presenterRole }}
+              values={{ voiceSample: brief.voiceSample ?? "", mustInclude: brief.mustInclude, avoid: brief.avoid, presenterRole: brief.presenterRole }}
               onChange={(key, value) => patch({ [key]: value })}
             />
             <DeliveryFields

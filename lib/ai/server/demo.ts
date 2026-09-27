@@ -72,7 +72,7 @@ function slideSentences(slide: Pick<WriteSlideInput, "title" | "text" | "notes" 
     .flatMap((line) => splitSentences(line.replace(/^[•\-–*\d.)\s]+/, "")))
     .map((value) => value.trim())
     .filter((value) => countWords(value) >= 4 && !slide.title.toLowerCase().startsWith(value.toLowerCase().replace(/[.!?]$/, "")));
-  const opening = slide.index === 1 ? `Thanks for being here. Today we're looking at ${slide.title}.` : `Now, ${slide.title.charAt(0).toLowerCase()}${slide.title.slice(1)}.`;
+  const opening = slide.index === 1 ? `Hello, everyone. Today we're looking at ${slide.title}.` : `Now, ${slide.title.charAt(0).toLowerCase()}${slide.title.slice(1)}.`;
   return [opening, ...source.map(sentence)].filter(Boolean);
 }
 
@@ -128,7 +128,7 @@ export function createDemoProvider(): AiProvider {
           id: slide.id,
           role: index === 0 ? "Opens the talk" : index === included.length - 1 ? "Closes the talk" : "Develops the argument",
           keyIdea: slide.mainPoint || slide.title,
-          transition: index === included.length - 1 ? (request.brief.qaMinutes ? "I'd be glad to take your questions." : "Thank you.") : `That leads us to ${included[index + 1].title.replace(/[.!?…]+$/, "")}.`,
+          transition: index === included.length - 1 ? (request.brief.qaMinutes ? "I'd be glad to take your questions. Thank you, everyone." : "Thank you, everyone.") : `That leads us to ${included[index + 1].title.replace(/[.!?…]+$/, "")}.`,
         })),
       };
     },

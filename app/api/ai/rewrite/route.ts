@@ -1,6 +1,7 @@
 import { handleAi } from "@/lib/ai/server/http";
+import { AiOutputError } from "@/lib/ai/server/integrity";
 import { RewriteRequest } from "@/lib/ai/schemas";
-import { sanitizeParagraphs } from "@/lib/ai/validate";
+import { frameTalk, sanitizeParagraphs } from "@/lib/ai/validate";
 import { deliverSlides } from "@/lib/ai/server/delivery";
 
 export const dynamic = "force-dynamic";
@@ -12,7 +13,9 @@ export function POST(request: Request) {
     switch (input.kind) {
       case "script": {
         const result = await provider.rewriteScript(input, signal);
-        const paragraphs = sanitizeParagraphs(result.paragraphs);
+        const sanitized = sanitizeParagraphs(result.paragraphs);
+        if (!sanitized.length) throw new AiOutputError("The AI returned an empty rewrite.");
+        const paragraphs = frameTalk(sanitized, { first: !input.slide.previousTitle, last: !input.slide.nextTitle }, input.brief.depth);
         const [{ cues, marks }] = await deliverSlides(provider, [{
           paragraphs,
           density: input.brief.cueDensity,
@@ -20,13 +23,14 @@ export function POST(request: Request) {
           title: input.slide.title,
           keyIdea: input.slide.analysis?.mainPoint,
           kind: input.slide.analysis?.kind,
-          first: !input.slide.previousTitle,
         }], signal);
         return { kind: "script", paragraphs, cues, marks };
       }
       case "selection": {
         const result = await provider.rewriteSelection(input, signal);
-        return { kind: "selection", text: result.text.replace(/^["“]|["”]$/g, "").trim() };
+        const text = result.text.replace(/^["“]|["”]$/g, "").trim();
+        if (!text) throw new AiOutputError("The AI returned an empty rewrite.");
+        return { kind: "selection", text };
       }
       case "support": {
         const result = await provider.support(input, signal);

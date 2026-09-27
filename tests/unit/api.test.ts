@@ -7,7 +7,7 @@ import { POST as outline } from "../../app/api/ai/outline/route";
 import { POST as rewrite } from "../../app/api/ai/rewrite/route";
 import { GET as status } from "../../app/api/ai/status/route";
 import { POST as write } from "../../app/api/ai/write/route";
-import type { BriefInput } from "../../lib/ai/schemas";
+import { BriefInput } from "../../lib/ai/schemas";
 
 // These run the real route handlers against the deterministic demo provider — no network.
 beforeEach(() => {
@@ -89,7 +89,12 @@ test("the full pipeline returns grounded, budgeted scripts for every slide", asy
     })),
   })));
   assert.equal(written.slides.length, 3);
+  assert.match(written.slides[0].script.paragraphs[0], /^Hello, everyone\./, "the first slide greets the audience");
+  assert.match(written.slides[2].script.paragraphs.at(-1), /Thank you, everyone\.$/, "the last slide thanks the audience");
+  assert.doesNotMatch(written.slides[1].script.paragraphs.join(" "), /Hello, everyone|Thank you, everyone/);
+  assert.deepEqual(written.notes.map((entry: { id: string }) => entry.id), ["a1", "b2", "c3"]);
   for (const entry of written.slides) {
+    assert.ok(entry.script.cues.every((cue: { afterSentence: number }) => cue.afterSentence >= 1), "no slide opens with a pause");
     assert.ok(entry.script, `slide ${entry.id} has a script`);
     assert.ok(entry.script.paragraphs.length > 0);
     assert.ok(entry.script.cues.length <= 2, "light cue density caps cues");
@@ -102,8 +107,8 @@ test("deliver marks pauses, bold and slow across a written deck", async () => {
   const response = await deliver(post({
     density: "detailed",
     slides: [
-      { id: "a1", title: "A quieter way to launch", kind: "title", keyIdea: "", first: true, paragraphs: ["Thanks for being here. Today is about launching quietly."] },
-      { id: "b2", title: "Clarity is compounding", kind: "chart", keyIdea: "Activation rose from 61% to 74% in six weeks", first: false, paragraphs: ["Why does clarity matter? Activation rose from 61% to 74% in six weeks.", "But traffic stayed flat, so the gain came from the product itself."] },
+      { id: "a1", title: "A quieter way to launch", kind: "title", keyIdea: "", paragraphs: ["Thanks for being here. Today is about launching quietly."] },
+      { id: "b2", title: "Clarity is compounding", kind: "chart", keyIdea: "Activation rose from 61% to 74% in six weeks", paragraphs: ["Why does clarity matter? Activation rose from 61% to 74% in six weeks.", "But traffic stayed flat, so the gain came from the product itself."] },
     ],
   }));
   assert.equal(response.status, 200);

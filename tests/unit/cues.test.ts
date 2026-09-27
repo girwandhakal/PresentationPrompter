@@ -16,7 +16,6 @@ test("the only cue line is Pause, even when a sentence refers to the visual", ()
   const cues = cuesOf({
     paragraphs: ["So why did the form stop sending? The credentials had expired.", "But you can see on the chart that submissions recovered by 40%. We swapped in test ones to keep going."],
     kind: "chart",
-    first: true,
   });
   assert.ok(cues.length > 0);
   for (const cue of cues) assert.deepEqual([cue.type, cue.text], ["pause", "Pause"]);
@@ -38,8 +37,11 @@ test("a question gets a pause after it, never after the final sentence", () => {
   assert.deepEqual(cuesOf({ paragraphs: ["We covered a lot today. Any questions?"], density: "light" }), []);
 });
 
-test("chart slides open with a pause so the audience can read the chart", () => {
-  assert.deepEqual(cuesOf({ paragraphs: ["Revenue grew steadily through the year. The spring dip was a pricing test."], kind: "chart", density: "light" }), [{ paragraph: 1, afterSentence: 0, type: "pause", text: "Pause" }]);
+test("no slide opens with a pause, whatever its kind", () => {
+  for (const kind of ["chart", "diagram", "table", "image", "title", "content"]) {
+    const cues = cuesOf({ paragraphs: ["Hello, everyone. Revenue grew steadily through the year. But the spring dip was a pricing test."], kind, density: "detailed" });
+    assert.ok(cues.every((cue) => cue.afterSentence >= 1), `${kind} slide`);
+  }
 });
 
 test("the sentence closest to the key idea gets a pause after it", () => {
@@ -110,7 +112,7 @@ test("budget, spacing, and anchors hold on long varied scripts", () => {
       assert.ok(cues.length <= (density === "light" ? 1 : 4), `${density} cue budget`);
       assert.ok(marks.filter((mark) => mark.mark === "bold").length <= (density === "light" ? 1 : 2), `${density} bold budget`);
       const gaps = cues.map((cue) => counts.slice(0, cue.paragraph - 1).reduce((sum, count) => sum + count, 0) + cue.afterSentence);
-      for (const gap of gaps) assert.ok(gap >= 0 && gap < total, "never after the last sentence");
+      for (const gap of gaps) assert.ok(gap >= 1 && gap < total, "never before the first sentence or after the last");
       for (let index = 1; index < gaps.length; index += 1) assert.ok(gaps[index] - gaps[index - 1] >= 1, "at least one sentence between cues");
       for (const mark of marks) assert.ok(paragraphs[mark.paragraph - 1].includes(mark.text), "marks point at real text");
     }

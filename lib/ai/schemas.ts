@@ -19,6 +19,7 @@ export const BriefInput = z.object({
   mustInclude: text(1500),
   avoid: text(800),
   presenterRole: text(300),
+  voiceSample: text(1500).optional(),
   minutes: z.number().min(1).max(120),
   qaMinutes: z.number().min(0).max(60),
   wpm: z.number().min(80).max(220),
@@ -182,6 +183,18 @@ export type WrittenSlideDraft = z.infer<typeof WrittenSlideDraft>;
 export const WriteOutput = z.object({ slides: z.array(WrittenSlideDraft) });
 export type WriteOutput = z.infer<typeof WriteOutput>;
 
+export const QualityIssue = z.object({
+  severity: z.enum(["error", "warning"]),
+  category: z.enum(["fidelity", "coverage", "speech", "continuity", "timing", "source"]),
+  quote: z.string(),
+  message: z.string(),
+  sourceIds: z.array(z.string()),
+});
+export type QualityIssue = z.infer<typeof QualityIssue>;
+
+export type ModelCall = { stage: string; model: string; promptHash: string; effort: string; milliseconds: number; inputTokens: number; outputTokens: number; reasoningTokens: number; cachedTokens: number; status: string; requestId: string };
+export type GenerationTelemetry = { promptVersion: string; calls: ModelCall[] };
+
 // ── Delivery ────────────────────────────────────────────────────────────────
 
 /** Marks pauses, bold and slow across a whole written deck, once every slide's prose is final. */
@@ -192,12 +205,11 @@ export const DeliverRequest = z.object({
     title: text(300),
     kind: text(20),
     keyIdea: text(600),
-    first: z.boolean(),
     paragraphs: z.array(text(4000)).max(40),
   })).min(1).max(200),
 });
 export type DeliverRequest = z.infer<typeof DeliverRequest>;
-export type DeliveredSlide = { id: string } & Pick<WrittenSlideOutput, "cues" | "marks">;
+export type DeliveredSlide = { id: string; deliveryMode?: "ai" | "fallback" | "none" } & Pick<WrittenSlideOutput, "cues" | "marks">;
 
 // What the delivery coach is sent (server-internal).
 
