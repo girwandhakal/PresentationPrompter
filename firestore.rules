@@ -1,0 +1,93 @@
+rules_version = '2';
+
+// ===============================================================
+// Assumed Data Model
+// ===============================================================
+//
+// Collection: users
+// Document ID: the owner's Firebase Auth uid
+// Fields (written by lib/auth.tsx on every sign-in):
+//   - displayName: string | null (<= 200 chars) - Google profile name
+//   - email: string | null - must equal the signed-in token's email
+//   - photoURL: string | null (https, <= 2048 chars) - Google avatar
+//   - lastSignInAt: timestamp (required) - serverTimestamp() of the write
+//
+// Subcollection: users/{uid}/projects/{projectId}   (lib/store/cloud.ts)
+//   - json: string (<= 1,000,000 chars) - the whole project record, or
+//   - deleted: true - a tombstone so other devices drop their copy
+//   - updatedAt: number (required) - ms since epoch; newest copy wins
+//
+// Subcollections: users/{uid}/projects/{projectId}/versions/{id} and /sessions/{id}
+//   - json: string (<= 1,000,000 chars), createdAt: number (both required)
+//
+// Server-owned (Admin SDK only; clients never write):
+//   usage/{day} and usage/{day}/users/{uid} - AI allowances; owners may read their own
+//   config/{doc}, admission/{doc=**}        - limits and account slots; no client access
+// ===============================================================
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isOptionalString(value, maxLen) {
+      return value == null || (value is string && value.size() <= maxLen);
+    }
+
+    function isValidProfile(data) {
+      return data.keys().hasOnly(['displayName', 'email', 'photoURL', 'lastSignInAt'])
+        && data.keys().hasAll(['lastSignInAt'])
+        && isOptionalString(data.get('displayName', null), 200)
+        && (data.get('email', null) == null || data.email == request.auth.token.get('email', null))
+        && (data.get('photoURL', null) == null
+            || (data.photoURL is string && data.photoURL.size() <= 2048 && data.photoURL.matches('^https://.*')))
+        && data.lastSignInAt == request.time;
+    }
+
+    function isValidProject(data) {
+      return data.keys().hasOnly(['json', 'updatedAt', 'deleted'])
+        && data.updatedAt is number
+        && ((data.keys().hasAll(['json']) && data.json is string && data.json.size() <= 1000000
+              && !data.keys().hasAny(['deleted']))
+            || (data.keys().hasAll(['deleted']) && data.deleted == true && !data.keys().hasAny(['json'])));
+    }
+
+    function isValidRecord(data) {
+      return data.keys().hasOnly(['json', 'createdAt'])
+        && data.json is string && data.json.size() <= 1000000
+        && data.createdAt is number;
+    }
+
+    match /users/{userId} {
+      allow get: if isOwner(userId);
+      allow create, update: if isOwner(userId) && isValidProfile(request.resource.data);
+      // Listing profiles and deleting accounts are server-only operations.
+      allow list, delete: if false;
+
+      match /projects/{projectId} {
+        allow read, delete: if isOwner(userId);
+        allow create, update: if isOwner(userId) && isValidProject(request.resource.data);
+
+        match /{kind}/{recordId} {
+          allow read, delete: if isOwner(userId) && kind in ['versions', 'sessions'];
+          allow create, update: if isOwner(userId) && kind in ['versions', 'sessions'] && isValidRecord(request.resource.data);
+        }
+      }
+    }
+
+    match /usage/{day}/users/{userId} {
+      allow get: if isOwner(userId);
+    }
+
+    // Default deny for every other path.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

@@ -22,7 +22,8 @@ export default defineConfig({
     trace: "retain-on-failure",
   },
   webServer: {
-    command: `npm run build && npx cross-env AI_PROVIDER=demo next start --port ${PORT}`,
+    // NEXT_PUBLIC_* values are inlined at build time, so sign-in is switched off for the build.
+    command: `npx cross-env NEXT_PUBLIC_AUTH_MODE=off npm run build && npx cross-env AI_PROVIDER=demo next start --port ${PORT}`,
     url: `http://localhost:${PORT}/api/ai/status`,
     reuseExistingServer: !process.env.CI,
     timeout: 180_000,

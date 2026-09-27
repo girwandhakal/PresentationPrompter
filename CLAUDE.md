@@ -22,8 +22,11 @@ outside the current scope. Reopening a project must reuse its saved draft.
 
 The working stack is TypeScript, React, and Next.js App Router, built with
 `next build` for Vercel. Projects, slide blobs, scripts, versions, and sessions live
-in IndexedDB. Authentication, cloud persistence, and durable server jobs are
-planned; they are not implemented by the current local-first app.
+in IndexedDB, one database per signed-in account. Firebase Google sign-in gates
+the workspace, and the AI routes verify the Firebase ID token (`proxy.ts` screens
+first). Local writes mirror to the account in Firestore/Storage (`lib/store/cloud.ts`,
+newest `updatedAt` wins), AI calls draw on Firestore quotas (`lib/ai/server/quota.ts`),
+and a blocking function caps signups (`functions/`). Durable server jobs are still planned.
 
 | Area | Implementation |
 | --- | --- |
@@ -36,7 +39,8 @@ planned; they are not implemented by the current local-first app.
 | Server prompts, writing guide, providers | `lib/ai/server/` |
 | AI route validation and responses | `app/api/ai/`, `lib/ai/schemas.ts` |
 | Audience synchronization | `lib/sync/protocol.ts`, `app/audience/` |
-| Hosting and security headers | `next.config.ts` |
+| Firebase sign-in, rules, rules tests | `lib/auth.tsx`, `lib/firebase/`, `lib/ai/server/auth.ts`, `firestore.rules`, `storage.rules`, `tests/rules/` |
+| Hosting and security headers | `next.config.ts`, `proxy.ts` |
 | Script-quality audit and recorded experiments | `research/` |
 
 Preserve these boundaries and existing migrations. Do not remove hosting adapters
@@ -179,6 +183,7 @@ Use Node.js 22.13 or newer. Useful commands:
 | `npm test` | Offline unit/API tests |
 | `npm run build` / `npm run preview` | Build and locally serve the production app |
 | `npm run test:e2e` | Demo-mode browser journeys |
+| `npm run test:rules` | Firestore/Storage rules in the emulators (JDK 21+) |
 | `npm run check` | Lint, typecheck, offline tests, build |
 
 Choose verification appropriate to the change. For source changes, run relevant

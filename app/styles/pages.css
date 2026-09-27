@@ -65,6 +65,10 @@
 .settings > :nth-child(n + 4) { animation-delay: 180ms; }
 .settings__section { display: flex; flex-direction: column; gap: var(--s-4); padding: var(--s-8) 0; border-bottom: 1px solid var(--line); }
 .settings__section:last-of-type { border-bottom: 0; }
+.settings__account { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--s-3); }
+.settings__account-id { display: flex; flex-direction: column; gap: var(--s-1); min-width: 0; overflow-wrap: anywhere; }
+.settings__account-id span { color: var(--text-2); }
+.settings__usage { color: var(--text-2); }
 .settings__theme { display: flex; align-items: center; justify-content: space-between; gap: var(--s-4); }
 
 /* ── Replace slides ────────────────────────────────────────────────────── */
@@ -110,6 +114,7 @@
 .standalone p:not(.eyebrow) { color: var(--text-2); line-height: 1.6; }
 .standalone .btn { margin-top: var(--s-3); }
 .standalone__actions { display: flex; gap: var(--s-2); }
+.standalone--center { align-items: center; }
 
 @media (max-width: 700px) {
   .review__summary { grid-template-columns: 1fr; }

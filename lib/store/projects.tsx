@@ -57,19 +57,34 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
     }
   }, [commit]);
 
+  /** Pulls the account's cloud copy after local data is on screen; failures show as sync status. */
+  const syncCloud = useCallback(async () => {
+    try {
+      if (await store.syncWithCloud()) await reload();
+    } catch { /* reported through the cloud sync state */ }
+  }, [reload]);
+
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try { await migrateLegacyStorage(); } catch { /* migration is best effort */ }
-      if (!cancelled) await reload();
+      if (cancelled) return;
+      await reload();
+      if (!cancelled) await syncCloud();
     })();
-    return () => { cancelled = true; };
-  }, [reload]);
+    const online = () => void syncCloud();
+    window.addEventListener("online", online);
+    return () => {
+      cancelled = true;
+      window.removeEventListener("online", online);
+    };
+  }, [reload, syncCloud]);
 
   useEffect(() => store.subscribe(async (event) => {
     if (event.type === "reset") {
       releaseAllBlobUrls();
-      return void reload();
+      await reload();
+      return void syncCloud();
     }
     if (event.type === "project-deleted") {
       records.current.delete(event.id);
@@ -78,7 +93,7 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
     const fresh = await store.getProject(event.id);
     if (fresh) records.current.set(fresh.id, fresh);
     commit();
-  }), [commit, reload]);
+  }), [commit, reload, syncCloud]);
 
   const persist = useCallback((id: string) => {
     const previous = chains.current.get(id) ?? Promise.resolve();

@@ -1,17 +1,30 @@
 import type { NextConfig } from "next";
 
 /**
- * Everything the app needs is same-origin: slide images are blob: URLs from IndexedDB, pdf.js runs
- * its worker from our own assets, and the browser only talks to our /api/ai routes. Inline scripts
- * are required for React Server Components payloads and the theme bootstrap.
+ * Slide images are blob: URLs from IndexedDB, pdf.js runs its worker from our own assets, and the
+ * browser talks to our /api/ai routes. The only third parties are Firebase Authentication (Google
+ * sign-in loads apis.google.com and frames the auth domain), Firestore, Cloud Storage, and
+ * App Check's reCAPTCHA. Inline scripts are required for React Server Components payloads and
+ * the theme bootstrap.
  */
+const FIREBASE_AUTH_DOMAIN = process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN;
+const FIREBASE_CONNECT = [
+  "https://identitytoolkit.googleapis.com",
+  "https://securetoken.googleapis.com",
+  "https://firestore.googleapis.com",
+  "https://firebasestorage.googleapis.com",
+  "https://content-firebaseappcheck.googleapis.com",
+].join(" ");
+
 const CONTENT_SECURITY_POLICY = [
   "default-src 'self'",
-  "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'",
+  "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://apis.google.com https://www.google.com https://www.gstatic.com",
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' blob: data:",
   "font-src 'self'",
-  "connect-src 'self' blob: data:",
+  `connect-src 'self' blob: data: ${FIREBASE_CONNECT}`,
+  // The auth domain hosts Firebase's sign-in helper frame; www.google.com hosts reCAPTCHA (App Check).
+  `frame-src https://www.google.com${FIREBASE_AUTH_DOMAIN ? ` https://${FIREBASE_AUTH_DOMAIN}` : ""}`,
   "worker-src 'self' blob:",
   "media-src 'self' blob:",
   "object-src 'none'",
@@ -30,9 +43,17 @@ const SECURITY_HEADERS = [
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
+  // A stray lockfile in a parent folder makes Next guess the wrong workspace root; pin it here.
+  turbopack: { root: import.meta.dirname },
   async headers() {
     // The dev server injects its own eval-based modules and HMR client; enforce CSP on production builds.
-    const csp = process.env.NODE_ENV === "production" ? [{ key: "Content-Security-Policy", value: CONTENT_SECURITY_POLICY }] : [];
+    // HSTS only makes sense once served over HTTPS; browsers ignore it on http://localhost.
+    const csp = process.env.NODE_ENV === "production"
+      ? [
+          { key: "Content-Security-Policy", value: CONTENT_SECURITY_POLICY },
+          { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains" },
+        ]
+      : [];
     return [{ source: "/:path*", headers: [...SECURITY_HEADERS, ...csp] }];
   },
 };

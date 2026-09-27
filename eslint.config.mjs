@@ -13,6 +13,8 @@ const eslintConfig = defineConfig([
     "outputs/**",
     "build/**",
     "next-env.d.ts",
+    // Compiled Cloud Functions output.
+    "functions/lib/**",
   ]),
 ]);
 
