@@ -5,9 +5,8 @@ This is the single agent guidance file. Updated 2026-09-27 from the former
 The original [product overview](Docs/PRODUCT_OVERVIEW.md) lives in `Docs/`
 and is the source of truth for product requirements; do not edit, move, or remove
 it without an explicit request. Explicit user instructions take precedence.
-Other historical plans are preserved in
-[`archive/agent-guidance-2026-09-27.zip`](archive/agent-guidance-2026-09-27.zip);
-they are reference material, not additional active instructions.
+Earlier plans are in git history (for example `.agents/docs/` before
+2026-09-27); they are reference material, not additional active instructions.
 
 ## Product and current implementation
 
@@ -146,14 +145,14 @@ vendor documentation and eligibility before provisioning or changing dependencie
   allowance assumption. Confirm models, eligibility, expiry, reset, other traffic,
   and overflow before launch. Default paid overflow off; never launch benchmarks
   under this assumption without new spending authorization. Hosting cost estimates
-  in the archive are historical planning figures, not a promise of free operation.
+  in the product overview are planning figures, not a promise of free operation.
 - Provide export, clear deletion behavior, server-validated upload/storage limits,
   private object access, reconciliation, and quota/reset messages. Automated cloud
   backup/restore is outside the proposed pilot; disclose its deletion consequences.
   Full deck editing, animation preservation, live speech rewriting, collaboration,
   meeting-app integration, and guaranteed capture exclusion remain deferred.
 
-Detailed historical requirements and launch gates remain recoverable in the archive.
+Detailed requirements and launch gates are in the [product overview](Docs/PRODUCT_OVERVIEW.md).
 
 ## Working and verification
 
@@ -191,8 +190,8 @@ of these rules. Keep research evidence in `research/` and temporary outputs in
 
 ## Third-party notice
 
-The condensed UI guidance above incorporates the former Uncodixfy guidance.
-Its original files and notice are also preserved in the archive.
+The condensed UI guidance above incorporates the former Uncodixfy guidance
+(https://github.com/cyxzdev/Uncodixfy), used under its license below.
 
 MIT License
 

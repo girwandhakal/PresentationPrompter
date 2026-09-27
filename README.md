@@ -20,11 +20,8 @@ mode everywhere it applies.
 
 Requires Node.js 22.13 or newer.
 
-Contributor and agent guidance lives in [`CLAUDE.md`](CLAUDE.md). The former agent
-documents, specifications, and copied UI skill are preserved in
-[`archive/agent-guidance-2026-09-27.zip`](archive/agent-guidance-2026-09-27.zip), with
-a SHA-256 manifest for every original file. The archive is historical reference;
-the guide distinguishes the working app from the planned cloud pilot.
+Contributor and agent guidance lives in [`CLAUDE.md`](CLAUDE.md); it distinguishes the
+working app from the planned cloud pilot. Earlier planning documents are in git history.
 The original [product overview](Docs/PRODUCT_OVERVIEW.md) lives in the root `Docs/`
 folder and is the source of truth for product requirements.
 
