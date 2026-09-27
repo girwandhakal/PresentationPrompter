@@ -22,7 +22,6 @@ export function POST(request: Request) {
       title: slide.title,
       keyIdea: slide.keyIdea,
       kind: slide.kind,
-      first: slide.first,
     }));
     const chunks = Array.from({ length: Math.ceil(contexts.length / CHUNK) }, (_, index) => contexts.slice(index * CHUNK, (index + 1) * CHUNK));
     const delivered = (await mapLimit(chunks, 2, (group) => deliverSlides(provider, group, signal))).flat();

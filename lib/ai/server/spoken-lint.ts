@@ -1,10 +1,10 @@
-import type { BriefInput, RewriteRequest, WriteRequest, WriteSlideInput } from "../schemas";
+import { unsupportedQuantities } from "./quantities";
+import type { BriefInput, QualityIssue, WriteSlideInput } from "../schemas";
 
 /**
  * Cheap, deterministic checks for script text that reads like slide notes instead of speech, uses
- * sales-deck language, or states figures the source material doesn't contain. Prompts alone are
- * not consistent enough, so the OpenAI provider runs these on each draft and asks the model to redo
- * any slide that fails.
+ * sales-deck language, or states figures the source material doesn't contain. They never call a
+ * model and never block a draft: the results are private notes for the presenter.
  */
 
 // One to three words then a colon, at the start of a sentence: "Keep:", "Short version:", "Iteration 1 goal:".
@@ -15,34 +15,8 @@ const SPOKEN_WORDS = /\b(?:the|we|i|it|is|was|are|were|here's|that's|so|and|to)\
 const ID_REFERENCE = /(?:#|PR\s?#?)\d+/gi;
 // Sales-deck filler the voice rules forbid; one hit is enough to ask for a rewrite.
 const HYPE = /\b(?:game[- ]?changer|game[- ]changing|revolutionary|revolutioni[sz]e|cutting[- ]edge|groundbreaking|world[- ]class|best[- ]in[- ]class|next[- ]level|synergy|synergies|delve|unlock the (?:full )?(?:power|potential)|in today's fast[- ]paced|supercharge|thrilled to)\b/i;
-// A figure in the script: digits with optional decimals, thousands separators or a percent sign. Ticket ids are not figures.
-const FIGURE = /(?<![#\w.])\d[\d,]*(?:\.\d+)?/g;
-const NUMBER_WORDS: Record<string, number> = {
-  one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12,
-  thirteen: 13, fourteen: 14, fifteen: 15, sixteen: 16, seventeen: 17, eighteen: 18, nineteen: 19, twenty: 20, thirty: 30,
-  forty: 40, fifty: 50, sixty: 60, seventy: 70, eighty: 80, ninety: 90, hundred: 100, thousand: 1000,
-};
-
-const numberKey = (value: string) => String(Number(value.replace(/,/g, "")));
-
-/** Every number the source material mentions, as digits or number words. */
-function sourceNumbers(source: string) {
-  const found = new Set((source.match(FIGURE) ?? []).map(numberKey));
-  for (const word of source.toLowerCase().match(/[a-z]+/g) ?? []) if (word in NUMBER_WORDS) found.add(String(NUMBER_WORDS[word]));
-  return found;
-}
-
-/**
- * Figures in the script that appear nowhere in the slide, notes, analysis or brief. Small counts
- * ("two things", "3 steps") are left alone: presenters count what's on a slide.
- */
 export function ungroundedFigures(paragraphs: string[], source: string) {
-  const known = sourceNumbers(source);
-  const figures = paragraphs.join(" ").match(FIGURE) ?? [];
-  return [...new Set(figures.filter((figure) => {
-    const value = Number(figure.replace(/,/g, ""));
-    return !(Number.isInteger(value) && value <= 10) && !known.has(numberKey(figure));
-  }))];
+  return [...new Set(unsupportedQuantities(paragraphs.join(" "), source).map((item) => item.text))];
 }
 
 function words(text: string) {
@@ -57,7 +31,7 @@ function sentences(text: string) {
  * Returns human-readable problems; an empty array means the text sounds spoken enough. With
  * `source` (everything the script may draw on), figures that don't trace back to it are problems too.
  */
-export function spokenProblems(paragraphs: string[], source?: string): string[] {
+export function spokenProblems(paragraphs: string[], source?: string, depth: BriefInput["depth"] = "full"): string[] {
   const text = paragraphs.join(" ").trim();
   if (!text) return [];
   const problems: string[] = [];
@@ -65,12 +39,19 @@ export function spokenProblems(paragraphs: string[], source?: string): string[] 
   const label = paragraphs
     .map((paragraph) => LABEL_OPENER.exec(paragraph)?.[0].trim())
     .find((match) => match && !SPOKEN_WORDS.test(match.replace(/^[.!?]\s*/, "")));
-  if (label) problems.push(`It uses a slide-style label with a colon ("${label.replace(/^[.!?]\s*/, "")}…"). Speech doesn't announce labels; fold the idea into a sentence.`);
+  if (depth === "full" && label) problems.push(`It uses a slide-style label with a colon ("${label.replace(/^[.!?]\s*/, "")}…"). Speech doesn't announce labels; fold the idea into a sentence.`);
 
   const all = sentences(text);
-  if (all.length >= 3) {
+  if (depth === "full" && all.length >= 3) {
     const average = words(text) / all.length;
-    if (average < 7) problems.push(`Its sentences average ${average.toFixed(1)} words, which reads as clipped notes. Use complete sentences of roughly 10–20 words.`);
+    const complete = /\b(?:is|are|was|were|will|can|could|do|does|did|has|have|had|upload|validate|save|compare|check|calculate|review|keep|show|record|measure|share|deploy|turn|rose|fell|passed|failed|remains|changed|needs|works|stopped)\b|let[’\']s/i;
+    const fragments = all.filter((sentence) => !complete.test(sentence)).length;
+    if (average < 7 && fragments >= Math.ceil(all.length / 2)) problems.push(`Its sentences average ${average.toFixed(1)} words, which reads as clipped notes. Use complete sentences; short procedural steps are fine when their meaning is clear.`);
+  }
+
+  if (depth === "full") {
+    const dense = all.find((sentence) => words(sentence) > 32);
+    if (dense) problems.push(`Review this long sentence for stacked clauses: "${dense}"`);
   }
 
   const ids = text.match(ID_REFERENCE)?.length ?? 0;
@@ -87,54 +68,25 @@ export function spokenProblems(paragraphs: string[], source?: string): string[] 
 
 type SourceSlide = Pick<WriteSlideInput, "title" | "text" | "notes" | "analysis">;
 
-function materials(brief: BriefInput, slide: SourceSlide, extra: string[]) {
-  return [
-    brief.goal, brief.audience, brief.keyMessage, brief.mustInclude, brief.presenterRole, `${brief.minutes} minutes`,
-    slide.title, slide.text, slide.notes, slide.analysis?.mainPoint ?? "", slide.analysis?.visualSummary ?? "",
-    ...(slide.analysis?.elements.map((element) => element.label) ?? []),
-    ...extra,
-  ].join("\n");
-}
-
-/** Per slide, everything a written script may draw its figures from. */
-export function writeSources(request: WriteRequest) {
-  const deck = request.context?.summary ?? "";
-  return new Map(request.slides.map((slide) => [slide.id, materials(request.brief, slide, [deck, slide.keyIdea, slide.role, slide.transition])]));
-}
-
-/** For a rewrite, the slide material plus the presenter's current script, which may carry their own figures. */
-export function rewriteSource(request: Extract<RewriteRequest, { kind: "script" }>) {
-  return materials(request.brief, request.slide, request.paragraphs);
-}
-
-type DraftSlide = { id: string; paragraphs: string[]; concise: string };
-
 /**
- * Slides in a written draft that read like notes or state figures not in their source: their
- * paragraphs, plus label-style openers in the concise summary.
+ * Everything a script may draw its figures from: the slide, its notes, the presenter's required
+ * facts, and what the analysis saw. Timing, plans, and voice samples are never evidence.
  */
-export function draftProblems(slides: DraftSlide[], sources: Map<string, string> = new Map()): { id: string; problems: string[] }[] {
-  return slides.flatMap((slide) => {
-    const problems = [...spokenProblems(slide.paragraphs, sources.get(slide.id)), ...spokenProblems([slide.concise]).filter((problem) => problem.includes("label"))];
-    return problems.length ? [{ id: slide.id, problems }] : [];
-  });
+export function slideSource(slide: SourceSlide, brief: BriefInput) {
+  return [slide.title, slide.text, slide.notes, brief.mustInclude, slide.analysis?.visualSummary ?? ""].filter(Boolean).join("\n");
 }
 
 /**
- * Merges a draft and its retry slide by slide, so a retry can never make things worse: a slide takes
- * the retry's version only when its first version had problems and the retry has no more. Slides
- * that were already fine keep their first version.
+ * Private notes on one written slide: figures its sources don't contain (neighboring slides in the
+ * same batch count, so recaps can quote them), unreadable source material, and a draft far shorter
+ * than its time allocation.
  */
-export function pickDraft<T extends { slides: DraftSlide[] }>(first: T, retry: T | null, sources: Map<string, string> = new Map()): T {
-  if (!retry) return first;
-  const count = (slide: DraftSlide) => draftProblems([slide], sources)[0]?.problems.length ?? 0;
-  const retried = new Map(retry.slides.map((slide) => [slide.id, slide]));
-  return {
-    ...first,
-    slides: first.slides.map((slide) => {
-      const other = retried.get(slide.id);
-      const problems = count(slide);
-      return other && other.paragraphs.length && problems && count(other) <= problems ? other : slide;
-    }),
-  };
+export function draftNotes(slide: WriteSlideInput & { script: { paragraphs: string[]; concise: string; recovery: string; transition: string } }, evidence: string, brief: BriefInput): QualityIssue[] {
+  const { script } = slide;
+  const issues: QualityIssue[] = ungroundedFigures([...script.paragraphs, script.concise, script.recovery, script.transition], evidence)
+    .map((figure) => ({ severity: "warning", category: "fidelity", quote: "", message: `The quantity ${figure} wasn't found in the slide or notes. Check it against the slide.`, sourceIds: [] }));
+  if (!slide.text.trim() && !slide.notes.trim() && (!slide.analysis || slide.analysis.uncertain.length)) issues.push({ severity: "warning", category: "source", quote: "", message: "Some slide content could not be read confidently. Check the explanation against the slide and add speaker notes for any missing detail.", sourceIds: [] });
+  const words = script.paragraphs.join(" ").split(/\s+/).filter(Boolean).length;
+  if (brief.depth === "full" && slide.targetWords >= 80 && words < slide.targetWords * 0.65) issues.push({ severity: "warning", category: "timing", quote: "", message: "This draft is shorter than its time allocation. Rehearse it and shorten the timing or add supporting speaker notes if more explanation is needed.", sourceIds: [] });
+  return issues;
 }

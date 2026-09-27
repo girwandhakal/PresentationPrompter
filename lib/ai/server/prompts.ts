@@ -1,3 +1,4 @@
+import { depthGuide, relevantExamples, SPEECH_GUIDE } from "./writing-guide";
 import type { AnalyzeRequest, BriefInput, ContextRequest, DeliveryRequest, OutlineRequest, RewriteRequest, WriteRequest, WriteSlideInput } from "../schemas";
 
 export const VOICE = `
@@ -30,6 +31,7 @@ export function briefBlock(brief: BriefInput) {
     `Presentation goal (the presenter's own words — this outranks anything inferred): ${brief.goal || "Not stated"}`,
     `Audience: ${brief.audience || "Not stated"}`,
     brief.keyMessage && `One thing the audience should remember: ${brief.keyMessage}`,
+    brief.voiceSample && `Voice sample (style only, not facts): ${brief.voiceSample}`,
     brief.presenterRole && `Presenter's role: ${brief.presenterRole}`,
     brief.mustInclude && `Must include (facts, examples, calls to action): ${brief.mustInclude}`,
     brief.avoid && `Avoid (topics, claims, phrasing): ${brief.avoid}`,
@@ -100,7 +102,7 @@ Task: plan the spoken narrative before any script is written.
 - slides: one entry per slide id, same order:
   - role: what this slide does in the story (e.g. "sets up the problem", "evidence for the claim").
   - keyIdea: the one thing to land on this slide, grounded in its content.
-  - transition: one short spoken sentence that bridges from this slide into the next. For the final slide, a closing line (or a handoff to questions if time is reserved). Vary them: don't start two transitions the same way.
+  - transition: one short spoken sentence that bridges from this slide into the next. For the final slide, a closing line that thanks the audience (after a handoff to questions if time is reserved). Vary them: don't start two transitions the same way.
   Optional slides should still get a role and a transition that reads naturally.
 `.trim();
 
@@ -115,32 +117,7 @@ export function outlineText(request: OutlineRequest) {
 
 // Shared by every action that produces script text, so "clearer", "shorter" and a fresh draft all
 // land in the same spoken voice. A worked example beats adjectives: models imitate demonstrations.
-export const SPOKEN_STYLE = `
-Writing for speech (this text is heard, not read; the audience cannot re-read a sentence):
-- Write what a person would say out loud to a room. First person ("we", "I"), natural contractions, plain words. Aim for sentences under about 20 words, one idea each. Split any sentence that needs a second comma-separated clause list.
-- Never string noun phrases together the way a slide does ("model catalog, area mappings, focus rules, and selection state"). Say the one thing that matters and why.
-- Slide text is raw material, not the script. Don't read it out and don't paraphrase it line by line. Add what the slide can't: why each point matters, how it serves the audience and the presenter's goal, and how it links to the previous and next slide.
-- Open each slide with a sentence that frames it, not with its title or first bullet restated. Never start a sentence or paragraph with a label and colon ("Sponsor need: …"); that is slide-reading. This includes signposts followed by a label ("Second, external dependencies: …"); write "Second, we're waiting on two external things, the email setup and the deployment credentials." Avoid colons in general; use a period or "because", "so", "which means" instead.
-- Signpost lightly ("First…", "The reason is…", "What that means is…") so a listener can follow the structure.
-- Lists (numbers, PR ids, names, tools) are never recited. Name the one or two items that matter, summarize the rest in a phrase, and say what they add up to.
-- A small word budget means fewer points, not clipped fragments. Pick the single most important idea and say it in complete, natural sentences.
-- Add no facts beyond the slide, notes, and brief. Explaining why something matters is fine; inventing details is not.
-
-Example of the target voice (invented content, for style only):
-Slide text: "Goal: cut checkout time. Method: fewer form fields. Result: 20% faster. Next: A/B test."
-Bad (slide-reading): "Goal: cut checkout time. Method: fewer fields. Result: 20% faster. Next: A/B test."
-Good (speech): "So the goal was simple: get people through checkout faster. We did that by cutting the form down to the fields people actually need, and it came out about twenty percent quicker. Next, we want to A/B test it, so we know the gain holds up with real customers."
-
-Two more examples of the same rule (invented content):
-Slide text: "Keep: small PRs, code review. Fix: stale docs, slow builds. Next: weekly cleanup."
-Bad: "Keep: small PRs, code review. Fix: stale docs, slow builds. Next: weekly cleanup."
-Good: "Looking back, two habits worked, so we're keeping them: small pull requests and code review. Two things slipped, the docs and the build times, and we'll fix those with a short cleanup every week."
-Slide text: "Blocker: email service credentials expired. Fix: test credentials, verified with temp account."
-Bad: "Summary: credentials expired. Test credentials used; temp account verified."
-Good: "The form stopped sending because our email service credentials had expired. As a stopgap, we swapped in test credentials and checked that submissions went through using a temporary account."
-
-Before returning, check every paragraph: could someone say it aloud without stumbling, and would a listener follow it on one hearing? If it sounds like notes or a list, rewrite it.
-`.trim();
+export const SPOKEN_STYLE = SPEECH_GUIDE;
 
 // ── Write ───────────────────────────────────────────────────────────────────
 
@@ -150,15 +127,16 @@ ${VOICE}
 
 Task: write the spoken script and private support notes for the given slides.
 
-The presenter's plan is a hard constraint:
-- Each slide has a word target. Land within ±10% of it. Never pad to fill time; if a slide truly needs fewer words, stay near the target by explaining rather than repeating.
+Follow the presenter's plan, with fidelity and clear speech ahead of word count:
+- Per-slide targets guide allocation. Aim within ±20% for full speech when the source supports it. Prefer a short, complete explanation to filler. Notes and cue modes do not need full-script timing.
 - ${DEPTH_GUIDE[brief.depth]}
 - ${STYLE_GUIDE[brief.style]}
 
-${SPOKEN_STYLE}
+${depthGuide(brief)}
 
 Also:
 - Follow the talk's voice on every slide; other slides are being written at the same time from the same voice.
+- The first slide of the talk opens with a short greeting to the audience, such as "Hello, everyone." The last slide ends by thanking the audience, such as "Thank you, everyone." (after inviting questions, if time is reserved for them). No other slide greets or thanks.
 - Open each slide by picking up from how the previous slide ends, without repeating that line. Slides must not all open the same way ("Now,", "So,", "Next,").
 - Use the outline's transition as a guide for how each slide hands off to the next.
 - Split the script into 1–4 paragraphs, each a natural breath group.
@@ -179,10 +157,12 @@ Return exactly one entry per input slide id, in the same order.
 function slideBlock(slide: WriteSlideInput, total: number) {
   return [
     `### Slide id ${slide.id} (slide ${slide.index} of ${total}) — target ${slide.targetWords} words`,
+    slide.index === 1 && "Opening slide: begin with a short greeting, such as “Hello, everyone.”",
+    slide.index === total && "Closing slide: end by thanking the audience, such as “Thank you, everyone.”",
     `Title: ${slide.title}`,
     `Role in the story: ${slide.role || "—"}`,
     `Key idea: ${slide.keyIdea || slide.analysis?.mainPoint || "—"}`,
-    `The previous slide ends with: ${slide.previousTransition ? `“${slide.previousTransition}”` : "(this is the first slide)"}`,
+    `Planned previous ending (not actual prose): ${slide.previousTransition ? `“${slide.previousTransition}”` : "(this is the first slide)"}`,
     `Planned transition to next: ${slide.transition || "—"}`,
     `Previous slide: ${slide.previousTitle || "(this is the first slide)"} · Next slide: ${slide.nextTitle || "(this is the last slide)"}`,
     `Slide text:\n${slide.text || "(no extractable text)"}`,
@@ -200,6 +180,7 @@ export function writeText(request: WriteRequest) {
     `Narrative arc: ${request.arc || "—"}`,
     request.voice && `Voice for the whole talk (follow it on every slide): ${request.voice}`,
     briefBlock(request.brief),
+    relevantExamples(request),
     request.slides.map((slide) => slideBlock(slide, request.totalSlides)).join("\n\n"),
   ].filter(Boolean).join("\n\n");
 }
@@ -220,7 +201,7 @@ statesMainPoint — Is this THE sentence that states the slide's main point or i
 
 turnsArgument — Does this sentence turn the argument against what came just before: a contrast, a catch, a reversal? It usually opens with "But", "However", "Yet", "Instead", "The catch", "The problem", "That said". Adding another point ("Also", "Next", "And") is false.
 
-mustCatchExactly — Must the audience catch this sentence word for word because it packs several exact specifics: two or more numbers, names, dates or steps, or a precise definition? A long sentence or an ordinary explanation is false.
+mustCatchExactly — Does understanding the main point depend on retaining an exact comparison, decision constraint or technical definition here? True for an essential contrast such as 5 percent versus 5 percentage points, or a definition with a limiting condition. False for incidental dates, names, ordinary inventories or merely long sentences. More numbers alone do not justify slowing. Do not slow a transition.
 
 stress — Which one to three words would a skilled speaker hit hardest, because the meaning of the sentence turns on them: the key number, a contrast word ("not", "only", "twice"), or a term the audience is hearing for the first time? Copy them exactly from the sentence. "" when no words clearly stand out, which is most sentences.
 
@@ -256,7 +237,7 @@ function rewriteSlideBlock(title: string, slide: SlideContext, paragraphs: strin
 
 const SCRIPT_ACTIONS: Record<Extract<RewriteRequest, { kind: "script" }>["action"], (target: number, slide: SlideContext, current: number) => string> = {
   // Models under-correct when told only the target, so the task states the current length and the exact range.
-  fit: (target, _slide, current) => `Rewrite this slide's script to ${Math.round(target * 0.9)}–${Math.round(target * 1.1)} words. The current version is ${current} words, so ${current > target ? `cut about ${current - target}` : `add about ${target - current}`}. Keep every essential claim; cut repetition and preamble first when shortening, and deepen the explanation of what's on the slide when lengthening. Count your words before answering.`,
+  fit: (target, _slide, current) => `Adjust the script toward ${Math.round(target * 0.8)}–${Math.round(target * 1.2)} words when the source supports it (currently ${current}). Preserve essential claims and caveats. Cut repetition first. Expand only with supported explanations; never add filler to meet a minimum. If the source is sparse, a shorter complete script is correct.`,
   conversational: (target) => `Make it sound more like natural speech: warmer, simpler rhythm, contractions. No filler, no hype. Stay near ${target} words.`,
   simpler: (target) => `Use plainer words and shorter sentences for a non-specialist. Keep required technical terms, but explain each briefly the first time. Stay near ${target} words.`,
   transition: (target, slide) => `Strengthen how this slide opens from “${slide.previousTitle || "the start of the talk"}” and hands off to “${slide.nextTitle || "the close"}”. Keep the body's substance. Stay near ${target} words.`,
@@ -272,7 +253,7 @@ const SELECTION_ACTIONS: Record<Extract<RewriteRequest, { kind: "selection" }>["
 };
 
 export function rewriteInstructions(request: RewriteRequest) {
-  const common = `${VOICE}\n\n${briefBlock(request.brief)}${request.kind === "script" || request.kind === "selection" ? `\n\n${SPOKEN_STYLE}` : ""}`;
+  const common = `${VOICE}\n\n${briefBlock(request.brief)}${request.kind === "script" || request.kind === "selection" ? `\n\n${depthGuide(request.brief)}` : ""}`;
   if (request.kind === "script") {
     const current = request.paragraphs.join(" ").split(/\s+/).filter(Boolean).length;
     return `${common}\n\nTask: ${SCRIPT_ACTIONS[request.action](request.targetWords, request.slide, current)}\n\nReturn the full revised script as 1–4 paragraphs of spoken words only, with no stage directions. ${DEPTH_GUIDE[request.brief.depth]}`;

@@ -1,0 +1,336 @@
+{
+  "dev": {
+    "A": {
+      "attempts": 12,
+      "completed": 12,
+      "rejected": 0,
+      "comparisons": 0,
+      "wins": 0,
+      "losses": 0,
+      "ties": 0,
+      "orderSensitive": 0,
+      "naturalnessMedian": null,
+      "fidelityMedian": null,
+      "judgeFlaggedCriticalSpans": [],
+      "generationP50Seconds": 11.44,
+      "generationP95Seconds": 15.545,
+      "generationTokens": 85796,
+      "reasoningTokensIncludedInOutput": 6260
+    },
+    "B": {
+      "attempts": 6,
+      "completed": 6,
+      "rejected": 0,
+      "comparisons": 6,
+      "wins": 2,
+      "losses": 1,
+      "ties": 0,
+      "orderSensitive": 3,
+      "naturalnessMedian": 4,
+      "fidelityMedian": 5,
+      "judgeFlaggedCriticalSpans": [
+        {
+          "side": "left",
+          "quote": "Until those credentials are available for an end-to-end check, we can’t confirm that the deployment path works as intended",
+          "reason": "This adds an availability constraint not explicitly stated. The source says the credentials are held by the sponsor, but does not say they are unavailable."
+        },
+        {
+          "side": "right",
+          "quote": "validation is the شرط for saving",
+          "reason": "Unexpected language switch breaks sayability and naturalness for an English presentation script."
+        },
+        {
+          "side": "right",
+          "quote": "That protects the rest of the flow.",
+          "reason": "Adds an unstated benefit not supported by the source. The source explicitly warns against invented improvements; this line introduces extra rationale."
+        },
+        {
+          "side": "right",
+          "quote": "That sequence protects the save step from assuming success before the file has actually met the rule.",
+          "reason": "Invents explanatory framing beyond the source. The source says validation is a condition for saving, not that the save step is being 'protected' from assumptions."
+        },
+        {
+          "side": "left",
+          "quote": "validation is the شرط for saving",
+          "reason": "Unexpected untranslated word breaks speakability and would likely cause a delivery stumble."
+        },
+        {
+          "side": "left",
+          "quote": "That protects the rest of the flow.",
+          "reason": "Adds an unstated benefit/causal claim beyond the source. The source only says saving is conditional on validation and warns against invented improvements."
+        },
+        {
+          "side": "left",
+          "quote": "That sequence protects the save step from assuming success before the file has actually met the rule.",
+          "reason": "Introduces a new explanatory benefit not stated in the source. It is plausible, but still an invented framing."
+        },
+        {
+          "side": "right",
+          "quote": "The sponsor will share credentials. Once that handoff happens, the team will deploy the live form",
+          "reason": "This blurs the source sequence. The source says the team will deploy, then check the live form; it does not say they will 'deploy the live form' itself."
+        }
+      ],
+      "generationP50Seconds": 12.325,
+      "generationP95Seconds": 19.291,
+      "generationTokens": 49353,
+      "reasoningTokensIncludedInOutput": 5674
+    },
+    "C": {
+      "attempts": 6,
+      "completed": 6,
+      "rejected": 0,
+      "comparisons": 6,
+      "wins": 3,
+      "losses": 0,
+      "ties": 0,
+      "orderSensitive": 3,
+      "naturalnessMedian": 4,
+      "fidelityMedian": 4.8,
+      "judgeFlaggedCriticalSpans": [
+        {
+          "side": "right",
+          "quote": "That leaves an open control point for the current release, not a technical failure, but a verification gap for now.",
+          "reason": "Introduces unsupported framing: 'open control point' and 'current release' do not appear in the source and add governance/release implications not stated."
+        },
+        {
+          "side": "right",
+          "quote": "we can’t complete the handoff end to end until that access is confirmed",
+          "reason": "Adds an unsupported 'handoff' concept and shifts the issue from unverified production submission to access confirmation plus handoff completion."
+        },
+        {
+          "side": "right",
+          "quote": "The first risk is an access dependency",
+          "reason": "The source introduces the section 'Deployment risks' but does not state this is the first of multiple risks. This adds structure not supported by the slide."
+        },
+        {
+          "side": "right",
+          "quote": "So the next step is to share the credentials and confirm deployment can proceed in production.",
+          "reason": "The source says after credentials are shared, the team will deploy and check the live form. It does not say they will 'confirm deployment can proceed' before deployment; this blurs the stated sequence."
+        },
+        {
+          "side": "right",
+          "quote": "the pass only shows the build is healthy locally, not that it is ready to deploy",
+          "reason": "Source says local checks passed and do not verify the production environment. 'Not ready to deploy' overstates the evidence; the actual blocker is missing credentials, not a demonstrated lack of deployment readiness."
+        }
+      ],
+      "generationP50Seconds": 13.647,
+      "generationP95Seconds": 32.202,
+      "generationTokens": 88032,
+      "reasoningTokensIncludedInOutput": 6963
+    },
+    "D": {
+      "attempts": 6,
+      "completed": 6,
+      "rejected": 0,
+      "comparisons": 6,
+      "wins": 1,
+      "losses": 2,
+      "ties": 0,
+      "orderSensitive": 3,
+      "naturalnessMedian": 4,
+      "fidelityMedian": 4,
+      "judgeFlaggedCriticalSpans": [
+        {
+          "side": "right",
+          "quote": "which makes it useful for spotting accidental changes, but not for attribution alone.",
+          "reason": "Introduces \"accidental changes,\" which is not stated in the source. The source only says checksums can detect a change, without assigning cause or type."
+        },
+        {
+          "side": "right",
+          "quote": "A mismatch means the data changed during transfer, but it does not tell us why.",
+          "reason": "Narrows the claim to change \"during transfer.\" The source says the comparison is before and after transfer and that a mismatch means the data changed, but it does not localize when or where the change occurred."
+        },
+        {
+          "side": "right",
+          "quote": "the failed file has to be fixed outside the system before it can be uploaded again",
+          "reason": "Invents a constraint not stated in the source. The source says a corrected upload is allowed and there is no automatic correction, but does not say where the correction must occur."
+        },
+        {
+          "side": "right",
+          "quote": "the team still needs deployment access before it can confirm the release path and move to handoff.",
+          "reason": "Adds concepts not in the source. The source only says credentials block deployment, local checks passed, and after credentials the team will deploy and check the live form. 'confirm the release path' and 'move to handoff' introduce unsupported process steps."
+        },
+        {
+          "side": "right",
+          "quote": "the team can deploy the live form",
+          "reason": "The source says the team will deploy and then check the live form. This wording blurs the distinction between deploying to the environment and checking the live form afterward."
+        }
+      ],
+      "generationP50Seconds": 18.22,
+      "generationP95Seconds": 23.567,
+      "generationTokens": 55334,
+      "reasoningTokensIncludedInOutput": 13148
+    },
+    "E": {
+      "attempts": 6,
+      "completed": 6,
+      "rejected": 0,
+      "comparisons": 6,
+      "wins": 3,
+      "losses": 1,
+      "ties": 0,
+      "orderSensitive": 2,
+      "naturalnessMedian": 4,
+      "fidelityMedian": 5,
+      "judgeFlaggedCriticalSpans": [
+        {
+          "side": "right",
+          "quote": "If they do not match, the data changed at some point in transfer.",
+          "reason": "The source only supports that a mismatch means the data changed and does not identify the cause. Saying the change happened 'at some point in transfer' narrows the claim beyond the supplied text."
+        },
+        {
+          "side": "right",
+          "quote": "The next action is to keep this order unchanged and use it as the control point for the intake flow.",
+          "reason": "This adds a specific operational recommendation, especially \"use it as the control point,\" that is not explicitly stated in the source slides."
+        },
+        {
+          "side": "left",
+          "quote": "The next action is to keep this order unchanged and use it as the control point for the intake flow.",
+          "reason": "This prescribes a specific next action not stated in the source slides. The brief asks for next action clarity, but the source itself does not supply this recommendation."
+        }
+      ],
+      "generationP50Seconds": 20.899,
+      "generationP95Seconds": 26.371,
+      "generationTokens": 46518,
+      "reasoningTokensIncludedInOutput": 4016
+    },
+    "G": {
+      "attempts": 6,
+      "completed": 3,
+      "rejected": 3,
+      "comparisons": 3,
+      "wins": 3,
+      "losses": 0,
+      "ties": 0,
+      "orderSensitive": 0,
+      "naturalnessMedian": 4,
+      "fidelityMedian": 5,
+      "judgeFlaggedCriticalSpans": [],
+      "generationP50Seconds": 11.42,
+      "generationP95Seconds": 27.451,
+      "generationTokens": 52501,
+      "reasoningTokensIncludedInOutput": 2702
+    },
+    "H": {
+      "attempts": 6,
+      "completed": 3,
+      "rejected": 3,
+      "comparisons": 3,
+      "wins": 2,
+      "losses": 1,
+      "ties": 0,
+      "orderSensitive": 0,
+      "naturalnessMedian": 4,
+      "fidelityMedian": 5,
+      "judgeFlaggedCriticalSpans": [],
+      "generationP50Seconds": 20.832,
+      "generationP95Seconds": 39.321,
+      "generationTokens": 88675,
+      "reasoningTokensIncludedInOutput": 6034
+    },
+    "J": {
+      "attempts": 6,
+      "completed": 6,
+      "rejected": 0,
+      "comparisons": 6,
+      "wins": 6,
+      "losses": 0,
+      "ties": 0,
+      "orderSensitive": 0,
+      "naturalnessMedian": 4,
+      "fidelityMedian": 5,
+      "judgeFlaggedCriticalSpans": [],
+      "generationP50Seconds": 10.409,
+      "generationP95Seconds": 31.631,
+      "generationTokens": 68257,
+      "reasoningTokensIncludedInOutput": 3604
+    },
+    "K": {
+      "attempts": 6,
+      "completed": 3,
+      "rejected": 3,
+      "comparisons": 3,
+      "wins": 3,
+      "losses": 0,
+      "ties": 0,
+      "orderSensitive": 0,
+      "naturalnessMedian": 4,
+      "fidelityMedian": 5,
+      "judgeFlaggedCriticalSpans": [],
+      "generationP50Seconds": 19.613,
+      "generationP95Seconds": 36.468,
+      "generationTokens": 87028,
+      "reasoningTokensIncludedInOutput": 6638
+    },
+    "L": {
+      "attempts": 8,
+      "completed": 7,
+      "rejected": 1,
+      "comparisons": 7,
+      "wins": 7,
+      "losses": 0,
+      "ties": 0,
+      "orderSensitive": 0,
+      "naturalnessMedian": 4,
+      "fidelityMedian": 5,
+      "judgeFlaggedCriticalSpans": [],
+      "generationP50Seconds": 9.812,
+      "generationP95Seconds": 29.621,
+      "generationTokens": 82545,
+      "reasoningTokensIncludedInOutput": 3331
+    }
+  },
+  "heldout": {
+    "A": {
+      "attempts": 18,
+      "completed": 18,
+      "rejected": 0,
+      "comparisons": 0,
+      "wins": 0,
+      "losses": 0,
+      "ties": 0,
+      "orderSensitive": 0,
+      "naturalnessMedian": null,
+      "fidelityMedian": null,
+      "judgeFlaggedCriticalSpans": [],
+      "generationP50Seconds": 8.859,
+      "generationP95Seconds": 15.412,
+      "generationTokens": 114910,
+      "reasoningTokensIncludedInOutput": 8598
+    },
+    "J": {
+      "attempts": 18,
+      "completed": 15,
+      "rejected": 3,
+      "comparisons": 15,
+      "wins": 13,
+      "losses": 0,
+      "ties": 0,
+      "orderSensitive": 2,
+      "naturalnessMedian": 4,
+      "fidelityMedian": 5,
+      "judgeFlaggedCriticalSpans": [
+        {
+          "side": "right",
+          "quote": "From there, the next step is to gather the available logs and review the sequence with the operations team.",
+          "reason": "Omits the essential point from the review-plan slide that there is no stated owner/deadline. The source explicitly notes, \"No owner deadline is supplied,\" and the essential point is \"Review is planned without a stated deadline.\""
+        }
+      ],
+      "generationP50Seconds": 26.76,
+      "generationP95Seconds": 34.362,
+      "generationTokens": 228601,
+      "reasoningTokensIncludedInOutput": 13507
+    }
+  },
+  "budget": {
+    "tokens": 1420101,
+    "cap": 1900000,
+    "updatedAt": "2026-09-27T15:38:08.595Z"
+  },
+  "method": "A–E use the frozen writer/retry/fit pipeline and shared inputs. G/H/K are development iterations. J uses the full-size writer, full-size source review, one bounded edit, and no forced word-count expansion. J is the primary held-out study. L adds direct visual evidence, audible essential-point coverage and observed-day normalization; its development sweep was interrupted on the user's spending objection. No L held-out results exist. Counterbalanced judgments are model predictions, not human ratings. Latency excludes shared analysis/planning and blind judges. Token totals are not dollar costs. Coaching and human calibration remain incomplete.",
+  "delivery": {
+    "preliminaryFixtures": 6,
+    "judgedComparisons": 0,
+    "decision": "Retain three reads and current spacing. No completed coaching-preference study or human calibration supports changing these rules."
+  }
+}

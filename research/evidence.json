@@ -1,0 +1,115 @@
+{
+  "probes": {
+    "denseSentence": {
+      "words": 37,
+      "problems": []
+    },
+    "spelledOutInventedNumber": [],
+    "smallInventedPercentage": [],
+    "wrongUnitKnownNumber": [],
+    "planningNumberAcceptedAsBusinessFact": [],
+    "absentPlanningNumberControl": [
+      "19"
+    ],
+    "notesModeFragments": [
+      "Its sentences average 2.0 words, which reads as clipped notes. Use complete sentences of roughly 10–20 words."
+    ],
+    "equalProblemRetryChosen": "Revenue was 99 dollars.",
+    "consecutivePauses": [
+      {
+        "paragraph": 1,
+        "afterSentence": 1,
+        "type": "pause",
+        "text": "Pause"
+      },
+      {
+        "paragraph": 1,
+        "afterSentence": 2,
+        "type": "pause",
+        "text": "Pause"
+      }
+    ]
+  },
+  "historicalSummary": {
+    "files": [
+      "eval-2026-09-27T03-39-51-608Z.md",
+      "eval-2026-09-27T03-42-22-410Z.md",
+      "eval-2026-09-27T03-45-37-338Z.md"
+    ],
+    "deckRuns": 9,
+    "slides": 94,
+    "sentences": 416,
+    "sentencesOver20": 70,
+    "sentencesOver30": 2,
+    "slidesWithLongSentenceAndNoStyleLint": 2,
+    "slidesWithPause": 84,
+    "totalPauses": 88,
+    "totalSlow": 16,
+    "longest": [
+      {
+        "file": "eval-2026-09-27T03-42-22-410Z.md",
+        "deck": "capstone-review",
+        "run": 1,
+        "title": "Before the submission tag",
+        "words": 37,
+        "text": "We still need to settle the two PRs, correct the issue statuses and Project views, capture the planning and evidence we owe, finish the remaining files, and then tag the final tested main commit with its SHA."
+      },
+      {
+        "file": "eval-2026-09-27T03-45-37-338Z.md",
+        "deck": "capstone-review",
+        "run": 1,
+        "title": "Explanation of change",
+        "words": 37,
+        "text": "The Public_Key in the site did not match the Public_Key in the account, so we swapped in test credentials, created a new EmailJS account for testing, and then worked with the sponsor to find the correct credentials."
+      },
+      {
+        "file": "eval-2026-09-27T03-45-37-338Z.md",
+        "deck": "capstone-review",
+        "run": 2,
+        "title": "Before the submission tag",
+        "words": 30,
+        "text": "We still need to integrate the two open PRs or keep those issues open, correct the issue statuses and Project views, and capture the planning, results, backlog, and contribution evidence."
+      },
+      {
+        "file": "eval-2026-09-27T03-42-22-410Z.md",
+        "deck": "capstone-review",
+        "run": 1,
+        "title": "Incomplete and blocked work",
+        "words": 29,
+        "text": "Outside the product, live submission is blocked until EmailJS is set up, deployment still needs a workable process and credentials, and the deployment investigation still needs a final recommendation."
+      },
+      {
+        "file": "eval-2026-09-27T03-42-22-410Z.md",
+        "deck": "intro-lecture",
+        "run": 1,
+        "title": "Photosynthesis",
+        "words": 29,
+        "text": "Over the next few slides, we will build that story step by step, starting with the overall equation and then looking inside the plant to see how it happens."
+      },
+      {
+        "file": "eval-2026-09-27T03-39-51-608Z.md",
+        "deck": "launch-pitch",
+        "run": 1,
+        "title": "A quieter way to launch",
+        "words": 28,
+        "text": "For Northwind Labs in Q3 planning, I’ll use the next few slides to show the early signal, then the moves and guardrails that make this a one-month pilot."
+      },
+      {
+        "file": "eval-2026-09-27T03-42-22-410Z.md",
+        "deck": "launch-pitch",
+        "run": 2,
+        "title": "A quieter way to launch",
+        "words": 28,
+        "text": "This is the right posture for Q3 planning, because it lets us move carefully, watch the signal, and avoid spending reach before we know the experience is ready."
+      },
+      {
+        "file": "eval-2026-09-27T03-42-22-410Z.md",
+        "deck": "capstone-review",
+        "run": 2,
+        "title": "Before the submission tag",
+        "words": 26,
+        "text": "We integrate the final PRs or leave them open if needed, correct the issue and Project status, and capture the planning, results, backlog, and contribution evidence."
+      }
+    ]
+  }
+}

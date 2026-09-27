@@ -105,6 +105,14 @@ export function Overview({ project }: { project: Project }) {
             <Segmented size="sm" label="View" value={view} onChange={setView} options={[{ value: "script", label: "Script" }, { value: "presenter", label: "Presenter" }]} />
           </div>
 
+          {project.generationQuality?.warnings.find((entry) => entry.id === slide.id)?.issues.length ? (
+            <details>
+              <summary>Review notes for this draft</summary>
+              <ul>{project.generationQuality.warnings.find((entry) => entry.id === slide.id)!.issues.map((issue, position) => <li key={position}>{issue.message}</li>)}</ul>
+            </details>
+          ) : null}
+          {project.generationQuality?.delivery.find((entry) => entry.id === slide.id)?.mode === "fallback" && <p className="text-muted">Basic delivery cues are shown. The delivery coach was unavailable.</p>}
+
           {words === 0 ? (
             <EmptyState title="No script for this slide" action={<Button variant="secondary" size="sm" onClick={() => router.push(`/p/${project.id}/edit?slide=${slide.id}`)}>Write it</Button>} />
           ) : (

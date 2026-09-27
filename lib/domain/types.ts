@@ -62,6 +62,7 @@ export type Brief = {
   mustInclude: string;
   avoid: string;
   presenterRole: string;
+  voiceSample?: string;
   minutes: number;
   qaMinutes: number;
   wpm: number;
@@ -98,10 +99,16 @@ export type Project = {
   slides: Slide[];
   brief: Brief;
   context: DeckContext | null;
-  analysis: { status: "idle" | "running" | "done" | "failed"; error?: string };
+  analysis: { status: "idle" | "running" | "done" | "failed"; error?: string; telemetry?: import("../ai/schemas").GenerationTelemetry[] };
   generation: GenerationState;
   /** The brief values the current script was generated against, for rebalance detection. */
   generatedWith: Pick<Brief, "minutes" | "qaMinutes" | "wpm" | "depth"> | null;
+  generationQuality?: {
+    reviewedAt: number;
+    telemetry: import("../ai/schemas").GenerationTelemetry[];
+    warnings: { id: string; issues: import("../ai/schemas").QualityIssue[] }[];
+    delivery: { id: string; mode: "ai" | "fallback" | "none" }[];
+  };
   lastPresentedAt: number | null;
 };
 

@@ -30,7 +30,6 @@ export type DeliveryContext = {
   title?: string;
   keyIdea?: string;
   kind?: string;
-  first?: boolean;
 };
 
 export type Sentence = { paragraph: number; index: number; text: string; words: number; opensParagraph: boolean };
@@ -70,7 +69,6 @@ const WORD_FIGURE = /\b(?:half|double[ds]?|twice|triple[ds]?|tenfold|a third|a q
 const PLAIN_FIGURE = /(?<![#\w.,])(?!(?:19|20)\d\d\b)\d{2,}(?:[.,]\d+)?\b(?!\s?(?:st|nd|rd|th)\b)/;
 const MONTH_BEFORE = /\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+$/i;
 const TURN = /^(?:but|however|yet|instead|still|so what|here's the thing|the catch|the problem|the good news|the bad news|that said|in other words|what that means|the result)\b/i;
-const VISUAL_KINDS = new Set(["chart", "diagram", "table"]);
 
 function hash(value: string) {
   let result = 2166136261;
@@ -109,10 +107,6 @@ function cueCandidates(sentences: Sentence[], context: DeliveryContext): Candida
     if (gap >= 0 && gap < sentences.length) result.push({ gap, type: "pause", text: "Pause", score });
   };
   const lastIndex = sentences.length - 1;
-
-  // A new visual needs a moment before the presenter talks over it; so does the opening line of the talk.
-  if (context.kind && VISUAL_KINDS.has(context.kind)) pause(0, 3.5);
-  else if (context.kind === "image" || context.first) pause(0, 2.5);
 
   const key = keySentence(sentences, context);
   if (key && key.index < lastIndex) pause(key.index + 1, 2.5 + 1.5 * key.ratio);
@@ -172,8 +166,9 @@ function select(sentences: Sentence[], density: CueDensity, cuePool: Candidate[]
   const cues: Candidate[] = [];
   for (const cue of [...cuePool].sort((a, b) => b.score - a.score)) {
     if (cues.length >= limits.cues || cue.score < threshold) break;
-    // Never after the final sentence (the slide change is the pause), and at least one full sentence between cues.
-    if (cue.gap < 0 || cue.gap >= sentences.length) continue;
+    // Never before the first sentence (a slide opens by speaking) or after the final one (the slide
+    // change is the pause), and at least one full sentence between cues.
+    if (cue.gap < 1 || cue.gap >= sentences.length) continue;
     if (!cues.some((pick) => pick.gap === cue.gap)) cues.push(cue);
   }
 
@@ -190,7 +185,6 @@ function select(sentences: Sentence[], density: CueDensity, cuePool: Candidate[]
     cues: cues
       .sort((a, b) => a.gap - b.gap)
       .map((cue) => {
-        if (cue.gap === 0) return { paragraph: 1, afterSentence: 0, type: cue.type, text: cue.text };
         const previous = sentences[cue.gap - 1];
         return { paragraph: previous.paragraph, afterSentence: previous.index, type: cue.type, text: cue.text };
       }),
@@ -211,16 +205,12 @@ export function placeDelivery(context: DeliveryContext): Delivery {
   return select(sentences, context.density, cuePool, markPool, THRESHOLD[context.density]);
 }
 
-/**
- * What a speech coach observed about one sentence. The booleans are agreement between independent
- * reads (0 to 1), so a fact only counts when most reads saw it. `stress` is the words to hit
- * hardest, empty when nothing qualifies.
- */
+/** What a speech coach observed about one sentence. `stress` is the words to hit hardest, empty when nothing qualifies. */
 export type SentenceNotes = {
-  asksAudience: number;
-  statesMainPoint: number;
-  turnsArgument: number;
-  mustCatchExactly: number;
+  asksAudience: boolean;
+  statesMainPoint: boolean;
+  turnsArgument: boolean;
+  mustCatchExactly: boolean;
   stress: string;
 };
 
@@ -234,11 +224,6 @@ function wholeWordIndex(text: string, phrase: string) {
   return new RegExp(`(?<![\\p{L}\\p{N}])${escaped}(?![\\p{L}\\p{N}])`, "iu").exec(text)?.index ?? -1;
 }
 
-/** A fact behind a cue counts when a strict majority of reads saw it. */
-const AGREED = 0.5;
-/** Slow and stress are the most subjective calls, so every read has to agree. */
-const UNANIMOUS = 1;
-
 /**
  * Decides cues and marks from the coach's notes with fixed rules, so the same notes always give
  * the same result. Stress words not found verbatim in their sentence are ignored.
@@ -249,25 +234,19 @@ export function applySentenceNotes(context: DeliveryContext, notes: SentenceNote
   if (!sentences.length || notes.length !== sentences.length) return placeDelivery(context);
   const last = sentences.length - 1;
 
-  // The slide's point is one sentence: the most agreed on, earliest on a tie.
-  const main = notes.reduce((best, note, index) => note.statesMainPoint > AGREED && note.statesMainPoint > (best < 0 ? 0 : notes[best].statesMainPoint) ? index : best, -1);
+  // The slide's point is one sentence: the first one the coach flagged.
+  const main = notes.findIndex((note) => note.statesMainPoint);
 
   const cues: Candidate[] = [];
   const marks: MarkCandidate[] = [];
-  // Agreement nudges ranking inside a rule's tier, never across tiers.
-  const sure = (agreement: number) => agreement * 0.4;
-
-  if (context.kind && VISUAL_KINDS.has(context.kind)) cues.push({ gap: 0, type: "pause", text: "Pause", score: 3.5 });
-  else if (context.kind === "image") cues.push({ gap: 0, type: "pause", text: "Pause", score: 2.5 });
 
   notes.forEach((note, index) => {
-    if (note.asksAudience > AGREED && index < last) cues.push({ gap: index + 1, type: "pause", text: "Pause", score: 4 + sure(note.asksAudience) });
-    if (index === main && index < last) cues.push({ gap: index + 1, type: "pause", text: "Pause", score: 3.5 + sure(note.statesMainPoint) });
-    if (note.turnsArgument > AGREED && index > 0) cues.push({ gap: index, type: "pause", text: "Pause", score: 3 + sure(note.turnsArgument) });
+    if (note.asksAudience && index < last) cues.push({ gap: index + 1, type: "pause", text: "Pause", score: 4 });
+    if (index === main && index < last) cues.push({ gap: index + 1, type: "pause", text: "Pause", score: 3.5 });
+    if (note.turnsArgument && index > 0) cues.push({ gap: index, type: "pause", text: "Pause", score: 3 });
 
-    if (note.mustCatchExactly >= UNANIMOUS) marks.push({ sentence: index, text: sentences[index].text, mark: "slow", score: 3.5 });
+    if (note.mustCatchExactly) marks.push({ sentence: index, text: sentences[index].text, mark: "slow", score: 3.5 });
 
-    // `stress` only survives voting when every read chose the same words.
     const phrase = note.stress.trim().replace(/^["“'‘]|["”'’.,]$/g, "");
     const start = wholeWordIndex(sentences[index].text, phrase);
     // Bold is kept for what a listener must not miss: the slide's point, a figure, or a contrast.

@@ -1,5 +1,6 @@
 import type {
   AiStatus,
+  GenerationTelemetry,
   AnalyzeOutput,
   AnalyzeRequest,
   ContextOutput,
@@ -26,6 +27,7 @@ export type QuestionsRequest = Extract<RewriteRequest, { kind: "questions" }>;
 
 export interface AiProvider {
   status: AiStatus;
+  telemetry?(): GenerationTelemetry;
   analyze(request: AnalyzeRequest, signal?: AbortSignal): Promise<AnalyzeOutput>;
   context(request: ContextRequest, signal?: AbortSignal): Promise<ContextOutput>;
   outline(request: OutlineRequest, signal?: AbortSignal): Promise<OutlineOutput>;
@@ -34,7 +36,7 @@ export interface AiProvider {
   rewriteSelection(request: SelectionRewriteRequest, signal?: AbortSignal): Promise<SelectionRewriteOutput>;
   support(request: SupportRequest, signal?: AbortSignal): Promise<SupportOutput>;
   questions(request: QuestionsRequest, signal?: AbortSignal): Promise<QuestionsOutput>;
-  /** Marks pauses, points, slow and bold in finished scripts. Optional: without it, rules place them. */
+  /** Marks pauses, slow and bold in finished scripts. Optional: without it, rules place them. */
   delivery?(request: DeliveryRequest, signal?: AbortSignal): Promise<DeliveryOutput>;
 }
 
@@ -56,9 +58,9 @@ export function getProvider(): AiProvider | null {
   if (key) {
     return createOpenAiProvider({
       apiKey: key,
-      model: env("OPENAI_MODEL") ?? "gpt-5.4-mini",
-      deliveryModel: env("OPENAI_DELIVERY_MODEL") ?? "gpt-5.4",
+      model: env("OPENAI_MODEL") ?? "gpt-5.4-mini-2026-03-17",
       baseURL: env("OPENAI_BASE_URL"),
+      writerModel: env("OPENAI_WRITER_MODEL"),
     });
   }
   if (process.env.NODE_ENV === "development") return createDemoProvider();

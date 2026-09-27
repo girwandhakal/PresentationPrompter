@@ -1,3 +1,4 @@
+import { exactIds } from "@/lib/ai/server/integrity";
 import { handleAi } from "@/lib/ai/server/http";
 import { AnalyzeRequest } from "@/lib/ai/schemas";
 import { clampComplexity } from "@/lib/ai/validate";
@@ -9,11 +10,10 @@ const trim = (value: string, max: number) => value.replace(/\s+/g, " ").trim().s
 export function POST(request: Request) {
   return handleAi(request, AnalyzeRequest, async (provider, input, signal) => {
     const output = await provider.analyze(input, signal);
-    const byId = new Map(output.slides.map((slide) => [slide.id, slide]));
+    const byId = exactIds(input.slides, output.slides);
     return {
-      slides: input.slides.map((slide, position) => {
-        // Models occasionally echo ids imperfectly; fall back to position before giving up.
-        const result = byId.get(slide.id) ?? output.slides[position];
+      slides: input.slides.map((slide) => {
+        const result = byId.get(slide.id)!;
         if (!result) return { id: slide.id, analysis: null };
         return {
           id: slide.id,

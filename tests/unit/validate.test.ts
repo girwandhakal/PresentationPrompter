@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { finalizeWrittenSlide, needsRepair } from "../../lib/ai/validate";
+import { finalizeWrittenSlide, frameTalk, needsRepair } from "../../lib/ai/validate";
 import type { BriefInput, WriteSlideInput, WrittenSlideDraft } from "../../lib/ai/schemas";
 
 const brief: BriefInput = {
@@ -64,9 +64,25 @@ test("finalize places cues and marks from the prose and respects the density set
   assert.deepEqual([none.cues, none.marks], [[], []]);
 });
 
-test("repair is only attempted when a slide is meaningfully off its word budget", () => {
+test("rebalance only offers to fit a slide meaningfully off its word budget", () => {
   assert.equal(needsRepair(100, 100, "full"), false);
   assert.equal(needsRepair(125, 100, "full"), true);
   assert.equal(needsRepair(125, 100, "notes"), false);
-  assert.equal(needsRepair(40, 10, "full"), false, "tiny targets are never repaired");
+  assert.equal(needsRepair(40, 10, "full"), false, "tiny targets are never flagged");
+});
+
+test("the talk opens with a greeting and closes with thanks", () => {
+  const ends = { first: true, last: true };
+  assert.deepEqual(frameTalk(["Today we look at the pilot.", "That's the plan."], ends, "full"), ["Hello, everyone. Today we look at the pilot.", "That's the plan. Thank you, everyone."]);
+  assert.deepEqual(frameTalk(["Good morning, everyone. Today we look at the pilot."], { first: true, last: false }, "full"), ["Good morning, everyone. Today we look at the pilot."], "an existing greeting is kept");
+  assert.deepEqual(frameTalk(["I'm happy to take questions. Thanks for listening."], { first: false, last: true }, "full"), ["I'm happy to take questions. Thanks for listening."], "existing thanks are kept");
+  assert.deepEqual(frameTalk(["Pilot scope", "Next steps"], ends, "cues"), ["Hello, everyone.", "Pilot scope", "Next steps", "Thank you, everyone."], "notes and cues get their own lines");
+  assert.deepEqual(frameTalk(["Middle slide."], { first: false, last: false }, "full"), ["Middle slide."]);
+});
+
+test("finalize frames only when told the slide's position in the talk", () => {
+  assert.equal(finalizeWrittenSlide(output(), input, brief).paragraphs[0], "Activation rose from 61% to 74%.");
+  const framed = finalizeWrittenSlide(output(), input, brief, { first: true, last: false });
+  assert.equal(framed.paragraphs[0], "Hello, everyone. Activation rose from 61% to 74%.");
+  assert.ok(framed.cues.every((cue) => cue.afterSentence >= 1), "no pause before the greeting");
 });

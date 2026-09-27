@@ -98,7 +98,7 @@ export type Plan = {
   range: [number, number];
 };
 
-export function planPresentation(briefInput: Brief, slides: Pick<Slide, "id" | "text" | "analysis" | "optional" | "targetSeconds">[]): Plan {
+export function planPresentation(briefInput: Brief, slides: (Pick<Slide, "id" | "text" | "analysis" | "optional" | "targetSeconds"> & { notes?: string })[]): Plan {
   const brief = clampBrief(briefInput);
   const speakingSeconds = Math.max(30, (brief.minutes - brief.qaMinutes) * 60);
   const rawWords = Math.round((speakingSeconds / 60) * brief.wpm);
@@ -123,7 +123,23 @@ export function planPresentation(briefInput: Brief, slides: Pick<Slide, "id" | "
     return { slideId: slide.id, seconds, words: Math.max(depthFactor < 1 ? 6 : 12, Math.round(spokenWords * depthFactor)), spokenWords, pinned };
   });
 
+  // Dividers and short title slides do not earn filler merely because the talk is long.
+  const sparse = new Set(flexible.filter((slide) => ["title", "section"].includes(slide.analysis?.kind ?? "") && `${slide.text} ${slide.notes ?? ""}`.split(/\s+/).length < 35).map((slide) => slide.id));
+  let spareSeconds = 0;
+  for (const entry of slidePlans) {
+    if (!sparse.has(entry.slideId) || entry.seconds <= 20) continue;
+    spareSeconds += entry.seconds - 20;
+    entry.seconds = 20;
+  }
+  const recipients = slidePlans.filter((entry) => !entry.pinned && !sparse.has(entry.slideId) && entry.seconds > 0);
+  const recipientWeight = recipients.reduce((sum, entry) => sum + (weights.get(entry.slideId) ?? 1), 0);
+  for (const entry of slidePlans) {
+    if (recipients.includes(entry) && recipientWeight) entry.seconds += Math.round(spareSeconds * (weights.get(entry.slideId) ?? 1) / recipientWeight);
+    entry.spokenWords = Math.round(entry.seconds / 60 * brief.wpm * USABLE_FACTOR);
+    if (entry.seconds > 0) entry.words = brief.depth === "cues" ? Math.min(30, Math.max(6, Math.round(entry.spokenWords * depthFactor))) : Math.max(depthFactor < 1 ? 6 : 12, Math.round(entry.spokenWords * depthFactor));
+  }
   const warnings: PlanWarning[] = [];
+  if (spareSeconds && !recipients.length) warnings.push({ level: "warn", message: "These slides contain too little material for the requested duration. Add supporting notes or shorten the talk; the writer will not pad the script." });
   const perSlide = included.length ? usableWords / included.length : 0;
   if (!included.length) warnings.push({ level: "warn", message: "Every slide is marked optional. Include at least one slide." });
   if (pinnedSeconds > speakingSeconds) warnings.push({ level: "warn", message: `Slide time targets add up to more than the ${Math.round(speakingSeconds / 60)} minutes of speaking time.` });

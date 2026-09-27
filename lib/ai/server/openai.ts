@@ -4,6 +4,7 @@ import type { ResponseInputContent } from "openai/resources/responses/responses"
 import type { z } from "zod";
 import {
   AnalyzeOutput,
+  type ModelCall,
   ContextOutput,
   DeliveryOutput,
   OutlineOutput,
@@ -28,59 +29,64 @@ import {
   writeInstructions,
   writeText,
 } from "./prompts";
-import { draftProblems, pickDraft, rewriteSource, spokenProblems, writeSources } from "./spoken-lint";
+import { PROMPT_VERSION } from "./writing-guide";
+import { AiOutputError, exactIds } from "./integrity";
+export { AiOutputError } from "./integrity";
 
 type Effort = "none" | "low" | "medium" | "high";
-
-export class AiOutputError extends Error {}
 
 const isReasoningModel = (name: string) => /^(gpt-5|o\d)/i.test(name);
 // gpt-5.1 and later can switch reasoning off, which is also the only mode that accepts a temperature.
 const canDisableReasoning = (name: string) => /^gpt-5\.\d/i.test(name);
 
-export function createOpenAiProvider({ apiKey, model, deliveryModel = model, baseURL }: { apiKey: string; model: string; deliveryModel?: string; baseURL?: string }): AiProvider {
-  const client = new OpenAI({ apiKey, baseURL, timeout: 110_000, maxRetries: 2 });
+/** One model for every stage; `writerModel` optionally gives script writing and rewrites a different one. */
+export function createOpenAiProvider({ apiKey, model, baseURL, writerModel = model }: { apiKey: string; model: string; baseURL?: string; writerModel?: string }): AiProvider {
+  const client = new OpenAI({ apiKey, baseURL, timeout: 110_000, maxRetries: 0 });
+
+  const calls: ModelCall[] = [];
 
   async function structured<T extends z.ZodType>(
     schema: T,
     name: string,
     instructions: string,
     content: ResponseInputContent[],
-    { effort = "low", verbosity = "medium", signal, use = model }: { effort?: Effort; verbosity?: "low" | "medium"; signal?: AbortSignal; use?: string } = {},
+    { effort = "low", verbosity = "medium", signal, use = model, outputLimit = 16000 }: { outputLimit?: number; effort?: Effort; verbosity?: "low" | "medium"; signal?: AbortSignal; use?: string } = {},
   ): Promise<z.infer<T>> {
     const reasoningModel = isReasoningModel(use);
-    const response = await client.responses.parse({
-      model: use,
-      store: false,
-      // Reasoning effort and verbosity exist only on reasoning models (gpt-5, o-series). Sending them to
-      // gpt-4.x/4o is a 400, so non-reasoning models (which are also the fastest) just skip them.
-      ...(reasoningModel ? { reasoning: { effort } } : {}),
-      // With reasoning off, temperature 0 makes repeated reads of the same script agree more often.
-      ...(effort === "none" ? { temperature: 0 } : {}),
-      instructions,
-      input: [{ role: "user", content }],
-      text: { ...(reasoningModel ? { verbosity } : {}), format: zodTextFormat(schema, name) },
-    }, { signal });
-    if (response.status === "incomplete") throw new AiOutputError(`The response was cut short (${response.incomplete_details?.reason ?? "unknown reason"}).`);
-    const parsed = response.output_parsed;
-    if (!parsed) throw new AiOutputError("The model returned no structured output.");
-    return parsed as z.infer<T>;
+    const started = Date.now();
+    const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(instructions));
+    const promptHash = [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+    const record: ModelCall = { stage: name, model: use, promptHash, effort, milliseconds: 0, inputTokens: 0, outputTokens: 0, reasoningTokens: 0, cachedTokens: 0, status: "failed", requestId: "" };
+    try {
+      const response = await client.responses.parse({
+        model: use,
+        store: false,
+        max_output_tokens: Math.min(48000, Math.max(4000, outputLimit)),
+        // Reasoning effort and verbosity exist only on reasoning models (gpt-5, o-series). Sending them to
+        // gpt-4.x/4o is a 400, so non-reasoning models (which are also the fastest) just skip them.
+        ...(reasoningModel ? { reasoning: { effort } } : {}),
+        // With reasoning off, temperature 0 makes repeated reads of the same script agree more often.
+        ...(effort === "none" ? { temperature: 0 } : {}),
+        instructions,
+        input: [{ role: "user", content }],
+        text: { ...(reasoningModel ? { verbosity } : {}), format: zodTextFormat(schema, name) },
+      }, { signal });
+      Object.assign(record, { model: response.model, status: response.status ?? "unknown", requestId: response._request_id ?? response.id, inputTokens: response.usage?.input_tokens ?? 0, outputTokens: response.usage?.output_tokens ?? 0, reasoningTokens: response.usage?.output_tokens_details?.reasoning_tokens ?? 0, cachedTokens: response.usage?.input_tokens_details?.cached_tokens ?? 0 });
+      if (response.status === "incomplete") throw new AiOutputError(`The response was cut short (${response.incomplete_details?.reason ?? "unknown reason"}).`);
+      const parsed = response.output_parsed;
+      if (!parsed) throw new AiOutputError("The model returned no structured output.");
+      return parsed as z.infer<T>;
+    } finally {
+      record.milliseconds = Date.now() - started;
+      calls.push(record);
+    }
   }
 
   const input = (text: string): ResponseInputContent => ({ type: "input_text", text });
 
-  /** A retry is best-effort: if it fails for any reason other than cancellation, keep the first draft. */
-  async function retry<T>(attempt: () => Promise<T>, signal?: AbortSignal): Promise<T | null> {
-    try {
-      return await attempt();
-    } catch (error) {
-      if (signal?.aborted) throw error;
-      return null;
-    }
-  }
-
   return {
-    status: { provider: "openai", model },
+    status: { provider: "openai", model: writerModel },
+    telemetry: () => ({ promptVersion: PROMPT_VERSION, calls: [...calls] }),
 
     analyze: (request, signal) => structured(AnalyzeOutput, "slide_analysis", ANALYZE_INSTRUCTIONS, request.slides.flatMap((slide): ResponseInputContent[] => [
       input(analyzeText(request, slide)),
@@ -89,46 +95,26 @@ export function createOpenAiProvider({ apiKey, model, deliveryModel = model, bas
 
     context: (request, signal) => structured(ContextOutput, "deck_context", CONTEXT_INSTRUCTIONS, [input(contextText(request))], { effort: "low", verbosity: "low", signal }),
 
-    outline: (request, signal) => structured(OutlineOutput, "narrative_outline", OUTLINE_INSTRUCTIONS, [input(outlineText(request))], { effort: "low", signal }),
+    outline: (request, signal) => structured(OutlineOutput, "narrative_outline", OUTLINE_INSTRUCTIONS, [input(outlineText(request))], { effort: "low", signal, outputLimit: 4000 + request.slides.length * 240 }),
 
     write: async (request, signal) => {
-      const instructions = writeInstructions(request.brief);
-      const text = writeText(request);
-      const first = await structured(WriteOutput, "slide_scripts", instructions, [input(text)], { effort: "low", signal });
-      const sources = writeSources(request);
-      const failing = draftProblems(first.slides, sources);
-      if (!failing.length) return first;
-      const feedback = failing.map((item) => `- Slide id ${item.id}: ${item.problems.join(" ")}`).join("\n");
-      const second = await retry(() => structured(WriteOutput, "slide_scripts", instructions, [
-        input(`${text}\n\nA previous draft was rejected for these problems:\n${feedback}\n\nRewrite the whole set. Fix these slides and keep the rest of the same quality, word targets, and structure.`),
-      ], { effort: "low", signal }), signal);
-      return pickDraft(first, second, sources);
+      const output = await structured(WriteOutput, "slide_scripts", writeInstructions(request.brief), [input(writeText(request))], { use: writerModel, effort: "low", signal, outputLimit: 4000 + request.slides.reduce((sum, slide) => sum + slide.targetWords * 2, 0) });
+      exactIds(request.slides, output.slides);
+      return output;
     },
 
-    rewriteScript: async (request, signal) => {
-      const instructions = rewriteInstructions(request);
-      const text = rewriteText(request);
-      const source = rewriteSource(request);
-      const first = await structured(ScriptRewriteOutput, "script_rewrite", instructions, [input(text)], { effort: "low", signal });
-      const problems = spokenProblems(first.paragraphs, source);
-      if (!problems.length) return first;
-      const second = await retry(() => structured(ScriptRewriteOutput, "script_rewrite", instructions, [
-        input(`${text}\n\nA previous draft was rejected for these problems:\n${problems.map((problem) => `- ${problem}`).join("\n")}\n\nWrite it again as natural spoken sentences.`),
-      ], { effort: "low", signal }), signal);
-      return second && spokenProblems(second.paragraphs, source).length <= problems.length ? second : first;
-    },
+    rewriteScript: (request, signal) => structured(ScriptRewriteOutput, "script_rewrite", rewriteInstructions(request), [input(rewriteText(request))], { use: writerModel, effort: "low", signal }),
 
-    rewriteSelection: (request, signal) => structured(SelectionRewriteOutput, "selection_rewrite", rewriteInstructions(request), [input(rewriteText(request))], { effort: "low", verbosity: "low", signal }),
+    rewriteSelection: (request, signal) => structured(SelectionRewriteOutput, "selection_rewrite", rewriteInstructions(request), [input(rewriteText(request))], { use: writerModel, effort: "low", verbosity: "low", signal }),
 
-    support: (request, signal) => structured(SupportOutput, "slide_support", rewriteInstructions(request), [input(rewriteText(request))], { effort: "low", verbosity: "low", signal }),
+    support: (request, signal) => structured(SupportOutput, "slide_support", rewriteInstructions(request), [input(rewriteText(request))], { use: writerModel, effort: "low", verbosity: "low", signal }),
 
-    questions: (request, signal) => structured(QuestionsOutput, "audience_questions", rewriteInstructions(request), [input(rewriteText(request))], { effort: "low", signal }),
+    questions: (request, signal) => structured(QuestionsOutput, "audience_questions", rewriteInstructions(request), [input(rewriteText(request))], { use: writerModel, effort: "low", signal }),
 
-    // Measured on real decks: a full-size model with reasoning off and temperature 0 gave the most
-    // repeatable answers, in about six seconds. Models that can't turn reasoning off use low effort.
+    // Reasoning off and temperature 0 give the most repeatable answers; models that can't turn
+    // reasoning off use low effort.
     delivery: (request, signal) => structured(DeliveryOutput, "delivery_marks", DELIVERY_INSTRUCTIONS, [input(deliveryText(request))], {
-      use: deliveryModel,
-      effort: canDisableReasoning(deliveryModel) ? "none" : "low",
+      effort: canDisableReasoning(model) ? "none" : "low",
       verbosity: "low",
       signal,
     }),

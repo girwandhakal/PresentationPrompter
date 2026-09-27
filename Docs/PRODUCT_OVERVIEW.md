@@ -5,6 +5,7 @@
 | Date | Requirements added or updated |
 | --- | --- |
 | 2026-09-26 | Added deployment requirements, a public landing page with login/signup, OAuth accounts and security controls, persistent database and private bucket storage, account admission and enforceable usage limits, and a researched backend recommendation. Calculated a provisional five-user/five-generations-per-day budget against the owner-reported 2.5 million complimentary OpenAI tokens per day. Updated the core journey so import generates a script automatically with optional setup, and added launch acceptance criteria and research sources. |
+| 2026-09-27 | Selected the pilot stack: Vercel hosts the Next.js app; Firebase provides Authentication (Google sign-in), Cloud Firestore, and Cloud Storage. Replaced the Cloudflare/Supabase recommendation, PostgreSQL row-level security, and Cloudflare Queues with Firebase Security Rules, direct SDK uploads, and Vercel-hosted durable jobs. An AWS (Cognito/S3/DynamoDB) alternative was evaluated the same day and rejected in favor of Firebase's built-in Security Rules and local emulator. Raised the pilot to ten accounts with a shared, first-come app-wide token cap. Removed backup and restore from pilot scope. Added a $0 cost plan and updated acceptance criteria, open decisions, and research sources. |
 
 **Status:** Product direction and working requirements
 **Working product name:** PresentationPrompter
@@ -834,7 +835,7 @@ Privacy requirements:
 - explain whether files are processed locally or sent to an AI service;
 - avoid sending microphone data unless the user explicitly enables speech analysis;
 - provide failure messaging that does not expose private content in shared surfaces; and
-- make export and local backup behavior understandable.
+- make export and local caching behavior understandable.
 
 The deployed application must also isolate each user's database records and storage objects, disclose the AI processing and any project-level data-sharing settings, and support account/data deletion. Section 25 defines account security, storage, quota enforcement, and deployment requirements. Private presenter support must remain inaccessible to the audience even when projects are stored in the cloud.
 
@@ -975,7 +976,7 @@ The MVP should validate the core loop rather than attempt to become a presentati
 
 The current application is a web-based interface with server-backed AI generation and local persistence. The deployed product must add managed authentication, persistent user-owned database records, private object storage, and durable server-owned AI jobs. Local persistence becomes a recovery/offline cache rather than the sole source of truth. The product direction should preserve the ability to evolve toward a desktop shell because multiple windows, global shortcuts, local file access, and presentation sharing are central to the experience.
 
-The recommended pilot architecture is the existing Cloudflare Worker hosting plus Supabase Auth, PostgreSQL, and private Supabase Storage buckets, with Cloudflare Queues for background jobs. This is a researched recommendation, not provisioned infrastructure. Section 25 defines the controls and launch gates. Cloud collaboration and simultaneous multi-user editing remain separate future features.
+The selected pilot architecture is **Vercel** for the Next.js app (landing page, workspace, and API routes) plus **Firebase** for authentication (Firebase Authentication), the application database (Cloud Firestore), and private file storage (Cloud Storage for Firebase). Durable AI jobs run on Vercel. The stack is decided but not yet provisioned. Section 25 defines the controls and launch gates. Cloud collaboration and simultaneous multi-user editing remain separate future features.
 
 ### Client responsibilities
 
@@ -989,7 +990,7 @@ The recommended pilot architecture is the existing Cloudflare Worker hosting plu
 - presenter-session timer and event recording; and
 - presentation-window and private-window coordination.
 
-### Server or worker responsibilities
+### Server responsibilities
 
 - file ingestion and validation;
 - extraction of slide text and images;
@@ -1034,7 +1035,7 @@ Project
     presenter-session records
 ~~~
 
-The presenter state should be separate from saved script content so a temporary live position does not accidentally overwrite the project. The deployed model also needs user profiles, account-slot reservations, storage-object metadata, generation jobs, per-request usage records, daily quota reservations, and administrator-controlled limit configuration. All project-related rows must have enforceable ownership relationships.
+The presenter state should be separate from saved script content so a temporary live position does not accidentally overwrite the project. The deployed model also needs user profiles, account-slot reservations, storage-object metadata, generation jobs, per-request usage records, daily quota reservations, and administrator-controlled limit configuration. All project-related records must have enforceable ownership relationships. In Firestore, project data lives under `users/{uid}/...` and Security Rules allow access only when the signed-in user's ID matches `{uid}` (section 25.4).
 
 ### AI pipeline
 
@@ -1237,7 +1238,7 @@ Qualitative feedback matters as much as usage numbers. Listen for whether users 
 - validate the complimentary-token offer and complete the security, privacy, and budget acceptance checks in section 25;
 - test common meeting platforms and display arrangements;
 - handle lost focus, closed windows, slow imports, and AI failures;
-- add deletion, export, and backup behavior;
+- add deletion and export behavior;
 - improve onboarding and sharing preflight;
 - measure import-to-Presenter-mode completion;
 - run user testing with introverted and low-stimulation presenters.
@@ -1246,7 +1247,7 @@ Qualitative feedback matters as much as usage numbers. Listen for whether users 
 
 ## 21. Validation plan
 
-Test the smallest valuable loop with five pilot accounts initially. Additional presenters can participate in staged cohorts only when account slots and budgets are available or the owner changes the pilot limits:
+Test the smallest valuable loop with up to ten pilot accounts. Additional presenters can participate in staged cohorts only when account slots and budgets are available or the owner changes the pilot limits:
 
 1. Sign up or log in and import an existing presentation.
 2. Confirm that the script generates automatically without required setup.
@@ -1298,10 +1299,12 @@ The following decisions affect implementation scope and should be made before th
 - Is PDF enough for the first pilot, or is basic PPTX mandatory?
 - Which presentation window rendering approach is reliable enough for live use?
 - What is the minimum acceptable synchronization behavior when a window loses focus?
-- Confirm the recommended Cloudflare/Supabase deployment stack and the first OAuth provider (Google is proposed).
+- The deployment stack is decided: Vercel for the app, and Firebase Authentication, Cloud Firestore, and Cloud Storage for accounts and data (section 25). Google is the first sign-in provider.
+- Measure full-generation runtime to decide whether generation fits one 300-second Vercel Function or needs Vercel Workflows (section 25.7).
+- Confirm the pilot qualifies as personal, non-commercial use under Vercel Hobby; commercial use requires Vercel Pro.
 - Confirm final account, generation, token, slide, file, and storage limits after pipeline measurements.
 - Verify the owner's complimentary-token eligibility, reset policy, model coverage, and data-sharing settings before launch.
-- Confirm the production hosting budget, data region, retention period, and backup/restore targets.
+- Confirm the data retention period. The data region is `us-east1` for Firestore and Cloud Storage. Backup and restore are out of pilot scope.
 - Validate that the selected `gpt-5.4-mini` model and file-processing path meet script quality and privacy expectations.
 - The default output is a full script with concise fallback notes; confirm whether saved user preferences should change that default.
 - How much automatic slide progression should be enabled by default?
@@ -1323,52 +1326,66 @@ The product should leave the presenter feeling:
 
 ## 25. Full-stack deployment, accounts, and resource limits
 
-### 25.1 Scope and recommended services
+### 25.1 Scope and selected services
 
-Authentication, account storage, cloud project persistence, and enforceable usage controls are required for the deployed pilot. The following stack is proposed based on research dated **2026-09-26**:
+Authentication, account storage, cloud project persistence, and enforceable usage controls are required for the deployed pilot. The owner selected the following stack on **2026-09-27**:
 
-| Component | Proposed service | Responsibility |
+| Component | Selected service | Responsibility |
 | --- | --- | --- |
-| Web application and API | Existing Cloudflare Workers deployment | Public landing page, private workspace, server sessions, authenticated APIs, upload admission, and AI gateway |
-| Authentication | Supabase Auth with Google OAuth initially | Managed identity, OAuth callback/code exchange, sessions, and signup hooks; Microsoft can be added if the pilot needs it |
-| Application database | Supabase PostgreSQL | User profiles, owned projects/slides/scripts, preferences, job state, account slots, quota configuration, and usage ledger |
-| File storage | Private Supabase Storage buckets | Source decks, rendered slide images, thumbnails, and exports with ownership-based access policies |
-| Background execution | Cloudflare Queues and Worker consumers | Durable AI jobs, bounded retries, and dead-letter handling |
+| Web application and API | Vercel (Hobby plan), Next.js built natively | Public landing page, private workspace, server sessions, authenticated APIs, upload admission, and AI gateway |
+| Authentication | Firebase Authentication upgraded to Identity Platform, Google sign-in first | Managed identity, ID tokens, and the `beforeUserCreated` admission function. Microsoft can be added if the pilot needs it. |
+| Application database | Cloud Firestore (Standard edition, `us-east1`) | User profiles, owned projects/slides/scripts, preferences, job state, account slots, quota configuration, and usage ledger |
+| File storage | Cloud Storage for Firebase (default bucket, `us-east1`) | Source decks, rendered slide images, thumbnails, and exports, protected by Storage Security Rules |
+| Admission function | Cloud Functions for Firebase (2nd gen) | The `beforeUserCreated` blocking function that enforces the account cap |
+| Background execution | Vercel Functions; Vercel Workflows if a generation cannot finish in one function run | Durable AI jobs, checkpoints, bounded retries, and failure alerts |
 | AI | OpenAI Responses API, `gpt-5.4-mini` | Slide analysis and script generation through the server only |
+| Configuration as code | Firebase CLI project files (`firebase.json`, `firestore.rules`, `storage.rules`, `firestore.indexes.json`, `functions/`) | Reviewed, versioned rules, indexes, and functions for development, staging, and production projects |
 
-This recommendation keeps authentication, relational ownership, and storage access policies in one managed backend while retaining the existing hosting path. The current optional D1/R2 bindings do not mean user storage has already been provisioned. Avoid maintaining parallel canonical project databases. R2 is a possible later storage alternative if measured storage/egress requirements justify the additional authorization integration.
+Vercel runs Next.js natively, so the app builds with `next build` and no longer needs the `vinext` Cloudflare adapter or Wrangler. Move the security headers from `worker/index.ts` into `next.config.ts`. Firestore is the canonical store for project data; do not maintain a parallel canonical database. IndexedDB remains a per-user local cache only (section 25.4).
+
+**Two access paths.** The browser uses the Firebase web SDK to read and edit the signed-in user's own projects and to upload files, with Security Rules as the authorization boundary. The Vercel server uses the Firebase Admin SDK for anything the user must not control: AI jobs, quota and token reservations, account slots, limit configuration, and deletion. The Admin SDK bypasses Security Rules, so every server path does its own ownership check.
+
+**Connecting Vercel to Google Cloud.** Use a **dedicated service-account key** stored as a Vercel sensitive environment variable. Grant it only the Firestore, Storage, and Firebase Authentication admin roles the server needs, and rotate it on a schedule and after any suspected exposure. Keyless Vercel OIDC federation is not used: the Firebase Admin SDK's Firestore and Storage clients accept only a service-account credential or application default credentials, and throw for any other credential type. Vercel exposes its OIDC token only per request (`x-vercel-oidc-token` header), so file-based application default credentials cannot use it cleanly. [Admin SDK Firestore credentials](https://github.com/firebase/firebase-admin-node/blob/master/src/firestore/firestore-internal.ts), [Admin SDK Storage credentials](https://github.com/firebase/firebase-admin-node/blob/master/src/storage/storage.ts), [Vercel OIDC reference](https://vercel.com/docs/oidc/reference)
+
+**Region.** Put Firestore and the Storage bucket in `us-east1`. Storage's no-cost allowance applies only in `us-central1`, `us-east1`, and `us-west1`, and `us-east1` is closest to Vercel's default `iad1` function region. A Firestore location cannot be changed after creation. [Storage no-cost regions](https://firebase.google.com/docs/storage/faqs-storage-changes-announced-sept-2024)
+
+**Local development.** Use the Firebase Emulator Suite (Auth, Firestore, Storage, Functions) for development, rules tests, and Playwright end-to-end tests, alongside the existing `AI_PROVIDER=demo` mode.
 
 ### 25.2 Account admission and lifecycle
 
-- Make signup available from the landing page, subject to a configurable maximum number of provisioned pilot accounts. Start with **five accounts total**, including any owner/admin account that uses AI; roles do not create unbudgeted AI exemptions.
+- Make signup available from the landing page, subject to a configurable maximum number of provisioned pilot accounts. Start with **ten accounts total**, including any owner/admin account that uses AI; roles do not create unbudgeted AI exemptions.
 - For the pilot, use owner-issued invitations or an approved-identity allowlist to allocate the available slots. Public visitors may request access without being provisioned automatically.
-- Enforce admission at the authentication provider's account-creation boundary as well as the application API. Supabase's Before User Created hook can reject signup before an Auth user is created. A hidden signup button alone cannot enforce the cap. [Signup hook documentation](https://supabase.com/docs/guides/auth/auth-hooks/before-user-created-hook)
-- Reserve available slots atomically, including pending signups. Simultaneous requests for the final slot must admit only one new account. Use bounded, recoverable reservations and reconciliation for abandoned/failed OAuth callbacks; release a provisioned slot only after account removal is confirmed. Existing users must remain able to log in when capacity is full.
-- Key ownership and quotas to the immutable internal user ID. Linking an additional OAuth identity must not create another allowance. Account deletion/recreation must not bypass invitation controls or reset the shared daily budget.
+- Enforce admission at the authentication provider's account-creation boundary as well as the application API. A **`beforeUserCreated` blocking function** runs before Firebase creates a user, including a user's first Google sign-in, and can reject signup by throwing an error. Blocking functions require upgrading the project to Firebase Authentication with Identity Platform (free at pilot scale) and must respond within 7 seconds. A hidden signup button alone cannot enforce the cap. Enable only the Google provider so there is no other way to create an account. [Blocking functions](https://firebase.google.com/docs/auth/extend-with-blocking-functions)
+- Reserve available slots atomically, including pending signups. The blocking function claims a slot in a Firestore transaction on the account-slot document, so simultaneous requests for the final slot admit only one new account. Use bounded, recoverable reservations and reconciliation for abandoned/failed OAuth callbacks; release a provisioned slot only after account removal is confirmed. Existing users must remain able to log in when capacity is full.
+- Key ownership and quotas to the immutable Firebase user ID (`uid`). Linking an additional OAuth identity must not create another allowance. Keep Firebase's default one-account-per-email setting, so a second provider with the same email links to the existing user instead of creating a new one. Account deletion/recreation must not bypass invitation controls or reset the shared daily budget.
 - Persist profile, preferences, role, account state, and consent version. Provide sign out, account/data export, and account deletion; suspended/deleted accounts cannot start jobs or retrieve private objects.
 
 ### 25.3 Authentication and security requirements
 
-- Use the managed provider's authorization-code flow with PKCE and the appropriate state/nonce protections. Configure exact production callback/redirect allowlists and minimal identity scopes. Do not request access to the user's Drive or other provider content merely to log in. [Google OAuth setup](https://supabase.com/docs/guides/auth/social-login/auth-google)
-- Prefer a server-managed session boundary with `Secure`, `HttpOnly`, `SameSite=Lax` cookies, server-side refresh, and CSRF protection for cookie-authenticated mutations. This requires a deliberately server-only auth integration: Supabase's standard browser-session pattern expects JavaScript access to its tokens, so simply marking those SDK cookies HttpOnly would break that pattern. Validate the chosen integration on the deployed Worker runtime. [Supabase session guidance](https://supabase.com/docs/guides/auth/server-side/advanced-guide)
-- Verify identity on the server, including signature, issuer, audience, and expiration. Never trust a user ID or role sent in the request body. Check current account/session state for generation, deletion, and administrator operations so suspension/revocation takes effect.
-- Authorize every project, slide, script, job/status, export, and storage operation against its owner. Enforce PostgreSQL row-level security and corresponding private storage policies. Test direct backend access as well as app routes.
-- Keep OpenAI keys, OAuth client secrets, database credentials, and service-role keys in server secret storage. Service-role credentials bypass storage RLS and must never reach the browser. Give privileged workers explicit ownership checks and narrowly scoped operations. [Storage access control](https://supabase.com/docs/guides/storage/security/access-control)
-- Use HTTPS, suitable security headers/CSP, restricted CORS, safe redirect validation, request-size limits, and parameterized database operations. Authenticated responses and signed URLs must not leak through shared caches.
-- Rate-limit signup/login, uploads, and AI actions using shared server-side state and account/IP signals; apply bot protection where appropriate. A per-process in-memory counter is insufficient across Worker instances.
+- Use the managed provider's authorization-code flow with PKCE and the appropriate state/nonce protections. Configure exact production callback/redirect allowlists and minimal identity scopes. Do not request access to the user's Drive or other provider content merely to log in. [Firebase Google sign-in](https://firebase.google.com/docs/auth/web/google-signin)
+- Firebase Authentication allows sign-in only from listed authorized domains. List the production domain and one fixed staging domain. Vercel preview deployments get random URLs, so login is unavailable on previews unless a preview is served from the staging domain.
+- **Session model.** The browser keeps its Firebase Authentication session through the web SDK, because Security Rules can only authorize direct Firestore and Storage access from a signed-in SDK. These tokens are readable by page JavaScript; this replaces the earlier preference for HttpOnly-only sessions. Mitigate XSS with a strict Content Security Policy, no third-party scripts on authenticated pages, and short-lived ID tokens (Firebase refreshes them hourly). Server API routes accept the ID token in an `Authorization` header rather than a cookie, which avoids CSRF on those routes. Validate the integration on the deployed Vercel runtime.
+- Verify identity on the server with the Admin SDK's `verifyIdToken` and revocation checking, which covers signature, issuer, audience (project ID), and expiration. Never trust a user ID or role sent in the request body. Check current account/session state for generation, deletion, and administrator operations so suspension/revocation takes effect.
+- Authorize every project, slide, script, job/status, export, and storage operation against its owner. Firestore and Storage Security Rules allow a user to reach only paths under their own `uid`. Rules deny all client writes to server-owned data: jobs, usage ledger, quota and token reservations, account slots, roles, and limit configuration. Server routes using the Admin SDK bypass Rules, so they take the user ID only from the verified token and check ownership explicitly. Test Rules with the emulator's rules-unit-testing library, and test direct SDK and API access with another user's IDs.
+- Keep the OpenAI key and any Google Cloud credentials in Vercel sensitive environment variables (section 25.1). Admin credentials never reach the browser. The server identity can read every user's data, so privileged code paths need explicit ownership checks and narrowly scoped operations. Enable Firebase App Check for Firestore, Storage, and Auth to reject requests that do not come from the real app.
+- Use HTTPS, suitable security headers/CSP, restricted CORS, safe redirect validation, and request-size limits. Authenticated responses and download URLs must not leak through shared caches. Do not use Storage public download-token URLs; fetch files through the authenticated SDK so Rules apply to every read.
+- Rate-limit signup/login, uploads, and AI actions using shared server-side state (Firestore counter documents with expiry) and account/IP signals; apply Vercel firewall rules where appropriate. A per-process in-memory counter is insufficient across Vercel Function instances.
 - Restrict administrator controls through server-managed roles, require administrator MFA, and audit admission changes, limit changes, suspensions, and deletion. Logs must omit deck/script content, credentials, session tokens, and signed URLs.
 - Treat imported slide text as untrusted input. It must not alter system instructions, invoke unauthorized tools, or expose another user's data through AI requests.
 
 ### 25.4 Persistent data and private buckets
 
-- Store relational project content, script versions, preferences, and presenter-session records in PostgreSQL. Store binary originals and derived images in private buckets, referenced by metadata containing owner ID, project ID, size, type, checksum, and lifecycle state.
-- Use authenticated access or short-lived signed URLs issued after ownership checks. Object-name obscurity is not authorization. The audience view must receive only the slide assets and minimal playback state it needs; no script, cue, or full project payload.
+- Store user-owned project content, script versions, preferences, and presenter-session records in Firestore under `users/{uid}/...`. Store server-owned data (jobs, usage ledger, quota and token reservations, account slots, roles, limit configuration) in separate collections that clients can read only where needed and never write. Use Firestore transactions for every limit check and reservation. Keep each document under Firestore's 1 MiB limit: store scripts per slide and keep binaries in Storage. [Firestore transactions](https://firebase.google.com/docs/firestore/manage-data/transactions)
+- Stay within Firestore's free daily allowance (50,000 reads, 20,000 writes, 20,000 deletes; 1 GiB stored). Debounce autosave and write only changed slides; measure daily usage during the pilot.
+- Store binary originals and derived images in the default Cloud Storage bucket under `users/{uid}/projects/{projectId}/...`. Firestore metadata records owner ID, project ID, size, type, checksum, and lifecycle state for each object.
+- The browser uploads directly with the Firebase Storage SDK. Storage Security Rules check the owner path, `request.resource.size` against the upload limit, and `request.resource.contentType`. Rules cannot total a user's storage, so the server first writes an upload reservation after checking the storage allowance, and the rule requires it with `firestore.exists()`. Files never pass through Vercel, whose functions accept at most 4.5 MB per request. [Storage rule conditions](https://firebase.google.com/docs/storage/security/rules-conditions), [Vercel request limits](https://vercel.com/docs/functions/limitations)
+- Downloads go through the authenticated Storage SDK so Rules check ownership on every read. Object-name obscurity is not authorization. The audience view must receive only the slide assets and minimal playback state it needs; no script, cue, or full project payload.
 - Enforce file type, bytes, slide count, and storage allowance on the server. Inspect content rather than trusting filename/MIME headers or client-reported slide counts. Bound decompressed PPTX size, parser work, image dimensions, and conversion time; reject unsupported/encrypted/malformed content clearly. Validate/quarantine uploads before AI processing or publication to playback surfaces.
 - Storage accounting includes originals, images, thumbnails, exports, and retained versions. Reserve bytes before accepting an upload, reconcile actual sizes, and clean up abandoned uploads. Replacements and duplicated projects must obey the same rules.
 - Autosave user edits with version/revision checks so another tab or a completed generation cannot overwrite newer work silently. Confirm cloud saves before reporting that data is safely persisted.
 - Offer explicit migration of existing IndexedDB projects into the signed-in account, with deduplication and quota checks. Namespace local caches by user and prevent the next signed-in user from seeing the previous user's cached projects.
-- Define retention, deletion completion, data region, and recovery targets before launch. Cancel outstanding jobs when deleting data; remove dependent records and bucket objects, and explain backup retention in the privacy policy.
-- Back up and test restoration of both database records and stored objects. Supabase database backups do not include Storage API objects. [Backup documentation](https://supabase.com/docs/guides/platform/backups)
+- Define retention and deletion completion before launch; the data region is `us-east1`. Cancel outstanding jobs when deleting data, and remove dependent documents, subcollections, and Storage objects. Deleting a Firestore document does not delete its subcollections, so deletion must remove them explicitly.
+- **Backup and restore are out of pilot scope.** Do not enable Firestore point-in-time recovery, scheduled backups, or bucket object versioning. Deletion is therefore final, and data lost to operator error or a service failure cannot be recovered. State both plainly in the privacy policy and terms. User-initiated export (section 25.2) is the only copy a user can keep.
 
 ### 25.5 Proposed pilot limits
 
@@ -1376,18 +1393,20 @@ All values below are **provisional defaults**, not measured capacity or final ow
 
 | Resource | Proposed initial limit | Enforcement |
 | --- | --- | --- |
-| Provisioned accounts | 5 total | Atomic account-slot reservation and provider signup gate |
-| Full script generations | Up to 5 per user per UTC day | Count the automatic first draft and every explicit full regeneration |
+| Provisioned accounts | 10 total | Atomic account-slot reservation and provider signup gate |
+| Full script generations | Up to 5 per user per UTC day, subject to shared app capacity | Count the automatic first draft and every explicit full regeneration |
 | Slides | 20 per presentation | Validate trusted normalized slide count before any AI work |
 | Source upload | 20 MB total per import | Includes the combined size of an ordered image group |
 | Saved presentations | 5 per user | Creation/duplication admission; storage allowance also applies |
-| Stored objects | 100 MB per user | Originals plus all derivatives; five users reserve up to 500 MB |
+| Stored objects | 100 MB per user | Originals plus all derivatives; ten users reserve up to 1 GB |
 | Tokens per full-generation job | 80,000 | Entire pipeline, including analysis, writing, reasoning, repair, and retries |
-| Daily tokens per user | 400,000 | Shared by full generations and all other AI actions |
-| Daily operational tokens for the app | 2,000,000 | Includes every real AI call, including owner/admin/test traffic in the same project |
-| Concurrent generation jobs | 1 per user, 2 globally | Shared queue/DB admission, with separate bounded per-job request concurrency |
+| Daily tokens per user | 400,000 | Shared by full generations and all other AI actions; a ceiling, not a guarantee |
+| Daily operational tokens for the app | 2,000,000 | Shared first-come by all users and checked before any per-user allowance is used. Includes every real AI call, including owner/admin/test traffic in the same project |
+| Concurrent generation jobs | 1 per user, 2 globally | Firestore transactional admission, with separate bounded per-job request concurrency |
 
 Targeted rewrites, audience questions, support generation, and automatic analysis must use the same token ledger. They cannot become unmetered routes around the five-generation limit. Rewrites consume the daily token allowance, so five complete generations are an upper bound rather than a promise of five generations plus unlimited edits. Non-AI editing, reopening, export, and presenting remain usable after AI allowance is exhausted.
+
+Ten accounts with five generations each can request more than the app-wide daily budget allows (section 25.6). The owner accepted this oversubscription: per-user limits are ceilings, and the shared daily cap is enforced first-come. When shared capacity is exhausted, tell the user that the app's daily AI capacity is used up and when it resets. Do not show this as a problem with the user's own allowance.
 
 Show remaining generations and the next reset time in account settings and near relevant AI actions. Explain exceeded slide/file/storage limits before processing. When AI quota is unavailable, preserve the import/draft and offer a clear later retry or manual editing path. Do not silently truncate the deck or launch paid overflow.
 
@@ -1396,12 +1415,15 @@ Show remaining generations and the next reset time in account settings and near 
 **Planning assumption supplied by the owner:** the OpenAI organization has **2,500,000 eligible complimentary tokens per day** in the model pool that includes `gpt-5.4-mini`. This is an organization-wide shared allowance, not 2.5 million tokens per user and not a guaranteed general free-trial entitlement. Confirm the actual offer, eligible model/snapshot, expiration, reset boundary, sharing requirements, and overflow behavior in the owner's dashboard before launch. Usage by other apps in the same organization reduces available capacity.
 
 ~~~text
-5 users x 5 full generations/day = 25 full generations/day
-2,500,000 / 25 = 100,000 tokens/generation with no headroom
 20% planning headroom = 500,000 tokens/day
 Operational budget = 2,500,000 - 500,000 = 2,000,000 tokens/day
+Sized capacity = 25 full generations/day
 2,000,000 / 25 = 80,000 tokens/full generation
-5 x 80,000 = 400,000 tokens/user/day
+5 x 80,000 = 400,000 tokens/user/day ceiling
+
+10 users x 5 full generations/day = 50 possible requests/day
+50 x 80,000 = 4,000,000 tokens (2x the operational budget)
+=> the app-wide 2,000,000 cap binds first; about 25 full generations/day are served first-come
 ~~~
 
 | Actual average tokens across the complete pipeline | Tokens for 25 generations | Fits the proposed 2 million operational budget? |
@@ -1412,7 +1434,7 @@ Operational budget = 2,500,000 - 500,000 = 2,000,000 tokens/day
 | 100,000 | 2,500,000 | No; consumes all assumed complimentary allowance |
 | 120,000 | 3,000,000 | No; exceeds the assumed allowance |
 
-**Conclusion:** five users with five daily generations is mathematically feasible if every complete generation stays within the proposed 80,000-token ceiling and other traffic fits the same operational budget. The current pipeline's consumption has not been benchmarked; a 20-slide limit alone cannot guarantee this.
+**Conclusion:** the budget supports about 25 full generations a day if every complete generation stays within the proposed 80,000-token ceiling and other traffic fits the same operational budget. With ten accounts that is an average of 2.5 per user per day. Each user may use up to five while shared capacity remains, and nobody is guaranteed five on a busy day. The current pipeline's consumption has not been benchmarked; a 20-slide limit alone cannot guarantee this.
 
 Count input and output tokens across every request, including image input, repeated context, hidden reasoning, repairs, and unsuccessful attempts where usage was consumed. Reasoning tokens are included in output usage: do not add them a second time. Count cached input conservatively for the app quota unless the actual complimentary-offer rules justify a different allowance calculation. Bound generated tokens, including reasoning, with per-request `max_output_tokens`. [OpenAI reasoning and usage documentation](https://developers.openai.com/api/docs/guides/reasoning)
 
@@ -1423,12 +1445,14 @@ Before finalizing limits, measure representative 5-, 10-, and 20-slide decks, in
 ### 25.7 Atomic enforcement and durable generation
 
 1. Authenticate and authorize the requested operation. Validate normalized source limits and estimate a conservative upper bound for input plus permitted output across the job.
-2. In a database transaction, reserve the logical generation slot, user/global token allowance, and concurrency slot. Use an idempotency key scoped to user, project revision, and action. Enforce `consumed + reserved <= limit`; concurrent requests must not oversubscribe the final slot or tokens.
-3. Persist the job and enqueue it reliably, using a transactional outbox or equivalent recovery process. The browser must not orchestrate independently billable calls or supply trusted usage figures.
+2. In one Firestore transaction, reserve the logical generation slot, the app-wide and user token allowances, and the concurrency slot. Use an idempotency key scoped to user, project revision, and action. Enforce `consumed + reserved <= limit`; concurrent requests must not oversubscribe the final slot or tokens.
+3. Persist the job in the same transaction, then start it. If the job was saved but never started (for example, the function crashed in between), a recovery pass finds and starts it. The browser must not orchestrate independently billable calls or supply trusted usage figures.
 4. Before every model request, reserve a safe input bound plus its maximum output within the job's allocation. If the next step cannot fit, stop before dispatch, preserve work, and return a clear recoverable state. Do not rely on an optimistic average estimate to protect the budget.
 5. Persist each attempt's provider request ID, model, stage, input/output usage, reservation, and timestamps. Reconcile returned usage once and release only unused reservation. Failed or canceled work still consumes actual tokens; cancellation must not refund usage already spent. A failure before any provider work may release the logical generation slot.
-6. Retry only unfinished steps, using bounded attempts and counted token reservations. Queue delivery is at least once, so consumers must handle duplicate messages through persistent job claims and checkpoints. A crash after a provider call can leave usage uncertain: retain the conservative reservation and reconcile it rather than retrying indefinitely or promising exactly-once provider billing. [Cloudflare queue behavior](https://developers.cloudflare.com/queues/reference/how-queues-works/)
-7. Publish a complete validated draft as a new version without overwriting user edits. Persist job completion/failure so reloads and device changes recover correctly. Exhausted retries go to a dead-letter path and an owner alert. [Dead-letter queues](https://developers.cloudflare.com/queues/configuration/dead-letter-queues/)
+6. Retry only unfinished steps, using bounded attempts and counted token reservations. A step can run more than once after a crash or retry, so steps must be idempotent through persistent job claims and checkpoints in Firestore. A crash after a provider call can leave usage uncertain: retain the conservative reservation and reconcile it rather than retrying indefinitely or promising exactly-once provider billing.
+7. Publish a complete validated draft as a new version without overwriting user edits. Persist job completion/failure so reloads and device changes recover correctly. Jobs that exhaust their retries are marked failed and trigger an owner alert.
+
+**Where jobs run.** A Vercel Function on Hobby runs for at most 300 seconds. Measure full-generation runtime on representative 20-slide decks. If it reliably fits with margin, run each job in one function invocation. Otherwise, run it as Vercel Workflows steps, each well under 300 seconds, which resume after crashes and deployments. Workflow step inputs and outputs are recorded and visible to Vercel team owners, so pass only job and project IDs between steps and read deck and script content from Firestore and Storage. Hobby includes 50,000 workflow events and 1 GB of workflow data per month. [Vercel function limits](https://vercel.com/docs/functions/limitations), [Vercel Workflows](https://vercel.com/docs/workflows)
 
 Use UTC for the initial app daily window and display the reset time in the user's timezone; verify alignment with the actual provider offer. Pending jobs must obtain allowance for calls made after a reset rather than carry unaccounted usage into the next day. Expire abandoned reservations safely and reconcile uncertain usage. This application ledger must track all traffic through the app's AI project; separately monitor organization traffic that the app cannot reserve itself.
 
@@ -1436,28 +1460,47 @@ Provide an audited owner interface to adjust limits, disable signup, pause AI di
 
 ### 25.8 Hosting cost, privacy, and launch requirements
 
-Supabase's current Free plan lists a 500 MB database, 1 GB file storage, and 5 GB uncached egress, and may pause inactive projects after one week. The proposed 500 MB user-object allocation leaves nominal storage headroom, but database history and repeated slide downloads must be measured separately. Pro starts at $25/month; production availability and backup needs may justify it. These hosting costs are separate from complimentary OpenAI tokens. [Supabase pricing](https://supabase.com/pricing)
+The hosting target is **$0/month** for up to ten users. These costs are separate from complimentary OpenAI tokens.
 
-Also budget Worker execution, queue operations, conversion/OCR, monitoring, domain, and backups. Verify host runtime/request/CPU limits against the import and job design; lengthy rendering must be split or assigned a suitable conversion worker. Review actual plan pricing and configure usage alerts and available billing controls. [Workers pricing](https://developers.cloudflare.com/workers/platform/pricing/), [Queues pricing](https://developers.cloudflare.com/queues/platform/pricing/)
+| Service | Free allowance (checked 2026-09-27) | Expected pilot use |
+| --- | --- | --- |
+| Vercel Hobby | 1M function invocations, 1M edge requests, 100 GB data transfer, 4 active-CPU hours, and 360 GB-hours of memory per month; 300-second function limit. Exceeding a limit pauses the feature instead of billing. | Well within limits. Time spent waiting on OpenAI does not count as active CPU, but it does count toward memory time; measure generation duration. |
+| Firebase Authentication (with Identity Platform) | 50,000 monthly active users for Google and other social sign-in | 10 |
+| Cloud Firestore | 1 GiB stored; 50,000 reads, 20,000 writes, and 20,000 deletes per day | Well under 1 GiB; autosave must be debounced |
+| Cloud Storage for Firebase | Google Cloud Storage's Always Free tier, which covers new `*.firebasestorage.app` buckets: 5 GB-months of regional storage, 5,000 Class A operations (uploads/lists), 50,000 Class B operations (downloads), and 100 GB outbound transfer per month, in `us-central1`, `us-east1`, or `us-west1` only | About 1 GB. A 20-slide import writes about 41 objects (original, images, thumbnails), so 10 users × 5 decks is about 2,000 uploads. Each deck open reads 20–40 objects, so 50,000 downloads is roughly 1,000–2,500 opens a month; serve repeat opens from the IndexedDB cache. Overage costs cents. |
+| Cloud Functions (admission function) | 2M invocations, 400,000 GB-seconds, and 200,000 CPU-seconds per month | A few invocations. Deploying functions also stores build images in Artifact Registry, which may cost a few cents a month; set a cleanup policy. |
+
+**Firebase billing plan.** Put the Firebase project on the **Blaze** (pay-as-you-go) plan. Cloud Storage requires Blaze: for new default buckets since 2024-10-30, and for keeping access to existing buckets since 2026-02-03. Deploying Cloud Functions also requires Blaze. The no-cost allowances above still apply on Blaze. Google Cloud does not stop at a spending limit, so create a Cloud Billing budget alert at $1 before deploying anything. The owner's monthly Google Cloud credit (from Google AI Pro) can absorb small overages. [Firebase pricing](https://firebase.google.com/pricing)
+
+**Vercel plan.** Hobby is limited to personal, non-commercial use. A free pilot qualifies; charging users or operating commercially requires Vercel Pro ($20 per developer seat per month). Vercel Pro also raises the function limit to 800 seconds. [Vercel Hobby plan](https://vercel.com/docs/plans/hobby)
+
+Also budget conversion/OCR, monitoring, and a custom domain (optional; about $10–15/year). Keep the $0 target by avoiding paid add-ons: Firestore backups and point-in-time recovery, Firebase App Hosting (Vercel hosts the app), phone/SMS authentication, and Cloud SQL. Lengthy rendering must be split into steps that fit the function limit.
 
 OpenAI API data is not used for model training by default, but project/organization opt-in sharing can change that. Verify whether the owner's complimentary offer requires sharing submitted decks/scripts, and disclose the actual setting before the first upload/automatic generation. Do not make an unconditional no-training promise. If the configured terms do not meet the intended data privacy policy, use an appropriately configured paid project or stop AI processing for that material. [OpenAI data controls](https://developers.openai.com/api/docs/guides/your-data)
 
-Deploy separate development/staging/production secrets and data, use reviewed database migrations and versioned access policies, configure production OAuth origins/consent branding, and establish restore and rollback procedures. Alerts should cover token headroom, storage/egress, stuck jobs, unknown usage, rejected signup spikes, and provider failures without logging deck content.
+Deploy separate development/staging/production secrets and data. Use separate Firebase projects for development/staging and production. Keep Security Rules, indexes, and functions in reviewed, versioned Firebase CLI files, run rules tests in the emulator before every deploy, and version Firestore document-shape changes with the application code. Configure production authorized domains and Google consent branding, and keep Vercel's instant rollback available for app deployments. Alerts should cover token headroom, storage/egress, Google Cloud spend, stuck jobs, unknown usage, rejected signup spikes, and provider failures without logging deck content.
 
 ### 25.9 Deployment acceptance criteria
 
 - A new approved user can sign up from the landing page, import a valid deck, and receive a complete saved script without filling a setup form. Reopening the project does not generate again.
-- Simultaneous signup attempts cannot create more than five provisioned pilot accounts. A sixth account is rejected clearly, including attempts through the provider's direct signup endpoint; existing users can still log in.
-- User A cannot read, edit, export, delete, or generate against User B's rows, objects, or jobs by changing IDs, calling APIs directly, or reusing expired signed URLs. Logout and account switching do not expose another user's local cache.
-- A sixth full generation in one UTC day is rejected; duplicated requests consume one logical slot. A 21-slide deck, oversized upload, exhausted storage allowance, or insufficient token reservation is rejected before AI dispatch.
+- Simultaneous signup attempts cannot create more than ten provisioned pilot accounts. An eleventh account is rejected clearly, including attempts through the Firebase Authentication API directly; existing users can still log in. Signing in with a second provider for the same verified email does not create a second allowance.
+- User A cannot read, edit, export, delete, or generate against User B's records, objects, or jobs by changing IDs, calling APIs directly, or using the Firebase SDK directly against another user's paths. Clients cannot write jobs, ledger entries, quota reservations, account slots, roles, or limits. Logout and account switching do not expose another user's local cache.
+- A sixth full generation in one UTC day is rejected; duplicated requests consume one logical slot. When the app-wide daily cap is exhausted, a user with personal allowance left is rejected before AI dispatch with the shared-capacity message and reset time. A 21-slide deck, oversized upload (including a direct SDK upload that Storage Rules must reject), exhausted storage allowance, or insufficient token reservation is rejected before AI dispatch.
 - Concurrent AI actions cannot exceed user/global reservations. Rewrites and automatic analysis consume the ledger. Retry, cancellation, crashes, unknown usage, and midnight reset scenarios preserve accurate conservative accounting.
-- A generation survives page reload and queue redelivery, preserves prior drafts and newer edits, and reaches a complete saved draft or a clear recoverable failure.
+- A generation survives page reload, function timeout or crash, and step re-execution, preserves prior drafts and newer edits, and reaches a complete saved draft or a clear recoverable failure.
 - Expired eligibility, unreliable usage accounting, and the owner kill switch prevent new AI calls. Existing presentations remain available for editing, export, and playback.
-- The pilot measures full-pipeline consumption and quality on representative decks and confirms the proposed 80,000-token ceiling is workable before promising five daily generations.
-- Privacy consent reflects actual AI sharing settings; account/project deletion removes active data according to the published retention policy. A restore exercise recovers both relational records and bucket objects.
+- The pilot measures full-pipeline consumption and quality on representative decks and confirms the proposed 80,000-token ceiling is workable before advertising five daily generations per user. It also measures full-generation runtime against the 300-second function limit.
+- Privacy consent reflects actual AI sharing settings. Account/project deletion removes Firestore documents (including subcollections), Storage objects, and the Authentication user according to the published retention policy, and the policy states that the pilot keeps no backups.
+- Security Rules tests pass in the emulator for owner access, cross-user denial, server-only collections, and upload size/type limits.
+- Google Cloud spend for a full pilot month stays at or near $0, with the $1 budget alert confirmed working.
 
 ## 26. Research record
 
-**Research date:** 2026-09-26. Sources are linked beside the requirements they support. Supabase authentication, Storage/RLS, and transactional database documentation, plus Cloudflare queue documentation, were checked using Context7 and official vendor pages. OpenAI vision, reasoning/usage, and data-control documentation were checked on the official developer site.
+**Research dates:** 2026-09-26 (OpenAI vision, reasoning/usage, and data-control documentation, checked on the official developer site) and 2026-09-27 (hosting, authentication, and storage stack). Sources are linked beside the requirements they support. The 2026-09-27 stack research used official vendor pages:
 
-**Still to confirm before implementation/launch:** final provider selection, exact pilot limits, account invitation policy, actual OpenAI organization offer and shared traffic, measured token consumption, deployment plan costs, data region/retention, and recovery targets. The five-user/five-generation scenario is the owner's planning request; the 20-slide and other resource ceilings are adjustable recommendations. This update specifies requirements and does not provision services or implement authentication, storage, or quota enforcement.
+- Firebase: [pricing](https://firebase.google.com/pricing), [Storage billing and no-cost regions](https://firebase.google.com/docs/storage/faqs-storage-changes-announced-sept-2024), [Google Cloud Storage Always Free limits](https://docs.cloud.google.com/free/docs/free-cloud-features), [blocking functions](https://firebase.google.com/docs/auth/extend-with-blocking-functions) (Identity Platform required; 7-second limit), [session and ID-token handling](https://firebase.google.com/docs/auth/admin/manage-cookies), and [Storage rule conditions](https://firebase.google.com/docs/storage/security/rules-conditions) (size/type checks; up to two Firestore lookups per rule evaluation).
+- Vercel: [Hobby plan](https://vercel.com/docs/plans/hobby) (updated 2026-09-14), [function limits](https://vercel.com/docs/functions/limitations) (updated 2026-08-24), [OIDC reference](https://vercel.com/docs/oidc/reference) (updated 2026-09-17), and [Workflows](https://vercel.com/docs/workflows) (updated 2026-09-04).
+
+The 2026-09-26 Cloudflare Workers/Supabase recommendation was replaced by the owner's 2026-09-27 selection of Vercel with Firebase. An AWS alternative (Cognito, S3, DynamoDB) was also evaluated that day. It was also near $0, but it needs a hand-written ownership layer instead of Security Rules, has no local emulator, and requires the AWS Paid account plan.
+
+**Still to confirm before implementation/launch:** exact pilot limits, account invitation policy, actual OpenAI organization offer and shared traffic, measured token consumption and generation runtime, Vercel Hobby non-commercial eligibility, and data retention. The ten-user, five-generation scenario with a shared app-wide cap is the owner's planning decision; the 20-slide and other resource ceilings are adjustable recommendations. This update specifies requirements and does not provision services or implement authentication, storage, or quota enforcement.
