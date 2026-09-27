@@ -39,7 +39,8 @@ export function sanitizeParagraphs(paragraphs: string[]) {
     .slice(0, 8);
 }
 
-const GREETING = /^(?:hello|hi|hey|good (?:morning|afternoon|evening)|welcome|greetings)\b/i;
+// A short spoken lead-in ("So, hello…") still counts, so a conversational rewrite isn't greeted twice.
+const GREETING = /^(?:(?:so|well|ok(?:ay)?|alright|right),? )?(?:hello|hi|hey|good (?:morning|afternoon|evening)|welcome|greetings)\b/i;
 const THANKS = /\bthank(?:s| you)\b/i;
 
 /**

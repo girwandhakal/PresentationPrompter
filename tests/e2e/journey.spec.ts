@@ -33,7 +33,7 @@ test("import, brief, generate, edit, present, and review a deck", async ({ page,
 
   // Editor: the script is editable and autosaves.
   const editor = page.getByRole("textbox", { name: "Script for slide 1" });
-  await expect(editor).toContainText("Thanks for being here");
+  await expect(editor).toContainText("Hello, everyone.");
   await editor.click();
   await page.keyboard.press("Control+End");
   await page.keyboard.type(" One more line for the room.");
@@ -80,7 +80,7 @@ test("import, brief, generate, edit, present, and review a deck", async ({ page,
   // The title suggested from the slides replaced the file name automatically.
   await expect(page.getByRole("heading", { name: "A quieter way to launch", level: 1 })).toBeVisible();
   // The accepted "More conversational" rewrite (which opens with "So,") was saved.
-  await expect(page.getByLabel("Script for slide 1").getByText(/^So, thanks for being here/).filter({ visible: true })).toBeVisible();
+  await expect(page.getByLabel("Script for slide 1").getByText(/^So, hello, everyone/).filter({ visible: true })).toBeVisible();
   await expect(page.getByLabel("Script for slide 1")).toContainText("One more line for the room.");
 });
 
