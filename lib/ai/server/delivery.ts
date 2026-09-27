@@ -28,10 +28,14 @@ function agreed(values: string[], reads: number, share: number) {
   return best && enough ? best.original : "";
 }
 
-/** Combines reads of one slide into per-sentence notes; reads with the wrong sentence count are ignored. */
-export function voteSentenceNotes(reads: SlideRead[], sentenceCount: number): SentenceNotes[] | null {
+/**
+ * Combines reads of one slide into per-sentence notes; reads with the wrong sentence count are
+ * ignored. A vote needs a majority of the reads that were asked for: when most failed or timed out,
+ * one surviving read would count as unanimous, so the slide gets null (rule-based placement) instead.
+ */
+export function voteSentenceNotes(reads: SlideRead[], sentenceCount: number, requested = reads.length): SentenceNotes[] | null {
   const usable = reads.filter((read) => read.sentences.length === sentenceCount);
-  if (!usable.length) return null;
+  if (!usable.length || usable.length * 2 <= requested) return null;
   const share = (count: number) => count / usable.length;
   return Array.from({ length: sentenceCount }, (_, index) => {
     const answers = usable.map((read) => read.sentences.find((sentence) => sentence.n === index + 1) ?? read.sentences[index]);
@@ -78,8 +82,9 @@ export async function deliverSlides(provider: AiProvider, contexts: DeliveryCont
   const settled = await Promise.allSettled(Array.from({ length: readCount }, () => delivery(request, deadline)));
   if (signal.aborted) throw new DOMException("Aborted", "AbortError");
   const reads = settled.flatMap((result) => result.status === "fulfilled" ? [result.value] : []);
-  if (!reads.length) {
-    // Usually a delivery model this key can't use (see OPENAI_DELIVERY_MODEL); scripts still get rule-based cues.
+  if (reads.length * 2 <= readCount) {
+    // Too few reads to vote on: usually a delivery model this key can't use (see OPENAI_DELIVERY_MODEL)
+    // or rate limits. Scripts still get rule-based cues.
     const reason = settled.find((result) => result.status === "rejected")?.reason as { status?: number; name?: string } | undefined;
     console.error("[ai] delivery pass failed; using rule-based cues", { status: reason?.status, error: reason?.name });
     return fallback();
@@ -87,7 +92,7 @@ export async function deliverSlides(provider: AiProvider, contexts: DeliveryCont
 
   return contexts.map((context) => {
     const slideReads = reads.flatMap((read) => read.slides.filter((slide) => slide.id === context.seed));
-    const notes = voteSentenceNotes(slideReads, scriptSentences(context.paragraphs).length);
+    const notes = voteSentenceNotes(slideReads, scriptSentences(context.paragraphs).length, readCount);
     return notes ? applySentenceNotes(context, notes) : placeDelivery(context);
   });
 }

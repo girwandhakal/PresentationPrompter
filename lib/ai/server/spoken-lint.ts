@@ -121,8 +121,9 @@ export function draftProblems(slides: DraftSlide[], sources: Map<string, string>
 }
 
 /**
- * Merges a draft and its retry slide by slide, so a retry can never make things worse: each slide
- * takes the retry's version only when it has no more problems than the first draft's.
+ * Merges a draft and its retry slide by slide, so a retry can never make things worse: a slide takes
+ * the retry's version only when its first version had problems and the retry has no more. Slides
+ * that were already fine keep their first version.
  */
 export function pickDraft<T extends { slides: DraftSlide[] }>(first: T, retry: T | null, sources: Map<string, string> = new Map()): T {
   if (!retry) return first;
@@ -132,7 +133,8 @@ export function pickDraft<T extends { slides: DraftSlide[] }>(first: T, retry: T
     ...first,
     slides: first.slides.map((slide) => {
       const other = retried.get(slide.id);
-      return other && other.paragraphs.length && count(other) <= count(slide) ? other : slide;
+      const problems = count(slide);
+      return other && other.paragraphs.length && problems && count(other) <= problems ? other : slide;
     }),
   };
 }

@@ -45,7 +45,7 @@ export function sanitizeParagraphs(paragraphs: string[]) {
 }
 
 /** What cue placement needs to know about a written slide. */
-export function deliveryContext(paragraphs: string[], input: WriteSlideInput, brief: BriefInput): DeliveryContext {
+function deliveryContext(paragraphs: string[], input: WriteSlideInput, brief: BriefInput): DeliveryContext {
   return {
     paragraphs,
     density: brief.cueDensity,

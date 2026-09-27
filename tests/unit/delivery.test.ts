@@ -81,6 +81,8 @@ test("votes turn reads into agreement shares, and stress needs every read to pic
   assert.equal(notes[0].stress, "");
   assert.equal(notes[1].stress, "never");
   assert.equal(voteSentenceNotes([read([{}])], 2), null, "a read with the wrong sentence count is ignored");
+  assert.equal(voteSentenceNotes([read([{ asksAudience: true }, {}])], 2, 3), null, "one surviving read of three is not a vote");
+  assert.ok(voteSentenceNotes([read([{}, {}]), read([{}, {}])], 2, 3), "two of three is");
 });
 
 test("the coach sees numbered sentences and paragraph breaks", () => {

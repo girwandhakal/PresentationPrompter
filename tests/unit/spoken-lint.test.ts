@@ -45,4 +45,7 @@ test("a retry replaces only the slides it improved", () => {
   const worse = { ...slide("b", spoken), concise: "Result: faster." };
   assert.deepEqual(pickDraft(first, { slides: [slide("a", spoken), worse] }).slides, [slide("a", spoken), slide("b", spoken)]);
   assert.deepEqual(pickDraft(first, { slides: [slide("a", spoken)] }).slides, [slide("a", spoken), slide("b", spoken)]);
+  // A slide that was already fine keeps its first version, even when the retry's is also fine.
+  const rewritten = slide("b", "We made checkout faster by asking only for what we need.");
+  assert.deepEqual(pickDraft(first, { slides: [slide("a", spoken), rewritten] }).slides[1], slide("b", spoken));
 });

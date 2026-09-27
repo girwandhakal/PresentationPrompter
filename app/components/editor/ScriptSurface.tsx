@@ -10,17 +10,22 @@ import { RichTextPlugin } from "@lexical/react/LexicalRichTextPlugin";
 import {
   $getRoot,
   $getSelection,
+  $isElementNode,
   $isRangeSelection,
   $isTextNode,
   $setSelection,
+  COMMAND_PRIORITY_CRITICAL,
   COMMAND_PRIORITY_LOW,
   FORMAT_TEXT_COMMAND,
   KEY_DOWN_COMMAND,
+  PASTE_COMMAND,
   REDO_COMMAND,
+  SELECTION_INSERT_CLIPBOARD_NODES_COMMAND,
   UNDO_COMMAND,
   type BaseSelection,
   type EditorState,
   type LexicalEditor,
+  type LexicalNode,
 } from "lexical";
 import { Bold, Italic, MessageSquarePlus, Pause, Redo2, Snail, Undo2 } from "lucide-react";
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
@@ -86,6 +91,7 @@ export const ScriptSurface = forwardRef<ScriptSurfaceHandle, Props>(function Scr
       <DocumentPlugin document={document} onChange={onChange} />
       <EditablePlugin editable={!locked} />
       <KeyboardPlugin />
+      <ClipboardPlugin />
       <HandlePlugin ref={ref} />
     </LexicalComposer>
   );
@@ -223,6 +229,39 @@ function DocumentPlugin({ document, onChange }: { document: ScriptDocument; onCh
 function EditablePlugin({ editable }: { editable: boolean }) {
   const [editor] = useLexicalComposerContext();
   useEffect(() => { editor.setEditable(editable); }, [editor, editable]);
+  return null;
+}
+
+/**
+ * "Read slowly" rides on Lexical's highlight format, which pasted rich text can also carry (a <mark>
+ * from a web page or doc). Text pasted from outside Cueframe loses it; copies within the editor,
+ * which carry Lexical's own clipboard format, keep their marks.
+ */
+function ClipboardPlugin() {
+  const [editor] = useLexicalComposerContext();
+  useEffect(() => {
+    let external = false;
+    const offPaste = editor.registerCommand(PASTE_COMMAND, (event) => {
+      const types = "clipboardData" in event ? event.clipboardData?.types ?? [] : [];
+      external = !types.includes("application/x-lexical-editor");
+      return false;
+    }, COMMAND_PRIORITY_CRITICAL);
+    const offInsert = editor.registerCommand(SELECTION_INSERT_CLIPBOARD_NODES_COMMAND, ({ nodes }) => {
+      if (external) {
+        const strip = (node: LexicalNode) => {
+          if ($isTextNode(node) && node.hasFormat(SLOW_FORMAT)) node.toggleFormat(SLOW_FORMAT);
+          if ($isElementNode(node)) node.getChildren().forEach(strip);
+        };
+        nodes.forEach(strip);
+      }
+      external = false;
+      return false;
+    }, COMMAND_PRIORITY_CRITICAL);
+    return () => {
+      offPaste();
+      offInsert();
+    };
+  }, [editor]);
   return null;
 }
 
