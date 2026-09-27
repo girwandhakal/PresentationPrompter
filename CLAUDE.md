@@ -20,8 +20,8 @@ edit → present → timing review. Imports support PDFs, PPTX, and ordered imag
 playback uses normalized slide images. PowerPoint animations and transitions are
 outside the current scope. Reopening a project must reuse its saved draft.
 
-The working stack is TypeScript, React, App Router conventions, Vinext/Vite, and
-a Cloudflare Worker. Projects, slide blobs, scripts, versions, and sessions live
+The working stack is TypeScript, React, and Next.js App Router, built with
+`next build` for Vercel. Projects, slide blobs, scripts, versions, and sessions live
 in IndexedDB. Authentication, cloud persistence, and durable server jobs are
 planned; they are not implemented by the current local-first app.
 
@@ -36,7 +36,7 @@ planned; they are not implemented by the current local-first app.
 | Server prompts, writing guide, providers | `lib/ai/server/` |
 | AI route validation and responses | `app/api/ai/`, `lib/ai/schemas.ts` |
 | Audience synchronization | `lib/sync/protocol.ts`, `app/audience/` |
-| Hosting and security headers | `worker/index.ts`, `vite.config.ts`, `build/`, `.openai/hosting.json` |
+| Hosting and security headers | `next.config.ts` |
 | Script-quality audit and recorded experiments | `research/` |
 
 Preserve these boundaries and existing migrations. Do not remove hosting adapters
@@ -177,7 +177,7 @@ Use Node.js 22.13 or newer. Useful commands:
 | `npm run dev` | Development with the configured provider |
 | `npm run lint` / `npm run typecheck` | Static checks |
 | `npm test` | Offline unit/API tests |
-| `npm run build` / `npm run preview` | Build and locally serve the Cloudflare app |
+| `npm run build` / `npm run preview` | Build and locally serve the production app |
 | `npm run test:e2e` | Demo-mode browser journeys |
 | `npm run check` | Lint, typecheck, offline tests, build |
 

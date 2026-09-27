@@ -48,7 +48,7 @@ Browser (everything the user creates lives here)
  ├─ Editor (Lexical), Presenter, Review
  └─ Audience window ◀── BroadcastChannel (slide index, blank, ended — never script text)
                 │
-                ▼  /api/ai/*  (Cloudflare Worker via vinext)
+                ▼  /api/ai/*  (Next.js route handlers)
 AI gateway: schema-validated requests → OpenAI structured outputs → validation
 ```
 
@@ -91,12 +91,12 @@ AI gateway: schema-validated requests → OpenAI structured outputs → validati
 | Command | What it does |
 | --- | --- |
 | `npm run dev` / `npm run dev:demo` | Development server (real AI / demo AI) |
-| `npm run build` | Production build (Cloudflare Worker + static assets) |
-| `npm run preview` | Serve the production build locally in workerd, including security headers |
+| `npm run build` | Production build (`next build`) |
+| `npm run preview` | Serve the production build locally (`next start`), including security headers |
 | `npm run lint` · `npm run typecheck` | ESLint · TypeScript |
 | `npm test` | Unit and API integration tests (demo provider, no network) |
 | `npm run eval` | Paid evaluation, disabled by default. Requires explicit `--live=true --deck=<name> --budget=<token-cap>` after agreeing on spending. Saves scripts and diagnostic scores in `outputs/`. |
-| `npm run test:e2e` | Playwright end-to-end tests. They use your installed Chrome; set `PLAYWRIGHT_CHANNEL=msedge` or `""` for bundled Chromium |
+| `npm run test:e2e` | Playwright end-to-end tests against a production build. They use your installed Chrome; set `PLAYWRIGHT_CHANNEL=msedge` or `""` for bundled Chromium |
 | `npm run check` | Lint, typecheck, unit tests, and build |
 | `npm run sample-deck` | Regenerate `public/sample-deck.pdf` (the first-run sample, also a test fixture) |
 
@@ -108,14 +108,13 @@ historical study in [research/](research/script-quality.md) measured an earlier,
 
 ## Deployment
 
-The app builds to a Cloudflare Worker (`worker/index.ts`) with static assets, and is configured for
-the hosting described in `.openai/hosting.json`.
+The app is a standard Next.js build, intended for Vercel (see the product overview, section 25).
 
-1. Set `OPENAI_API_KEY` (and optionally `OPENAI_MODEL`) as secrets in the hosting environment.
-2. Run `npm run check`, then deploy the `dist/` output.
+1. Set `OPENAI_API_KEY` (and optionally `OPENAI_MODEL`) as sensitive environment variables.
+2. Run `npm run check`, then deploy; Vercel runs `next build` itself.
 
-The Worker adds a strict Content Security Policy and security headers to every response. No
-database, bucket, or queue is required.
+`next.config.ts` adds security headers to every response and a strict Content Security Policy to
+production builds. No database, bucket, or queue is required yet.
 
 ## Supported files and limits
 
@@ -141,5 +140,3 @@ Editor: `Ctrl/⌘ K` add cue · `Ctrl/⌘ B`/`I` bold/italic · `Alt ↑`/`↓` 
   browser profile on the same computer. That is the usual projector or screen-share setup.
 - Browsers can't choose which monitor a window opens on or hide a window from screen capture. The
   preflight checklist walks through sharing only the audience window.
-- On Windows, `vinext start` (vinext 0.0.50) fails to serve static assets. Use `npm run preview` to
-  check production builds locally; deployed Workers aren't affected.
