@@ -151,11 +151,18 @@ export const CueOutput = z.object({
   text: z.string(),
 });
 
+export const MarkOutput = z.object({
+  paragraph: z.number(),
+  text: z.string(),
+  mark: z.enum(["bold", "slow"]),
+});
+
 export const WrittenSlideOutput = z.object({
   id: z.string(),
   purpose: z.string(),
   paragraphs: z.array(z.string()),
   cues: z.array(CueOutput),
+  marks: z.array(MarkOutput),
   concise: z.string(),
   keywords: z.array(z.string()),
   recovery: z.string(),
@@ -163,11 +170,40 @@ export const WrittenSlideOutput = z.object({
   questions: z.array(z.object({ question: z.string(), answer: z.string() })),
 });
 export type WrittenSlideOutput = z.infer<typeof WrittenSlideOutput>;
-/** What the model writes. Cues are placed afterwards by code (lib/domain/cues.ts), never by the model. */
-export const WrittenSlideDraft = WrittenSlideOutput.omit({ cues: true });
+/** What the model writes. Cues and marks are placed afterwards by code (lib/domain/cues.ts), never by the model. */
+export const WrittenSlideDraft = WrittenSlideOutput.omit({ cues: true, marks: true });
 export type WrittenSlideDraft = z.infer<typeof WrittenSlideDraft>;
 export const WriteOutput = z.object({ slides: z.array(WrittenSlideDraft) });
 export type WriteOutput = z.infer<typeof WriteOutput>;
+
+// ── Delivery (server-internal: runs after writing, never called from the browser) ──
+
+export type DeliverySlideInput = {
+  id: string;
+  title: string;
+  kind: string;
+  keyIdea: string;
+  /** Sentence texts in reading order; `paragraphStarts` holds the 1-based numbers that open a paragraph. */
+  sentences: string[];
+  paragraphStarts: number[];
+};
+export type DeliveryRequest = { slides: DeliverySlideInput[] };
+
+// Facts about each sentence, not placements: code turns agreed facts into cues and marks.
+export const DeliveryOutput = z.object({
+  slides: z.array(z.object({
+    id: z.string(),
+    sentences: z.array(z.object({
+      n: z.number(),
+      asksAudience: z.boolean(),
+      statesMainPoint: z.boolean(),
+      turnsArgument: z.boolean(),
+      mustCatchExactly: z.boolean(),
+      stress: z.string(),
+    })),
+  })),
+});
+export type DeliveryOutput = z.infer<typeof DeliveryOutput>;
 
 // ── Rewrite ─────────────────────────────────────────────────────────────────
 

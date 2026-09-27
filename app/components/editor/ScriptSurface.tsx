@@ -22,9 +22,9 @@ import {
   type EditorState,
   type LexicalEditor,
 } from "lexical";
-import { Bold, Eye, Hand, Italic, MessageSquarePlus, Pause, Redo2, Undo2, Wind } from "lucide-react";
+import { Bold, Italic, MessageSquarePlus, Pause, Redo2, Snail, Undo2 } from "lucide-react";
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
-import { documentFromLexicalState, loadScriptDocument } from "@/lib/domain/script-lexical";
+import { documentFromLexicalState, loadScriptDocument, SLOW_FORMAT } from "@/lib/domain/script-lexical";
 import { $createCueNode, CueNode, PARAGRAPH_REPLACEMENT, ScriptParagraphNode } from "@/lib/domain/script-nodes";
 import { makeId, type ScriptDocument } from "@/lib/domain/script";
 import type { SelectionAction } from "@/lib/ai/client";
@@ -36,9 +36,6 @@ export type ScriptSurfaceHandle = {
 
 export const CUE_PRESETS = [
   { label: "Pause", icon: Pause },
-  { label: "Look up", icon: Eye },
-  { label: "Point to the slide", icon: Hand },
-  { label: "Breathe", icon: Wind },
 ];
 
 const SELECTION_ACTIONS: { action: SelectionAction; label: string }[] = [
@@ -61,13 +58,13 @@ type Props = {
 
 /**
  * The teleprompter script editor. Cues are atomic private nodes on their own line; formatting is
- * limited to what renders in Presenter (bold, italic). Remount with a new `key` to load new content.
+ * limited to what renders in Presenter (bold, italic, slow). Remount with a new `key` to load new content.
  */
 export const ScriptSurface = forwardRef<ScriptSurfaceHandle, Props>(function ScriptSurface({ document, onChange, locked, aiEnabled, onSelectionRewrite, toolbarEnd, label, autoFocus }, ref) {
   const config = useMemo(() => ({
     namespace: "CueframeScript",
     nodes: [ScriptParagraphNode, CueNode, PARAGRAPH_REPLACEMENT],
-    theme: { paragraph: "script-paragraph", text: { bold: "script-bold", italic: "script-italic" } },
+    theme: { paragraph: "script-paragraph", text: { bold: "script-bold", italic: "script-italic", [SLOW_FORMAT]: "script-slow" } },
     onError: (error: Error) => { throw error; },
   }), []);
   const surfaceRef = useRef<HTMLDivElement>(null);
@@ -170,12 +167,12 @@ function Placeholder() {
 
 function Toolbar({ end }: { end?: ReactNode }) {
   const [editor] = useLexicalComposerContext();
-  const [formats, setFormats] = useState({ bold: false, italic: false });
+  const [formats, setFormats] = useState({ bold: false, italic: false, slow: false });
 
   useEffect(() => editor.registerUpdateListener(({ editorState }) => {
     editorState.read(() => {
       const selection = $getSelection();
-      if ($isRangeSelection(selection)) setFormats({ bold: selection.hasFormat("bold"), italic: selection.hasFormat("italic") });
+      if ($isRangeSelection(selection)) setFormats({ bold: selection.hasFormat("bold"), italic: selection.hasFormat("italic"), slow: selection.hasFormat(SLOW_FORMAT) });
     });
   }), [editor]);
 
@@ -185,6 +182,7 @@ function Toolbar({ end }: { end?: ReactNode }) {
       <div className="editor-toolbar__group">
         <IconButton label="Bold (Ctrl+B)" size="sm" aria-pressed={formats.bold} onMouseDown={keep} onClick={() => editor.dispatchCommand(FORMAT_TEXT_COMMAND, "bold")}><Bold /></IconButton>
         <IconButton label="Italic (Ctrl+I)" size="sm" aria-pressed={formats.italic} onMouseDown={keep} onClick={() => editor.dispatchCommand(FORMAT_TEXT_COMMAND, "italic")}><Italic /></IconButton>
+        <IconButton label="Read slowly" size="sm" aria-pressed={formats.slow} onMouseDown={keep} onClick={() => editor.dispatchCommand(FORMAT_TEXT_COMMAND, SLOW_FORMAT)}><Snail /></IconButton>
       </div>
       <span className="editor-toolbar__divider" aria-hidden="true" />
       <div className="editor-toolbar__group">

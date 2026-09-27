@@ -5,6 +5,7 @@ import type { z } from "zod";
 import {
   AnalyzeOutput,
   ContextOutput,
+  DeliveryOutput,
   OutlineOutput,
   QuestionsOutput,
   ScriptRewriteOutput,
@@ -18,6 +19,8 @@ import {
   analyzeText,
   CONTEXT_INSTRUCTIONS,
   contextText,
+  DELIVERY_INSTRUCTIONS,
+  deliveryText,
   OUTLINE_INSTRUCTIONS,
   outlineText,
   rewriteInstructions,
@@ -27,12 +30,15 @@ import {
 } from "./prompts";
 import { draftProblems, pickDraft, spokenProblems } from "./spoken-lint";
 
-type Effort = "low" | "medium" | "high";
+type Effort = "none" | "low" | "medium" | "high";
 
 export class AiOutputError extends Error {}
 
-export function createOpenAiProvider({ apiKey, model, baseURL }: { apiKey: string; model: string; baseURL?: string }): AiProvider {
-  const reasoningModel = /^(gpt-5|o\d)/i.test(model);
+const isReasoningModel = (name: string) => /^(gpt-5|o\d)/i.test(name);
+// gpt-5.1 and later can switch reasoning off, which is also the only mode that accepts a temperature.
+const canDisableReasoning = (name: string) => /^gpt-5\.\d/i.test(name);
+
+export function createOpenAiProvider({ apiKey, model, deliveryModel = model, baseURL }: { apiKey: string; model: string; deliveryModel?: string; baseURL?: string }): AiProvider {
   const client = new OpenAI({ apiKey, baseURL, timeout: 110_000, maxRetries: 2 });
 
   async function structured<T extends z.ZodType>(
@@ -40,14 +46,17 @@ export function createOpenAiProvider({ apiKey, model, baseURL }: { apiKey: strin
     name: string,
     instructions: string,
     content: ResponseInputContent[],
-    { effort = "low", verbosity = "medium", signal }: { effort?: Effort; verbosity?: "low" | "medium"; signal?: AbortSignal } = {},
+    { effort = "low", verbosity = "medium", signal, use = model }: { effort?: Effort; verbosity?: "low" | "medium"; signal?: AbortSignal; use?: string } = {},
   ): Promise<z.infer<T>> {
+    const reasoningModel = isReasoningModel(use);
     const response = await client.responses.parse({
-      model,
+      model: use,
       store: false,
       // Reasoning effort and verbosity exist only on reasoning models (gpt-5, o-series). Sending them to
       // gpt-4.x/4o is a 400, so non-reasoning models (which are also the fastest) just skip them.
       ...(reasoningModel ? { reasoning: { effort } } : {}),
+      // With reasoning off, temperature 0 makes repeated reads of the same script agree more often.
+      ...(effort === "none" ? { temperature: 0 } : {}),
       instructions,
       input: [{ role: "user", content }],
       text: { ...(reasoningModel ? { verbosity } : {}), format: zodTextFormat(schema, name) },
@@ -112,5 +121,14 @@ export function createOpenAiProvider({ apiKey, model, baseURL }: { apiKey: strin
     support: (request, signal) => structured(SupportOutput, "slide_support", rewriteInstructions(request), [input(rewriteText(request))], { effort: "low", verbosity: "low", signal }),
 
     questions: (request, signal) => structured(QuestionsOutput, "audience_questions", rewriteInstructions(request), [input(rewriteText(request))], { effort: "low", signal }),
+
+    // Measured on real decks: a full-size model with reasoning off and temperature 0 gave the most
+    // repeatable answers, in about six seconds. Models that can't turn reasoning off use low effort.
+    delivery: (request, signal) => structured(DeliveryOutput, "delivery_marks", DELIVERY_INSTRUCTIONS, [input(deliveryText(request))], {
+      use: deliveryModel,
+      effort: canDisableReasoning(deliveryModel) ? "none" : "low",
+      verbosity: "low",
+      signal,
+    }),
   };
 }

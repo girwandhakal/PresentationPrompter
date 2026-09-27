@@ -1,4 +1,4 @@
-import { placeCues } from "../domain/cues";
+import { placeDelivery, type DeliveryContext } from "../domain/cues";
 import type { BriefInput, WriteSlideInput, WrittenSlideDraft, WrittenSlideOutput } from "./schemas";
 
 /**
@@ -44,23 +44,32 @@ export function sanitizeParagraphs(paragraphs: string[]) {
     .slice(0, 8);
 }
 
-/** Normalizes one written slide against its input and the brief, and places its delivery cues. */
+/** What cue placement needs to know about a written slide. */
+export function deliveryContext(paragraphs: string[], input: WriteSlideInput, brief: BriefInput): DeliveryContext {
+  return {
+    paragraphs,
+    density: brief.cueDensity,
+    seed: input.id,
+    title: input.title,
+    keyIdea: input.keyIdea || input.analysis?.mainPoint,
+    kind: input.analysis?.kind,
+    first: input.index === 1,
+  };
+}
+
+/**
+ * Normalizes one written slide against its input and the brief. Cues and marks come from the rules
+ * here; the write route replaces them with the AI delivery pass when it runs.
+ */
 export function finalizeWrittenSlide(output: WrittenSlideDraft, input: WriteSlideInput, brief: BriefInput): WrittenSlideOutput {
   const paragraphs = sanitizeParagraphs(output.paragraphs);
+  const { cues, marks } = placeDelivery(deliveryContext(paragraphs, input, brief));
   return {
     id: input.id,
     purpose: clean(output.purpose, 300),
     paragraphs,
-    cues: placeCues({
-      paragraphs,
-      density: brief.cueDensity,
-      seed: input.id,
-      keyIdea: input.keyIdea || input.analysis?.mainPoint,
-      elements: input.analysis?.elements,
-      kind: input.analysis?.kind,
-      first: input.index === 1,
-      last: !input.nextTitle,
-    }),
+    cues,
+    marks,
     concise: clean(output.concise, 500),
     keywords: output.keywords.map((keyword) => clean(keyword, 60)).filter(Boolean).slice(0, 6),
     recovery: clean(output.recovery, 300),

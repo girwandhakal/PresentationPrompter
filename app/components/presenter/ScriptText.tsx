@@ -6,10 +6,11 @@ import type { PresenterPrefs } from "@/lib/prefs";
 export type ReadingMode = PresenterPrefs["mode"];
 
 function run(child: ScriptTextRun, key: string) {
-  if (child.bold && child.italic) return <strong key={key}><em>{child.text}</em></strong>;
-  if (child.bold) return <strong key={key}>{child.text}</strong>;
-  if (child.italic) return <em key={key}>{child.text}</em>;
-  return <Fragment key={key}>{child.text}</Fragment>;
+  let node: React.ReactNode = child.text;
+  if (child.italic) node = <em>{node}</em>;
+  if (child.bold) node = <strong>{node}</strong>;
+  if (child.slow) node = <span className="st-slow">{node}</span>;
+  return <Fragment key={key}>{node}</Fragment>;
 }
 
 function Cue({ label }: { label: string }) {

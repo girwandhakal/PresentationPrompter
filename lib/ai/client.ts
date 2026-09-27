@@ -127,7 +127,7 @@ export function slideRewriteContext(project: Project, slide: Slide) {
   };
 }
 
-type ScriptResult = { kind: "script"; paragraphs: string[]; cues: WrittenSlideOutput["cues"] };
+type ScriptResult = { kind: "script" } & Pick<WrittenSlideOutput, "paragraphs" | "cues" | "marks">;
 type SelectionResult = { kind: "selection"; text: string };
 type SupportResult = { kind: "support"; concise: string; keywords: string[]; recovery: string; transition: string };
 type QuestionsResult = { kind: "questions"; questions: { question: string; answer: string }[] };
@@ -179,10 +179,19 @@ export function generateQuestions(project: Project, slide: Slide, signal?: Abort
   }, signal);
 }
 
+/** Script prose plus the cues and marks the server placed in it, as an editable document. */
+export function documentFromWritten(written: Pick<WrittenSlideOutput, "paragraphs" | "cues" | "marks">) {
+  return documentFromAi(
+    written.paragraphs,
+    written.cues.map((cue) => ({ paragraph: cue.paragraph, afterSentence: cue.afterSentence, label: cue.text })),
+    written.marks ?? [],
+  );
+}
+
 /** Converts a written-slide payload into the stored script shape. */
 export function scriptFromWritten(written: WrittenSlideOutput): SlideScript {
   return {
-    document: documentFromAi(written.paragraphs, written.cues.map((cue) => ({ paragraph: cue.paragraph, afterSentence: cue.afterSentence, label: cue.text }))),
+    document: documentFromWritten(written),
     purpose: written.purpose,
     concise: written.concise,
     keywords: written.keywords,

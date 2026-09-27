@@ -2,9 +2,9 @@
 
 import { ArrowRight } from "lucide-react";
 import { useMemo, useState } from "react";
-import { AiRequestError, rewriteScript } from "@/lib/ai/client";
+import { AiRequestError, documentFromWritten, rewriteScript } from "@/lib/ai/client";
 import { needsRepair } from "@/lib/ai/validate";
-import { documentFromAi, documentToWordCount } from "@/lib/domain/script";
+import { documentToWordCount } from "@/lib/domain/script";
 import { planPresentation } from "@/lib/domain/planner";
 import type { Project, SlideScript } from "@/lib/domain/types";
 import { useProjects } from "@/lib/store/projects";
@@ -44,7 +44,7 @@ export function RebalanceDialog({ project, onClose }: { project: Project; onClos
         while (next < changing.length) {
           const row = changing[next++];
           const result = await rewriteScript(project, row.slide, "fit", row.target);
-          const document = documentFromAi(result.paragraphs, result.cues.map((cue) => ({ paragraph: cue.paragraph, afterSentence: cue.afterSentence, label: cue.text })));
+          const document = documentFromWritten(result);
           results.set(row.slide.id, { ...row.slide.script, document, origin: "mixed" });
           setDone((value) => value + 1);
         }

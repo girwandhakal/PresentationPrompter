@@ -1,12 +1,13 @@
 import { handleAi, mapLimit } from "@/lib/ai/server/http";
 import { WriteRequest, type WrittenSlideOutput } from "@/lib/ai/schemas";
-import { finalizeWrittenSlide, fitRatio, needsRepair, paragraphsWords, sanitizeParagraphs } from "@/lib/ai/validate";
+import { deliverSlides } from "@/lib/ai/server/delivery";
+import { deliveryContext, finalizeWrittenSlide, fitRatio, needsRepair, paragraphsWords, sanitizeParagraphs } from "@/lib/ai/validate";
 
 export const dynamic = "force-dynamic";
 
 /**
- * Writes a batch of slides, then validates each against the plan (ids and word budget) and places
- * its cues. Slides that miss their budget get one targeted repair attempt; the closer of the two
+ * Writes a batch of slides, validates each against the plan (ids and word budget), then marks
+ * delivery (pauses, points, slow, bold) on the final prose. Slides that miss their budget get one targeted repair attempt; the closer of the two
  * versions is kept.
  */
 export function POST(request: Request) {
@@ -47,8 +48,13 @@ export function POST(request: Request) {
       return draft;
     });
 
+    // Delivery is marked on the final prose, after any repair, in one pass for the whole batch.
+    const written = input.slides.flatMap((slide, index) => repaired[index] ? [{ slide, script: repaired[index]! }] : []);
+    const delivered = await deliverSlides(provider, written.map(({ slide, script }) => deliveryContext(script.paragraphs, slide, input.brief)), signal);
+    const scripts = new Map(written.map(({ slide, script }, index) => [slide.id, { ...script, ...delivered[index] }]));
+
     return {
-      slides: input.slides.map((slide, index) => ({ id: slide.id, script: repaired[index] })),
+      slides: input.slides.map((slide) => ({ id: slide.id, script: scripts.get(slide.id) ?? null })),
     };
   }, { maxBytes: 1024 * 1024 });
 }

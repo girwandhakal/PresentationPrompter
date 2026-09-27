@@ -78,6 +78,8 @@
 .script-paragraph { position: relative; min-height: 1.65em; margin-bottom: 1em; }
 .script-bold { font-weight: 700; }
 .script-italic { font-style: italic; }
+/* Lexical wraps the slow format in <mark>; it should look like the teleprompter's slow passage, not a highlight. */
+.script-surface__input mark { background: none; color: inherit; }
 .script-paragraph:has(> .script-cue-chip:only-child) { margin: -0.4em 0 1em; }
 .script-paragraph:first-child:has(> .script-cue-chip:only-child) { margin-top: 0; }
 .script-paragraph:has(> .script-cue-chip:only-child)::before {
@@ -166,6 +168,9 @@
 .script-text { font-family: var(--font-display); font-size: var(--st-size, 20px); line-height: var(--st-leading, 1.55); letter-spacing: -0.01em; font-weight: 420; }
 .st-line { margin: 0 0 1em; }
 .st-line strong { font-weight: 700; }
+/* Read slowly: wider word spacing says "take your time" at a glance, and because it spreads the words
+   over more lines, full-script auto-scroll spends longer on them. The dotted rule marks where it ends. */
+.st-slow, .script-slow { word-spacing: 0.3em; text-decoration: underline dotted var(--bluebell); text-decoration-thickness: 2px; text-underline-offset: 0.3em; text-decoration-skip-ink: none; }
 /* A cue collapses into the paragraph gap above it (1em - 0.4em = 0.6em) and keeps a full 1em below, so
    it reads as part of the paragraph it follows. First in a block, it simply starts at the top. */
 .script-text > .st-cue:first-child { margin-top: 0; }

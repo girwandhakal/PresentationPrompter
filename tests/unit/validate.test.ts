@@ -54,12 +54,13 @@ test("finalize trims, caps, and drops questions when not requested", () => {
   assert.equal(result.id, "s1");
 });
 
-test("finalize places cues from the prose and respects the density setting", () => {
-  const paragraphs = ["We changed one thing in onboarding. Activation rose from 61% to 74% in six weeks.", "Traffic stayed flat, so the gain came from clarity."];
+test("finalize places cues and marks from the prose and respects the density setting", () => {
+  const paragraphs = ["Why did activation move? We changed one thing in onboarding, and activation rose to 74% in six weeks.", "Traffic stayed flat, so the gain came from clarity."];
   const light = finalizeWrittenSlide(output({ paragraphs }), input, brief);
-  assert.equal(light.cues.length, 1);
-  assert.equal(light.cues[0].type, "emphasis");
-  assert.deepEqual(finalizeWrittenSlide(output({ paragraphs }), input, { ...brief, cueDensity: "none" }).cues, []);
+  assert.deepEqual(light.cues, [{ paragraph: 1, afterSentence: 1, type: "pause", text: "Pause" }]);
+  assert.deepEqual(light.marks, [{ paragraph: 1, text: "74%", mark: "bold" }]);
+  const none = finalizeWrittenSlide(output({ paragraphs }), input, { ...brief, cueDensity: "none" });
+  assert.deepEqual([none.cues, none.marks], [[], []]);
 });
 
 test("repair is only attempted when a slide is meaningfully off its word budget", () => {
