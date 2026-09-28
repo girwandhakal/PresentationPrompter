@@ -55,7 +55,7 @@ export function Sidebar({ collapsed, onToggleCollapsed, mobileOpen, onCloseMobil
   const params = useParams<{ id?: string }>();
   const pathname = usePathname();
   const [query, setQuery] = useState("");
-  const [hover, setHover] = useState<{ top: number; left: number; width: number; height: number; visible: boolean; fresh: boolean } | null>(null);
+  const [hover, setHover] = useState<{ top: number; height: number; visible: boolean; fresh: boolean } | null>(null);
   const activeId = params?.id;
   const writing = projects.some((project) => project.generation.status === "running");
 
@@ -133,8 +133,6 @@ export function Sidebar({ collapsed, onToggleCollapsed, mobileOpen, onCloseMobil
                       const row = event.currentTarget;
                       setHover((previous) => ({
                         top: row.offsetTop,
-                        left: row.offsetLeft,
-                        width: row.offsetWidth,
                         height: row.offsetHeight,
                         visible: true,
                         fresh: !previous?.visible,
@@ -174,8 +172,8 @@ export function Sidebar({ collapsed, onToggleCollapsed, mobileOpen, onCloseMobil
           {hover && (
             <m.span
               className="sidebar__hover"
-              initial={{ opacity: 0, x: hover.left, y: hover.top, width: hover.width, height: hover.height }}
-              animate={{ opacity: hover.visible ? 1 : 0, x: hover.left, y: hover.top, width: hover.width, height: hover.height }}
+              initial={{ opacity: 0, y: hover.top, height: hover.height }}
+              animate={{ opacity: hover.visible ? 1 : 0, y: hover.top, height: hover.height }}
               transition={hover.fresh ? { duration: 0, opacity: { duration: 0.16 } } : { ...GLIDE, opacity: { duration: 0.18 } }}
               aria-hidden="true"
             />
