@@ -3,9 +3,11 @@
 import { Menu as MenuIcon, Plus } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState, useSyncExternalStore, type ReactNode } from "react";
 import { usePref } from "@/lib/prefs";
+import { getSyncState, subscribeSync } from "@/lib/store/cloud";
 import { useProjects } from "@/lib/store/projects";
+import { SharedProjectsNotice } from "../auth/SharedProjectsNotice";
 import { IconButton } from "../ui/button";
 import { Callout } from "../ui/controls";
 import { BrandMark } from "./BrandMark";
@@ -15,6 +17,7 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
   const [collapsed, setCollapsed] = usePref("sidebarCollapsed");
   const [mobileOpen, setMobileOpen] = useState(false);
   const { loadError, saveError } = useProjects();
+  const sync = useSyncExternalStore(subscribeSync, getSyncState, getSyncState);
   const pathname = usePathname();
 
   // Close the mobile drawer whenever the route changes.
@@ -50,6 +53,12 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
             </Callout>
           </div>
         )}
+        {sync.error && !loadError && !saveError && (
+          <div className="shell__alert">
+            <Callout tone="warn" title="Not backed up to your account yet">{sync.error}</Callout>
+          </div>
+        )}
+        <SharedProjectsNotice />
         <main id="main" className="shell__content" tabIndex={-1}>
           {children}
         </main>

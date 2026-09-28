@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { documentFromAi, documentToParagraphs, makeId } from "../domain/script";
 import type { Brief, Project, Slide, SlideAnalysis, SlideScript } from "../domain/types";
+import { authEnabled, firebase } from "../firebase/client";
 import { getBlob } from "../store/db";
 import type { AiStatus, BriefInput, RewriteRequest, WrittenSlideOutput } from "./schemas";
 
@@ -15,13 +16,22 @@ export class AiRequestError extends Error {
 
 const RETRYABLE = new Set([502, 503, 504]);
 
+/** The signed-in user's ID token for the AI routes; Firebase refreshes it before it expires. */
+async function authHeaders(): Promise<Record<string, string>> {
+  if (!authEnabled) return {};
+  const user = firebase().auth.currentUser;
+  if (!user) throw new AiRequestError("Sign in to use AI features.", 401, "unauthenticated");
+  return { authorization: `Bearer ${await user.getIdToken()}` };
+}
+
 export async function aiFetch<T>(path: string, body: unknown, signal?: AbortSignal): Promise<T> {
   for (let attempt = 0; ; attempt += 1) {
+    const auth = await authHeaders();
     let response: Response;
     try {
       response = await fetch(`/api/ai/${path}`, {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: { "content-type": "application/json", ...auth },
         body: JSON.stringify(body),
         signal,
       });
@@ -35,7 +45,7 @@ export async function aiFetch<T>(path: string, body: unknown, signal?: AbortSign
     }
     if (response.ok) return (await response.json()) as T;
     const payload = (await response.json().catch(() => ({}))) as { error?: string; code?: string };
-    const retryable = (RETRYABLE.has(response.status) && payload.code !== "ai_unavailable" && payload.code !== "auth" && payload.code !== "model") || response.status === 429;
+    const retryable = (RETRYABLE.has(response.status) && payload.code !== "ai_unavailable" && payload.code !== "auth" && payload.code !== "model") || (response.status === 429 && payload.code !== "quota");
     if (retryable && attempt < 2) {
       const retryAfter = Number(response.headers.get("retry-after")) || 0;
       await wait(Math.min(20_000, retryAfter * 1000 || 2000 * (attempt + 1)), signal);

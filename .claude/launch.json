@@ -51,6 +51,22 @@
         "3200"
       ],
       "port": 3200
+    },
+    {
+      "name": "cueframe-demo-noauth",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": [
+        "cross-env",
+        "AI_PROVIDER=demo",
+        "NEXT_PUBLIC_AUTH_MODE=off",
+        "npm",
+        "run",
+        "dev",
+        "--",
+        "--port",
+        "3500"
+      ],
+      "port": 3500
     }
   ]
 }

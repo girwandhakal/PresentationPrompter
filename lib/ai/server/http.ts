@@ -1,15 +1,20 @@
 import OpenAI from "openai";
 import type { z } from "zod";
+import { authenticate, serverAuthEnabled } from "./auth";
 import { AiOutputError } from "./integrity";
+import { QuotaError, quotasEnabled, reserve, settle, usedTokens, type Reservation } from "./quota";
 import { getProvider, type AiProvider } from "./provider";
 
 const WINDOW_MS = 60_000;
 const LIMIT_PER_WINDOW = 90;
 const buckets = new Map<string, { count: number; resetAt: number }>();
 
-/** Best-effort per-client limit. Worker isolates are short-lived, so this guards bursts, not quotas. */
-function rateLimited(request: Request) {
-  const client = request.headers.get("cf-connecting-ip") ?? request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "local";
+/**
+ * Best-effort burst limit per signed-in user (or per IP when sign-in is off). It is in-memory, so
+ * each server instance counts separately; durable quotas need shared server state.
+ */
+function rateLimited(request: Request, uid?: string) {
+  const client = uid ? `user:${uid}` : request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "local";
   const now = Date.now();
   const bucket = buckets.get(client);
   if (!bucket || bucket.resetAt < now) {
@@ -42,7 +47,7 @@ async function readJson(request: Request, maxBytes: number) {
 }
 
 /**
- * Shared shape for every AI route: provider check, rate limit, size limit, schema validation,
+ * Shared shape for every AI route: provider check, sign-in check, rate limit, size limit, schema validation,
  * cancellation, and mapping of provider errors to calm, user-safe messages. Request and response
  * content is never logged.
  */
@@ -54,7 +59,13 @@ export async function handleAi<S extends z.ZodType>(
 ) {
   const provider = getProvider();
   if (!provider) return failure(503, "ai_unavailable", "AI isn't set up on this server yet. Add OPENAI_API_KEY to enable script writing.");
-  if (rateLimited(request)) return failure(429, "rate_limited", "Too many AI requests at once. Wait a moment and try again.", { "retry-after": "20" });
+  let uid: string | undefined;
+  if (serverAuthEnabled) {
+    const caller = await authenticate(request);
+    if ("error" in caller) return failure(caller.status, caller.code, caller.error);
+    uid = caller.uid;
+  }
+  if (rateLimited(request, uid)) return failure(429, "rate_limited", "Too many AI requests at once. Wait a moment and try again.", { "retry-after": "20" });
 
   const body = await readJson(request, maxBytes);
   if ("tooLarge" in body) return failure(413, "too_large", "This request is too large to send to the AI.");
@@ -62,11 +73,30 @@ export async function handleAi<S extends z.ZodType>(
   const parsed = schema.safeParse(body.value);
   if (!parsed.success) return failure(400, "invalid_request", "The request was incomplete or invalid.");
 
+  let reservation: Reservation | null = null;
+  if (uid && quotasEnabled()) {
+    try {
+      reservation = await reserve(uid, new URL(request.url).pathname.split("/").pop() ?? "");
+    } catch (error) {
+      if (error instanceof QuotaError) return failure(429, "quota", error.message, { "x-quota-reset": error.resetAt });
+      console.error("[ai] quota check failed", error instanceof Error ? error.name : typeof error);
+      return failure(503, "quota_unavailable", "AI usage couldn't be checked right now. Try again in a moment.");
+    }
+  }
+
+  let outcome: { tokens: number | null } = { tokens: null };
   try {
     const result = await run(provider, parsed.data, request.signal);
-    return json({ ...(result as object), telemetry: provider.telemetry?.() });
+    const telemetry = provider.telemetry?.();
+    outcome = { tokens: usedTokens(telemetry) };
+    return json({ ...(result as object), telemetry });
   } catch (error) {
+    // A failed call may still have been billed; count what the provider reported, else the reservation.
+    const reported = usedTokens(provider.telemetry?.());
+    if (reported) outcome = { tokens: reported };
     return mapError(error);
+  } finally {
+    if (reservation) await settle(reservation, outcome.tokens).catch(() => console.error("[ai] usage settle failed"));
   }
 }
 

@@ -1,0 +1,41 @@
+rules_version = '2';
+
+// ===============================================================
+// Assumed layout
+// ===============================================================
+//
+// users/{uid}/...  - one user's decks, slide images, thumbnails, and exports.
+//
+// Only the signed-in owner can read, write, or delete under their own uid.
+// Uploads are capped at 20 MB (the pilot import limit) and restricted to
+// the formats Cueframe imports or renders. Everything else is denied.
+//
+// Rules cannot total a user's storage; the planned server upload
+// reservation (Docs/PRODUCT_OVERVIEW.md section 25) adds that check.
+// ===============================================================
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function isOwner(userId) {
+      return request.auth != null && request.auth.uid == userId;
+    }
+
+    function isAllowedUpload() {
+      return request.resource.size > 0
+        && request.resource.size <= 20 * 1024 * 1024
+        && (request.resource.contentType == 'application/pdf'
+          || request.resource.contentType == 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
+          || request.resource.contentType.matches('image/(png|jpeg|webp)'));
+    }
+
+    match /users/{userId}/{allPaths=**} {
+      allow read, delete: if isOwner(userId);
+      allow create, update: if isOwner(userId) && isAllowedUpload();
+    }
+
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}
