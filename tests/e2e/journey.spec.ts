@@ -69,6 +69,9 @@ test("import, brief, generate, edit, present, and review a deck", async ({ page,
   await page.keyboard.press("b");
   await expect(audience.getByRole("img")).toHaveCount(0);
   await page.keyboard.press("b");
+  // The review lists sessions of at least a second (shorter ones round to zero and are hidden),
+  // and this run can otherwise finish in about half a second.
+  await page.waitForTimeout(1200);
   await page.keyboard.press("Escape");
   await page.getByRole("button", { name: "End and review" }).click();
   await page.waitForURL(new RegExp(`/p/${id}/review`));
