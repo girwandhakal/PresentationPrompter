@@ -23,7 +23,10 @@ import { authEnabled, firebase } from "../firebase/client";
 
 /** Firestore documents max out at 1 MiB; leave headroom for the other fields. */
 const MAX_JSON = 1_000_000;
-const PROJECT_DEBOUNCE_MS = 1200;
+/** Project edits are mirrored once they pause this long... */
+const PROJECT_IDLE_MS = 10_000;
+/** ...and never held back longer than this while edits keep coming. */
+const MAX_WAIT_MS = 60_000;
 const SESSION_DEBOUNCE_MS = 5000;
 /** Version timestamps come from device clocks; re-fetch a margin before the newest local one. */
 const VERSION_CLOCK_MARGIN_MS = 60 * 60 * 1000;
@@ -84,12 +87,20 @@ function encode(value: unknown) {
   return json;
 }
 
-const writeProject = (uid: string, project: Project) =>
-  setDoc(projectRef(uid, project.id), { json: encode(project), updatedAt: project.updatedAt, syncedAt: serverTimestamp() });
+/** The JSON of each project's last confirmed upload in this tab, so identical saves cost nothing. */
+const lastSent = new Map<string, string>();
+
+async function writeProject(uid: string, project: Project, { always = false } = {}) {
+  const json = encode(project);
+  const key = `${uid}/${project.id}`;
+  if (!always && lastSent.get(key) === json) return;
+  await setDoc(projectRef(uid, project.id), { json, updatedAt: project.updatedAt, syncedAt: serverTimestamp() });
+  lastSent.set(key, json);
+}
 
 // ── Debounced writes ────────────────────────────────────────────────────────
 
-const timers = new Map<string, { timer: ReturnType<typeof setTimeout>; run: () => Promise<void> }>();
+const timers = new Map<string, { timer: ReturnType<typeof setTimeout>; run: () => Promise<void>; since: number }>();
 /** Keys whose write has left the debounce queue but not finished. */
 const inflight = new Set<string>();
 
@@ -101,11 +112,19 @@ function send(key: string, run: () => Promise<void>) {
 function debounce(key: string, delay: number, run: () => Promise<void>) {
   const existing = timers.get(key);
   if (existing) clearTimeout(existing.timer);
+  // A hidden page may be closing and its timers may never fire, so a save made now (often the
+  // editor's final flush, which lands after the visibilitychange flush below) goes out at once.
+  if (typeof document !== "undefined" && document.visibilityState === "hidden") {
+    timers.delete(key);
+    void send(key, run).catch(() => {});
+    return;
+  }
+  const since = existing?.since ?? Date.now();
   const timer = setTimeout(() => {
     timers.delete(key);
     void send(key, run).catch(() => {});
-  }, delay);
-  timers.set(key, { timer, run });
+  }, Math.max(0, Math.min(delay, since + MAX_WAIT_MS - Date.now())));
+  timers.set(key, { timer, run, since });
 }
 
 /** Sends queued writes now (before sign-out, or when the page is hidden). */
@@ -130,7 +149,7 @@ if (typeof document !== "undefined") {
 
 /** `onSaved` runs once this copy (or a newer one queued after it) has reached the account. */
 export function saveProject(uid: string, project: Project, onSaved?: () => void) {
-  debounce(`project:${project.id}`, PROJECT_DEBOUNCE_MS, async () => {
+  debounce(`project:${project.id}`, PROJECT_IDLE_MS, async () => {
     await writeProject(uid, project);
     onSaved?.();
   });
@@ -142,6 +161,7 @@ export function removeProject(uid: string, project: Project, onRemoved?: () => v
   const queued = timers.get(key);
   if (queued) clearTimeout(queued.timer);
   timers.delete(key);
+  lastSent.delete(`${uid}/${project.id}`);
   background(async () => {
     await setDoc(projectRef(uid, project.id), { deleted: true, updatedAt: Date.now(), syncedAt: serverTimestamp() });
     const children = await Promise.all((["versions", "sessions"] as const).map((kind) =>
@@ -254,7 +274,7 @@ export function backfillProject(uid: string, project: Project, blobs: [string, B
       ...sessions.map((session) => setDoc(childRef(uid, project.id, "sessions", session.id), { json: encode(session), createdAt: session.startedAt })),
     ]);
     // The project document last, so another device never sees it before its images exist.
-    await writeProject(uid, project);
+    await writeProject(uid, project, { always: true });
     onSaved?.();
   });
 }

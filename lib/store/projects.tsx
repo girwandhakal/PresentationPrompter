@@ -18,8 +18,11 @@ type ProjectsStore = {
   projects: Project[];
   get: (id: string) => Project | undefined;
   create: (project: Project, blobs: [string, Blob][]) => Promise<void>;
-  /** Applies `updater` to the latest in-memory project and persists it. Resolves once written. */
-  update: (id: string, updater: Updater, options?: { touch?: boolean }) => Promise<Project | undefined>;
+  /**
+   * Applies `updater` to the latest in-memory project and persists it. Resolves once written.
+   * `touch: false` keeps `updatedAt`; `sync: false` saves only in this browser (transient state).
+   */
+  update: (id: string, updater: Updater, options?: { touch?: boolean; sync?: boolean }) => Promise<Project | undefined>;
   remove: (id: string) => Promise<void>;
   duplicate: (id: string) => Promise<Project | undefined>;
   saveVersion: (id: string, label: string) => Promise<void>;
@@ -95,13 +98,13 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
     commit();
   }), [commit, reload, syncCloud]);
 
-  const persist = useCallback((id: string) => {
+  const persist = useCallback((id: string, sync = true) => {
     const previous = chains.current.get(id) ?? Promise.resolve();
     const next = previous.then(async () => {
       const latest = records.current.get(id);
       if (!latest) return;
       try {
-        await store.putProject(latest);
+        await store.putProject(latest, { sync });
         setSaveError(null);
       } catch (error) {
         setSaveError(error instanceof DOMException && error.name === "QuotaExceededError"
@@ -123,7 +126,7 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
     await persist(project.id);
   }, [commit, persist]);
 
-  const update = useCallback(async (id: string, updater: Updater, { touch = true } = {}) => {
+  const update = useCallback(async (id: string, updater: Updater, { touch = true, sync = true } = {}) => {
     const current = records.current.get(id);
     if (!current) return undefined;
     const next = updater(current);
@@ -131,7 +134,7 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
     const saved = touch ? { ...next, updatedAt: Date.now() } : next;
     records.current.set(id, saved);
     commit();
-    await persist(id);
+    await persist(id, sync);
     return saved;
   }, [commit, persist]);
 

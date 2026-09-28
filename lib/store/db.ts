@@ -155,9 +155,14 @@ export async function getProject(id: string) {
   return project && upgrade(project);
 }
 
-export async function putProject(project: Project) {
+/**
+ * Saves a project locally and, unless `sync` is false, mirrors it to the account. Transient states
+ * (a run in progress, its phase) stay local: another device can't act on them, and each would
+ * cost a write.
+ */
+export async function putProject(project: Project, { sync = true } = {}) {
   const database = await db();
-  const uid = mirror();
+  const uid = sync ? mirror() : null;
   const rev = shortId(12);
   if (uid) {
     const tx = database.transaction(["projects", "outbox"], "readwrite");
@@ -248,9 +253,10 @@ export async function listVersions(projectId: string) {
 
 // ── Presenter sessions ──────────────────────────────────────────────────────
 
-export async function putSession(session: PresenterSession) {
+/** Periodic checkpoints during a talk pass `sync: false`; the account gets the finished session. */
+export async function putSession(session: PresenterSession, { sync = true } = {}) {
   await (await db()).put("sessions", session);
-  const uid = mirror();
+  const uid = sync ? mirror() : null;
   if (uid) cloud.saveSession(uid, session);
 }
 
