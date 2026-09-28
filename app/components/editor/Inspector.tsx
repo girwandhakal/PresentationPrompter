@@ -24,7 +24,7 @@ export function Inspector({ project, slide }: { project: Project; slide: Slide }
 
         <div className="inspector__screen">
           <Segmented size="sm" label="Reading mode" value={previewMode} onChange={setPreviewMode} options={[{ value: "full", label: "Script" }, { value: "notes", label: "Short" }, { value: "keywords", label: "Keywords" }]} />
-          <div className="presenter-preview theme-dark" style={{ aspectRatio: String(project.aspectRatio) }} tabIndex={0} aria-label="Prompter preview">
+          <div className="presenter-preview theme-dark" style={{ aspectRatio: String(project.aspectRatio) }} tabIndex={0} role="region" aria-label="Prompter preview">
             <ScriptText script={script} mode={previewMode} showCues={prefs.showCues} />
           </div>
         </div>
