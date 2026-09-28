@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { signInErrorMessage, useAuth } from "@/lib/auth";
 import { releaseAllBlobUrls } from "@/lib/store/blob-url";
 import { setStoreOwner } from "@/lib/store/db";
@@ -22,6 +22,9 @@ export function AuthGate({ children }: { children: ReactNode }) {
     setStoreOwner(uid);
     setOwner(uid);
   }
+  // A session that ended without an explicit sign-out (expired, revoked) also forgets the account.
+  const signedOut = enabled && status === "signed-out";
+  useEffect(() => { if (signedOut) setStoreOwner(null); }, [signedOut]);
   if (!enabled || status === "signed-in") return <>{children}</>;
   if (status === "loading") {
     return <main className="standalone standalone--center"><Spinner label="Checking your sign-in" size={22} /></main>;

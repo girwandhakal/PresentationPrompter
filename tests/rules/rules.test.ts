@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { after, before, beforeEach, test } from "node:test";
 import { assertFails, assertSucceeds, initializeTestEnvironment, type RulesTestEnvironment } from "@firebase/rules-unit-testing";
-import { deleteDoc, doc, getDoc, getDocs, collection, serverTimestamp, setDoc } from "firebase/firestore";
+import { deleteDoc, doc, getDoc, getDocs, collection, orderBy, query, serverTimestamp, setDoc, Timestamp, where } from "firebase/firestore";
 import { deleteObject, getBytes, ref, uploadBytes } from "firebase/storage";
 
 /**
@@ -53,18 +53,20 @@ test("profiles can't be listed, deleted, or given extra or spoofed fields", asyn
   await assertFails(setDoc(doc(db, "users/alice"), { ...profile(), photoURL: "javascript:alert(1)" }));
 });
 
-const project = { json: JSON.stringify({ id: "p1", title: "Deck" }), updatedAt: 1 };
+const project = () => ({ json: JSON.stringify({ id: "p1", title: "Deck" }), updatedAt: 1, syncedAt: serverTimestamp() });
 
 test("projects, versions, and sessions belong to their owner only", async () => {
   const mine = alice().firestore();
   const theirs = bob().firestore();
-  await assertSucceeds(setDoc(doc(mine, "users/alice/projects/p1"), project));
+  await assertSucceeds(setDoc(doc(mine, "users/alice/projects/p1"), project()));
   await assertSucceeds(getDocs(collection(mine, "users/alice/projects")));
+  const changed = await assertSucceeds(getDocs(query(collection(mine, "users/alice/projects"), where("syncedAt", ">", Timestamp.fromMillis(0)), orderBy("syncedAt"))));
+  if (changed.size !== 1) throw new Error("the delta query should return the project written above");
   await assertSucceeds(setDoc(doc(mine, "users/alice/projects/p1/versions/v1"), { json: "{}", createdAt: 1 }));
   await assertSucceeds(setDoc(doc(mine, "users/alice/projects/p1/sessions/s1"), { json: "{}", createdAt: 1 }));
   await assertFails(getDoc(doc(theirs, "users/alice/projects/p1")));
   await assertFails(getDocs(collection(theirs, "users/alice/projects")));
-  await assertFails(setDoc(doc(theirs, "users/alice/projects/p1"), project));
+  await assertFails(setDoc(doc(theirs, "users/alice/projects/p1"), project()));
   await assertFails(deleteDoc(doc(theirs, "users/alice/projects/p1")));
   await assertFails(getDocs(collection(theirs, "users/alice/projects/p1/versions")));
   await assertFails(getDoc(doc(env.unauthenticatedContext().firestore(), "users/alice/projects/p1")));
@@ -72,11 +74,14 @@ test("projects, versions, and sessions belong to their owner only", async () => 
 
 test("project records are shape- and size-checked", async () => {
   const db = alice().firestore();
-  await assertSucceeds(setDoc(doc(db, "users/alice/projects/p1"), { deleted: true, updatedAt: 2 }));
-  await assertFails(setDoc(doc(db, "users/alice/projects/p1"), { ...project, deleted: true }));
-  await assertFails(setDoc(doc(db, "users/alice/projects/p1"), { ...project, owner: "bob" }));
-  await assertFails(setDoc(doc(db, "users/alice/projects/p1"), { json: "x".repeat(1_000_001), updatedAt: 1 }));
-  await assertFails(setDoc(doc(db, "users/alice/projects/p1"), { json: "{}", updatedAt: "yesterday" }));
+  await assertSucceeds(setDoc(doc(db, "users/alice/projects/p1"), { deleted: true, updatedAt: 2, syncedAt: serverTimestamp() }));
+  await assertFails(setDoc(doc(db, "users/alice/projects/p1"), { ...project(), deleted: true }));
+  await assertFails(setDoc(doc(db, "users/alice/projects/p1"), { ...project(), owner: "bob" }));
+  await assertFails(setDoc(doc(db, "users/alice/projects/p1"), { ...project(), json: "x".repeat(1_000_001) }));
+  await assertFails(setDoc(doc(db, "users/alice/projects/p1"), { ...project(), updatedAt: "yesterday" }));
+  // Delta sync depends on every write carrying the server's time, so it can't be omitted or backdated.
+  await assertFails(setDoc(doc(db, "users/alice/projects/p1"), { json: "{}", updatedAt: 1 }));
+  await assertFails(setDoc(doc(db, "users/alice/projects/p1"), { ...project(), syncedAt: new Date(0) }));
   await assertFails(setDoc(doc(db, "users/alice/projects/p1/notes/n1"), { json: "{}", createdAt: 1 }));
 });
 

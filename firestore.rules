@@ -16,6 +16,8 @@ rules_version = '2';
 //   - json: string (<= 1,000,000 chars) - the whole project record, or
 //   - deleted: true - a tombstone so other devices drop their copy
 //   - updatedAt: number (required) - ms since epoch; newest copy wins
+//   - syncedAt: timestamp (required) - serverTimestamp() of the write; devices fetch only the
+//     documents written since their last sync by querying on it
 //
 // Subcollections: users/{uid}/projects/{projectId}/versions/{id} and /sessions/{id}
 //   - json: string (<= 1,000,000 chars), createdAt: number (both required)
@@ -51,8 +53,9 @@ service cloud.firestore {
     }
 
     function isValidProject(data) {
-      return data.keys().hasOnly(['json', 'updatedAt', 'deleted'])
+      return data.keys().hasOnly(['json', 'updatedAt', 'deleted', 'syncedAt'])
         && data.updatedAt is number
+        && data.get('syncedAt', null) == request.time
         && ((data.keys().hasAll(['json']) && data.json is string && data.json.size() <= 1000000
               && !data.keys().hasAny(['deleted']))
             || (data.keys().hasAll(['deleted']) && data.deleted == true && !data.keys().hasAny(['json'])));

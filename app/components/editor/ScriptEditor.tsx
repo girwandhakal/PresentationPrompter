@@ -3,7 +3,7 @@
 import { ArrowLeft, ArrowRight, Check, ChevronDown, History, LoaderCircle, PanelRightClose, PanelRightOpen, Play, SlidersHorizontal, Sparkles, X } from "lucide-react";
 import { m } from "motion/react";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AiRequestError, documentFromWritten, rewriteScript, rewriteSelection, useAiStatus, type ScriptAction, type SelectionAction } from "@/lib/ai/client";
 import { documentToWordCount, type ScriptDocument } from "@/lib/domain/script";
 import { formatClock } from "@/lib/domain/format";
@@ -76,6 +76,8 @@ export function ScriptEditor({ project, initialSlideId }: { project: Project; in
   const timer = useRef<number | undefined>(undefined);
 
   const flush = useCallback(async () => {
+    // Typing reaches `commit` in batches; take whatever the surface is still holding first.
+    surface.current?.commitPending();
     window.clearTimeout(timer.current);
     if (!dirty.current) return;
     dirty.current = false;
@@ -102,6 +104,7 @@ export function ScriptEditor({ project, initialSlideId }: { project: Project; in
   useEffect(() => {
     const onHide = () => { if (document.visibilityState === "hidden") void flush(); };
     const onUnload = (event: BeforeUnloadEvent) => {
+      surface.current?.commitPending();
       if (!dirty.current) return;
       void flush();
       event.preventDefault();
@@ -120,12 +123,15 @@ export function ScriptEditor({ project, initialSlideId }: { project: Project; in
     commit(latest.current.map((slide) => slide.id === id ? patch(slide) : slide));
   }, [commit]);
 
+  const activeSlideId = active?.id;
   const patchScript = useCallback((values: Partial<SlideScript>) => {
-    if (!active) return;
-    patchSlide(active.id, (slide) => ({ ...slide, script: { ...slide.script, ...values, origin: slide.script.origin === "ai" ? "mixed" : slide.script.origin === "empty" ? "user" : slide.script.origin } }));
-  }, [active, patchSlide]);
+    if (!activeSlideId) return;
+    patchSlide(activeSlideId, (slide) => ({ ...slide, script: { ...slide.script, ...values, origin: slide.script.origin === "ai" ? "mixed" : slide.script.origin === "empty" ? "user" : slide.script.origin } }));
+  }, [activeSlideId, patchSlide]);
 
   const onDocument = useCallback((document: ScriptDocument) => patchScript({ document }), [patchScript]);
+  /** Every keystroke marks the page unsaved at once; the text itself arrives in batches. */
+  const onEdit = useCallback(() => setSaveState("saving"), []);
 
   /** Reloads the working copy from the store after changes made outside the editor (History restore). */
   const resync = useCallback(async () => {
@@ -141,6 +147,7 @@ export function ScriptEditor({ project, initialSlideId }: { project: Project; in
   // ── Navigation ──────────────────────────────────────────────────────────
   const select = useCallback((id: string) => {
     if (proposal || pending) return;
+    surface.current?.commitPending();
     setActiveId(id);
     const url = new URL(window.location.href);
     url.searchParams.set("slide", id);
@@ -194,10 +201,13 @@ export function ScriptEditor({ project, initialSlideId }: { project: Project; in
 
   async function onSelectionRewrite(action: SelectionAction, text: string, apply: (replacement: string) => void) {
     if (!active) return;
+    // The request carries the slide's paragraphs; include typing the surface hasn't reported yet.
+    surface.current?.commitPending();
     controller.current = new AbortController();
     setPending(SELECTION_LABELS[action]);
     try {
-      const result = await rewriteSelection({ ...working, slides: latest.current }, active, action, text, controller.current.signal);
+      const slide = latest.current.find((item) => item.id === active.id) ?? active;
+      const result = await rewriteSelection({ ...working, slides: latest.current }, slide, action, text, controller.current.signal);
       setProposal({ kind: "selection", label: SELECTION_LABELS[action], before: text, after: result.text, apply });
     } catch (error) {
       if (!controller.current?.signal.aborted) toast({ message: error instanceof AiRequestError ? error.message : "That rewrite didn't work. Try again.", tone: "error" });
@@ -271,28 +281,17 @@ export function ScriptEditor({ project, initialSlideId }: { project: Project; in
       <div className="editor__body" data-inspector={inspectorOpen}>
         <nav className="editor-rail" aria-label="Slides">
           <ol ref={rail} className="editor-rail__list">
-            {slides.map((slide, position) => {
-              return (
-                <li key={slide.id}>
-                  <button
-                    type="button"
-                    className="rail-item"
-                    aria-current={slide.id === active.id ? "step" : undefined}
-                    data-optional={slide.optional}
-                    onClick={() => select(slide.id)}
-                    disabled={locked && slide.id !== active.id}
-                  >
-                    {slide.id === active.id && <m.span layoutId="rail-current" className="rail-item__current" transition={GLIDE} aria-hidden="true" />}
-                    <span className="rail-item__number tabular">{position + 1}</span>
-                    <span className="rail-item__thumb"><SlideImage slide={slide} aspectRatio={project.aspectRatio} size="thumb" /></span>
-                    <span className="rail-item__text">
-                      <span className="rail-item__title">{slide.title}</span>
-                      {slide.optional && <span className="rail-item__meta">Optional</span>}
-                    </span>
-                  </button>
-                </li>
-              );
-            })}
+            {slides.map((slide, position) => (
+              <RailItem
+                key={slide.id}
+                slide={slide}
+                position={position}
+                current={slide.id === active.id}
+                disabled={locked && slide.id !== active.id}
+                aspectRatio={project.aspectRatio}
+                onSelect={select}
+              />
+            ))}
           </ol>
         </nav>
 
@@ -350,6 +349,7 @@ export function ScriptEditor({ project, initialSlideId }: { project: Project; in
                 ref={surface}
                 document={active.script.document}
                 onChange={onDocument}
+                onEdit={onEdit}
                 locked={locked}
                 aiEnabled={aiEnabled}
                 label={`Script for slide ${index + 1}`}
@@ -385,3 +385,37 @@ export function ScriptEditor({ project, initialSlideId }: { project: Project; in
     </div>
   );
 }
+
+/**
+ * One slide in the rail. Memoized: typing changes only the current slide's object, so the other
+ * rows skip rendering, and the highlight re-measures its layout only when it moves.
+ */
+const RailItem = memo(function RailItem({ slide, position, current, disabled, aspectRatio, onSelect }: {
+  slide: Slide;
+  position: number;
+  current: boolean;
+  disabled: boolean;
+  aspectRatio: number;
+  onSelect: (id: string) => void;
+}) {
+  return (
+    <li>
+      <button
+        type="button"
+        className="rail-item"
+        aria-current={current ? "step" : undefined}
+        data-optional={slide.optional}
+        onClick={() => onSelect(slide.id)}
+        disabled={disabled}
+      >
+        {current && <m.span layoutId="rail-current" layoutDependency={slide.id} className="rail-item__current" transition={GLIDE} aria-hidden="true" />}
+        <span className="rail-item__number tabular">{position + 1}</span>
+        <span className="rail-item__thumb"><SlideImage slide={slide} aspectRatio={aspectRatio} size="thumb" /></span>
+        <span className="rail-item__text">
+          <span className="rail-item__title">{slide.title}</span>
+          {slide.optional && <span className="rail-item__meta">Optional</span>}
+        </span>
+      </button>
+    </li>
+  );
+});

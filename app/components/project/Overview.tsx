@@ -88,7 +88,7 @@ export function Overview({ project }: { project: Project }) {
               <li key={item.id}>
                 <button type="button" className="filmstrip__item" aria-current={position === index ? "true" : undefined} onClick={() => setIndex(position)} aria-label={`Slide ${position + 1}: ${item.title}`}>
                   <SlideImage slide={item} aspectRatio={project.aspectRatio} size="thumb" />
-                  {position === index && <m.span layoutId="filmstrip-current" className="filmstrip__ring" transition={GLIDE} aria-hidden="true" />}
+                  {position === index && <m.span layoutId="filmstrip-current" layoutDependency={index} className="filmstrip__ring" transition={GLIDE} aria-hidden="true" />}
                   <span className="filmstrip__number tabular">{position + 1}</span>
                 </button>
               </li>

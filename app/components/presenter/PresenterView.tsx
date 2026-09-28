@@ -283,13 +283,21 @@ export function PresenterView({ project }: { project: Project }) {
     };
   }, [index, plan.slides, project.id, slideClock, slides, targetTotal, total]);
 
+  // Checkpoints protect the timing record in this browser; the account gets the session when it
+  // ends, or when the page is hidden (it may be closing) so an abandoned talk still reaches it.
   useEffect(() => {
     if (!live) return;
-    const timer = window.setInterval(() => {
+    const checkpoint = (sync: boolean) => {
       const snapshot = buildSession(false);
-      if (snapshot) void putSession(snapshot).catch(() => {});
-    }, 15_000);
-    return () => window.clearInterval(timer);
+      if (snapshot) void putSession(snapshot, { sync }).catch(() => {});
+    };
+    const timer = window.setInterval(() => checkpoint(false), 15_000);
+    const onHide = () => { if (document.visibilityState === "hidden") checkpoint(true); };
+    document.addEventListener("visibilitychange", onHide);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", onHide);
+    };
   }, [buildSession, live]);
 
   const finish = useCallback(async () => {
@@ -304,7 +312,8 @@ export function PresenterView({ project }: { project: Project }) {
     }
     try {
       await putSession(snapshot);
-      await update(project.id, (current) => ({ ...current, lastPresentedAt: Date.now() }), { touch: false });
+      // A newer updatedAt is what carries lastPresentedAt to other devices.
+      await update(project.id, (current) => ({ ...current, lastPresentedAt: Date.now() }));
     } catch {
       toast({ message: "The session couldn't be saved, but your script is safe.", tone: "error" });
     }

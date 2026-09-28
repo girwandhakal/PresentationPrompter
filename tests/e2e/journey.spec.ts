@@ -69,6 +69,9 @@ test("import, brief, generate, edit, present, and review a deck", async ({ page,
   await page.keyboard.press("b");
   await expect(audience.getByRole("img")).toHaveCount(0);
   await page.keyboard.press("b");
+  // The review lists sessions of at least a second (shorter ones round to zero and are hidden),
+  // and this run can otherwise finish in about half a second.
+  await page.waitForTimeout(1200);
   await page.keyboard.press("Escape");
   await page.getByRole("button", { name: "End and review" }).click();
   await page.waitForURL(new RegExp(`/p/${id}/review`));
@@ -82,6 +85,33 @@ test("import, brief, generate, edit, present, and review a deck", async ({ page,
   // The accepted "More conversational" rewrite (which opens with "So,") was saved.
   await expect(page.getByLabel("Script for slide 1").getByText(/^So, hello, everyone/).filter({ visible: true })).toBeVisible();
   await expect(page.getByLabel("Script for slide 1")).toContainText("One more line for the room.");
+});
+
+test("typing is kept when switching slides or leaving the editor right away", async ({ page }) => {
+  const id = await importSample(page);
+  await page.getByRole("button", { name: "Write my script" }).click();
+  await page.waitForURL(new RegExp(`/p/${id}/edit`));
+  const first = page.getByRole("textbox", { name: "Script for slide 1" });
+  await expect(first).toContainText("Hello, everyone.");
+
+  // Edits reach the page in batches; switching slides mid-batch must not drop or misplace them.
+  await first.click();
+  await page.keyboard.press("Control+End");
+  await page.keyboard.type(" Typed just before switching.");
+  await page.keyboard.press("Alt+ArrowDown");
+  const second = page.getByRole("textbox", { name: "Script for slide 2" });
+  await expect(second).toBeVisible();
+  await expect(second).not.toContainText("Typed just before switching.");
+  await second.click();
+  await page.keyboard.press("Control+End");
+  await page.keyboard.type(" Typed just before presenting.");
+  await page.getByRole("link", { name: "Present", exact: true }).click();
+  await page.waitForURL(new RegExp(`/p/${id}/present`));
+
+  await page.goto(`/p/${id}/edit`);
+  await expect(page.getByRole("textbox", { name: "Script for slide 1" })).toContainText("Typed just before switching.");
+  await page.keyboard.press("Alt+ArrowDown");
+  await expect(page.getByRole("textbox", { name: "Script for slide 2" })).toContainText("Typed just before presenting.");
 });
 
 test("PowerPoint files import with titles and speaker notes", async ({ page }) => {

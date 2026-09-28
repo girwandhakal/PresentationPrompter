@@ -156,7 +156,7 @@ export function Menu({ trigger, items, align = "start", label }: {
                         item.onSelect();
                       }}
                     >
-                      {active === index && <m.span layoutId="highlight" className="menu__highlight" transition={GLIDE} aria-hidden="true" />}
+                      {active === index && <m.span layoutId="highlight" layoutDependency={active} className="menu__highlight" transition={GLIDE} aria-hidden="true" />}
                       {item.icon && <span className="menu__icon" aria-hidden="true">{item.icon}</span>}
                       <span className="menu__text">{item.label}</span>
                       {item.hint && <span className="menu__hint">{item.hint}</span>}

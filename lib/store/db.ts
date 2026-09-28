@@ -1,4 +1,5 @@
 import { deleteDB, openDB, type DBSchema, type IDBPDatabase } from "idb";
+import { shortId } from "../domain/factory";
 import { withoutQaTime } from "../domain/planner";
 import type { PresenterSession, Project, ScriptVersion } from "../domain/types";
 import * as cloud from "./cloud";
@@ -16,23 +17,56 @@ interface CueframeDB extends DBSchema {
   blobs: { key: string; value: Blob };
   versions: { key: string; value: ScriptVersion; indexes: { projectId: string } };
   sessions: { key: string; value: PresenterSession; indexes: { projectId: string } };
+  /** Project writes and deletions not yet confirmed by the account copy; retried on the next sync. */
+  outbox: { key: string; value: OutboxEntry };
+  /** Sync bookkeeping, under the single key "sync". */
+  meta: { key: string; value: SyncMeta };
 }
+
+/** `rev` identifies one local write, so an older upload finishing never clears a newer entry. */
+type OutboxEntry = { id: string; rev: string; deleted?: Project };
+/** Where the last sync left off, and which projects the account copy is known to hold. */
+type SyncMeta = { cursor: cloud.SyncCursor | null; remote: string[] };
 
 /** Used when sign-in is off, and holds presentations saved before sign-in existed. */
 const SHARED_DB_NAME = "cueframe";
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 const MAX_VERSIONS_PER_PROJECT = 30;
 const STORES = ["projects", "blobs", "versions", "sessions"] as const;
 
 let owner: string | null = null;
 let dbPromise: Promise<IDBPDatabase<CueframeDB>> | null = null;
 
-/** Points every read and write at one account's database (null: the shared, signed-out one). */
+const OWNER_KEY = "cueframe:owner";
+
+/**
+ * Points every read and write at one account's database (null: the shared, signed-out one), and
+ * remembers the account for the audience window, which opens that database without signing in.
+ */
 export function setStoreOwner(uid: string | null) {
+  try {
+    if (uid) localStorage.setItem(OWNER_KEY, uid);
+    else localStorage.removeItem(OWNER_KEY);
+  } catch { /* storage blocked: the audience window then shows the shared database */ }
   if (uid === owner) return;
   owner = uid;
   void dbPromise?.then((database) => database.close()).catch(() => {});
   dbPromise = null;
+}
+
+/** Whether this browser has completed a cloud sync for the current account before. */
+export async function hasSyncedBefore() {
+  if (!mirror()) return true;
+  return Boolean(await (await db()).get("meta", "sync"));
+}
+
+/** The account the workspace in this browser last opened, until it signs out. */
+export function rememberedStoreOwner() {
+  try {
+    return localStorage.getItem(OWNER_KEY);
+  } catch {
+    return null;
+  }
 }
 
 /** The account whose cloud copy mirrors local writes, when sign-in is on. */
@@ -46,11 +80,17 @@ export function db() {
 
 function openStore(name: string) {
   return openDB<CueframeDB>(name, DB_VERSION, {
-    upgrade(database) {
-      database.createObjectStore("projects", { keyPath: "id" });
-      database.createObjectStore("blobs");
-      database.createObjectStore("versions", { keyPath: "id" }).createIndex("projectId", "projectId");
-      database.createObjectStore("sessions", { keyPath: "id" }).createIndex("projectId", "projectId");
+    upgrade(database, oldVersion) {
+      if (oldVersion < 1) {
+        database.createObjectStore("projects", { keyPath: "id" });
+        database.createObjectStore("blobs");
+        database.createObjectStore("versions", { keyPath: "id" }).createIndex("projectId", "projectId");
+        database.createObjectStore("sessions", { keyPath: "id" }).createIndex("projectId", "projectId");
+      }
+      if (oldVersion < 2) {
+        database.createObjectStore("outbox", { keyPath: "id" });
+        database.createObjectStore("meta");
+      }
     },
     blocking() {
       // Another tab is upgrading the schema; close so it can proceed, and reopen lazily.
@@ -139,17 +179,46 @@ export async function getProject(id: string) {
   return project && upgrade(project);
 }
 
-export async function putProject(project: Project) {
-  await (await db()).put("projects", project);
+/**
+ * Saves a project locally and, unless `sync` is false, mirrors it to the account. Transient states
+ * (a run in progress, its phase) stay local: another device can't act on them, and each would
+ * cost a write.
+ */
+export async function putProject(project: Project, { sync = true } = {}) {
+  const database = await db();
+  const uid = sync ? mirror() : null;
+  const rev = shortId(12);
+  if (uid) {
+    const tx = database.transaction(["projects", "outbox"], "readwrite");
+    await tx.objectStore("projects").put(project);
+    await tx.objectStore("outbox").put({ id: project.id, rev });
+    await tx.done;
+  } else {
+    await database.put("projects", project);
+  }
   notify({ type: "project", id: project.id });
-  const uid = mirror();
-  if (uid) cloud.saveProject(uid, project);
+  if (uid) cloud.saveProject(uid, project, () => void settleOutbox(database, project.id, rev));
+}
+
+/**
+ * Clears an outbox entry once the account copy has the write it recorded. Uses the database the
+ * entry was written to: after a sign-out db() would open (and create) the signed-out one instead.
+ */
+async function settleOutbox(database: IDBPDatabase<CueframeDB>, id: string, rev: string) {
+  try {
+    const tx = database.transaction("outbox", "readwrite");
+    if ((await tx.store.get(id))?.rev === rev) await tx.store.delete(id);
+    await tx.done;
+  } catch { /* the entry stays and is retried at the next sync */ }
 }
 
 export async function deleteProject(project: Project) {
   const database = await db();
-  const tx = database.transaction(["projects", "blobs", "versions", "sessions"], "readwrite");
+  const uid = mirror();
+  const rev = shortId(12);
+  const tx = database.transaction(["projects", "blobs", "versions", "sessions", "outbox"], "readwrite");
   await tx.objectStore("projects").delete(project.id);
+  if (uid) await tx.objectStore("outbox").put({ id: project.id, rev, deleted: project });
   for (const slide of project.slides) {
     await tx.objectStore("blobs").delete(slide.imageKey);
     await tx.objectStore("blobs").delete(slide.thumbKey);
@@ -158,8 +227,7 @@ export async function deleteProject(project: Project) {
   for (const key of await tx.objectStore("sessions").index("projectId").getAllKeys(project.id)) await tx.objectStore("sessions").delete(key);
   await tx.done;
   notify({ type: "project-deleted", id: project.id });
-  const uid = mirror();
-  if (uid) cloud.removeProject(uid, project);
+  if (uid) cloud.removeProject(uid, project, () => void settleOutbox(database, project.id, rev));
 }
 
 // ── Slide images ────────────────────────────────────────────────────────────
@@ -212,9 +280,10 @@ export async function listVersions(projectId: string) {
 
 // ── Presenter sessions ──────────────────────────────────────────────────────
 
-export async function putSession(session: PresenterSession) {
+/** Periodic checkpoints during a talk pass `sync: false`; the account gets the finished session. */
+export async function putSession(session: PresenterSession, { sync = true } = {}) {
   await (await db()).put("sessions", session);
-  const uid = mirror();
+  const uid = sync ? mirror() : null;
   if (uid) cloud.saveSession(uid, session);
 }
 
@@ -228,48 +297,76 @@ export async function listSessions(projectId: string) {
 
 // ── Account copy ────────────────────────────────────────────────────────────
 
+const newerCursor = (a: cloud.SyncCursor | null, b: cloud.SyncCursor | null) =>
+  !a ? b : !b ? a : a.seconds > b.seconds || (a.seconds === b.seconds && a.nanoseconds >= b.nanoseconds) ? a : b;
+
 /**
  * Reconciles this browser with the signed-in account's cloud copy: newer cloud projects (and their
  * versions and sessions) come down, projects deleted elsewhere are removed here, and local-only or
  * newer local projects go up. Slide images download lazily through getBlob. Returns whether local
  * data changed.
+ *
+ * After the first full listing, only project documents written since the last sync are read (a
+ * single read when nothing changed). Local writes that never reached the account, because the tab
+ * closed or the network dropped, wait in the outbox and are sent again here.
  */
 export async function syncWithCloud() {
   const uid = mirror();
   if (!uid) return false;
-  const remote = await cloud.listRemoteProjects(uid);
-  if (uid !== mirror()) return false; // Signed out or switched accounts meanwhile.
   const database = await db();
+  const meta = (await database.get("meta", "sync")) ?? { cursor: null, remote: [] };
+  const { projects: remote, cursor } = await cloud.listRemoteProjects(uid, meta.cursor);
+  if (uid !== mirror()) return false; // Signed out or switched accounts meanwhile.
   const local = new Map((await database.getAll("projects")).map((project) => [project.id, project]));
+  const outbox = new Map((await database.getAll("outbox")).map((entry) => [entry.id, entry]));
+  // A full listing is the whole truth; a delta only adds to what earlier syncs saw.
+  const known = new Set(meta.cursor ? meta.remote : []);
+  const upload = new Set<string>();
   let changed = false;
 
   for (const entry of remote) {
+    known.add(entry.id);
     const mine = local.get(entry.id);
-    local.delete(entry.id);
     if (entry.deleted) {
       if (!mine || mine.updatedAt > entry.updatedAt) continue;
-      const tx = database.transaction(["projects", "blobs", "versions", "sessions"], "readwrite");
+      const tx = database.transaction(["projects", "blobs", "versions", "sessions", "outbox"], "readwrite");
       await tx.objectStore("projects").delete(mine.id);
+      await tx.objectStore("outbox").delete(mine.id);
       for (const slide of mine.slides) for (const key of [slide.imageKey, slide.thumbKey]) if (key) await tx.objectStore("blobs").delete(key);
       for (const key of await tx.objectStore("versions").index("projectId").getAllKeys(mine.id)) await tx.objectStore("versions").delete(key);
       for (const key of await tx.objectStore("sessions").index("projectId").getAllKeys(mine.id)) await tx.objectStore("sessions").delete(key);
       await tx.done;
+      local.delete(mine.id);
+      outbox.delete(mine.id);
       changed = true;
     } else if (!mine || mine.updatedAt < entry.updatedAt) {
-      const { versions, sessions } = await cloud.listRemoteChildren(uid, entry.id);
-      const tx = database.transaction(["projects", "versions", "sessions"], "readwrite");
+      const localVersions = mine ? await database.getAllFromIndex("versions", "projectId", mine.id) : [];
+      const newestVersion = localVersions.length ? Math.max(...localVersions.map((version) => version.createdAt)) : null;
+      const { versions, sessions } = await cloud.listRemoteChildren(uid, entry.id, newestVersion);
+      const tx = database.transaction(["projects", "versions", "sessions", "outbox"], "readwrite");
       await tx.objectStore("projects").put(entry.project);
+      await tx.objectStore("outbox").delete(entry.id);
       for (const version of versions) await tx.objectStore("versions").put(version);
       for (const session of sessions) await tx.objectStore("sessions").put(session);
       await tx.done;
+      local.set(entry.id, entry.project);
+      outbox.delete(entry.id);
       changed = true;
     } else if (mine.updatedAt > entry.updatedAt) {
-      cloud.saveProject(uid, mine);
+      upload.add(mine.id);
     }
   }
 
-  // Whatever is left exists only in this browser: back it up with its images and history.
   for (const project of local.values()) {
+    // A write from this tab is already queued or on its way and settles its own outbox entry.
+    if (cloud.isProjectBusy(project.id)) continue;
+    const pending = outbox.get(project.id);
+    const settle = pending ? () => void settleOutbox(database, project.id, pending.rev) : undefined;
+    if (known.has(project.id)) {
+      if (pending || upload.has(project.id)) cloud.saveProject(uid, project, settle);
+      continue;
+    }
+    // The account has never had this project: back it up with its images and history.
     const blobs: [string, Blob][] = [];
     for (const slide of project.slides) {
       for (const key of [slide.imageKey, slide.thumbKey]) {
@@ -281,7 +378,19 @@ export async function syncWithCloud() {
       database.getAllFromIndex("versions", "projectId", project.id),
       database.getAllFromIndex("sessions", "projectId", project.id),
     ]);
-    cloud.backfillProject(uid, project, blobs, versions, sessions);
+    cloud.backfillProject(uid, project, blobs, versions, sessions, settle);
   }
+
+  for (const entry of outbox.values()) {
+    if (local.has(entry.id)) continue;
+    if (entry.deleted) cloud.removeProject(uid, entry.deleted, () => void settleOutbox(database, entry.id, entry.rev));
+    else await settleOutbox(database, entry.id, entry.rev); // The project is gone; nothing left to send.
+  }
+
+  // Another tab may have synced meanwhile; keep whichever cursor is further along.
+  const tx = database.transaction("meta", "readwrite");
+  const latest = meta.cursor ? (await tx.store.get("sync"))?.cursor ?? null : null;
+  await tx.store.put({ cursor: newerCursor(cursor, latest), remote: [...known] }, "sync");
+  await tx.done;
   return changed;
 }

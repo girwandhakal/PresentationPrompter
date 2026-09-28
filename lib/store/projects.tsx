@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { authEnabled } from "../firebase/config";
 import { stableContext } from "../stable-context";
 import { shortId } from "../domain/factory";
 import type { Project, ScriptVersion } from "../domain/types";
@@ -11,15 +12,28 @@ import { migrateLegacyStorage } from "./migrate";
 
 type Updater = (project: Project) => Project;
 
+/** How long a missing project waits on the first cloud sync before it is reported as missing. */
+const FIRST_SYNC_WAIT_MS = 8000;
+
 type ProjectsStore = {
   ready: boolean;
+  /**
+   * True until this page's first cloud sync settles (or FIRST_SYNC_WAIT_MS passes). On a new
+   * device the account's presentations arrive then, so "not found" must wait for it.
+   */
+  syncing: boolean;
+  /** `syncing`, on a device that has never synced this account (its library may be empty only so far). */
+  firstSync: boolean;
   loadError: string | null;
   saveError: string | null;
   projects: Project[];
   get: (id: string) => Project | undefined;
   create: (project: Project, blobs: [string, Blob][]) => Promise<void>;
-  /** Applies `updater` to the latest in-memory project and persists it. Resolves once written. */
-  update: (id: string, updater: Updater, options?: { touch?: boolean }) => Promise<Project | undefined>;
+  /**
+   * Applies `updater` to the latest in-memory project and persists it. Resolves once written.
+   * `touch: false` keeps `updatedAt`; `sync: false` saves only in this browser (transient state).
+   */
+  update: (id: string, updater: Updater, options?: { touch?: boolean; sync?: boolean }) => Promise<Project | undefined>;
   remove: (id: string) => Promise<void>;
   duplicate: (id: string) => Promise<Project | undefined>;
   saveVersion: (id: string, label: string) => Promise<void>;
@@ -38,6 +52,8 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
   const chains = useRef(new Map<string, Promise<void>>());
   const [projects, setProjects] = useState<Project[]>([]);
   const [ready, setReady] = useState(false);
+  const [syncing, setSyncing] = useState(authEnabled);
+  const [firstSync, setFirstSync] = useState(authEnabled);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
 
@@ -70,7 +86,12 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
       try { await migrateLegacyStorage(); } catch { /* migration is best effort */ }
       if (cancelled) return;
       await reload();
-      if (!cancelled) await syncCloud();
+      if (cancelled) return;
+      if (await store.hasSyncedBefore().catch(() => true)) setFirstSync(false);
+      await Promise.race([syncCloud(), new Promise((resolve) => setTimeout(resolve, FIRST_SYNC_WAIT_MS))]);
+      if (cancelled) return;
+      setSyncing(false);
+      setFirstSync(false);
     })();
     const online = () => void syncCloud();
     window.addEventListener("online", online);
@@ -95,13 +116,13 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
     commit();
   }), [commit, reload, syncCloud]);
 
-  const persist = useCallback((id: string) => {
+  const persist = useCallback((id: string, sync = true) => {
     const previous = chains.current.get(id) ?? Promise.resolve();
     const next = previous.then(async () => {
       const latest = records.current.get(id);
       if (!latest) return;
       try {
-        await store.putProject(latest);
+        await store.putProject(latest, { sync });
         setSaveError(null);
       } catch (error) {
         setSaveError(error instanceof DOMException && error.name === "QuotaExceededError"
@@ -123,7 +144,7 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
     await persist(project.id);
   }, [commit, persist]);
 
-  const update = useCallback(async (id: string, updater: Updater, { touch = true } = {}) => {
+  const update = useCallback(async (id: string, updater: Updater, { touch = true, sync = true } = {}) => {
     const current = records.current.get(id);
     if (!current) return undefined;
     const next = updater(current);
@@ -131,7 +152,7 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
     const saved = touch ? { ...next, updatedAt: Date.now() } : next;
     records.current.set(id, saved);
     commit();
-    await persist(id);
+    await persist(id, sync);
     return saved;
   }, [commit, persist]);
 
@@ -186,8 +207,8 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
   }, [saveVersion, update]);
 
   const value = useMemo<ProjectsStore>(() => ({
-    ready, loadError, saveError, projects, get, create, update, remove, duplicate, saveVersion, restoreVersion, reload,
-  }), [ready, loadError, saveError, projects, get, create, update, remove, duplicate, saveVersion, restoreVersion, reload]);
+    ready, syncing, firstSync, loadError, saveError, projects, get, create, update, remove, duplicate, saveVersion, restoreVersion, reload,
+  }), [ready, syncing, firstSync, loadError, saveError, projects, get, create, update, remove, duplicate, saveVersion, restoreVersion, reload]);
 
   return <ProjectsContext.Provider value={value}>{children}</ProjectsContext.Provider>;
 }

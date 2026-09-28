@@ -97,7 +97,8 @@ export function OrchestratorProvider({ children }: { children: ReactNode }) {
     const project = await latest(projectId);
     const pending = project.slides.filter((slide) => !slide.analysis);
     if (pending.length) {
-      await update(projectId, (current) => ({ ...current, analysis: { status: "running" } }), { touch: false });
+      // Progress and partial results stay in this browser; the finished analysis is synced below.
+      await update(projectId, (current) => ({ ...current, analysis: { status: "running" } }), { touch: false, sync: false });
       let failures = 0;
       let lastError: unknown = null;
       await runLimited(chunk(pending, ANALYZE_BATCH), CONCURRENCY, async (batch) => {
@@ -121,7 +122,7 @@ export function OrchestratorProvider({ children }: { children: ReactNode }) {
             ...current,
             analysis: { ...current.analysis, telemetry: [...(current.analysis.telemetry ?? []), ...(result.telemetry ? [result.telemetry] : [])] },
             slides: current.slides.map((slide) => byId.get(slide.id) ? { ...slide, analysis: byId.get(slide.id)! } : slide),
-          }), { touch: false });
+          }), { touch: false, sync: false });
         } catch (error) {
           if (signal.aborted) return;
           failures += 1;
@@ -132,7 +133,7 @@ export function OrchestratorProvider({ children }: { children: ReactNode }) {
       });
       if (signal.aborted) return;
       if (failures && failures === Math.ceil(pending.length / ANALYZE_BATCH)) {
-        await update(projectId, (current) => ({ ...current, analysis: { status: "failed", error: userMessage(lastError) } }), { touch: false });
+        await update(projectId, (current) => ({ ...current, analysis: { status: "failed", error: userMessage(lastError) } }), { touch: false, sync: false });
         return;
       }
     }
@@ -149,12 +150,15 @@ export function OrchestratorProvider({ children }: { children: ReactNode }) {
             kind: slide.analysis?.kind ?? "content",
           })),
         }, signal);
-        await update(projectId, (current) => ({ ...current, context: result.context, analysis: { ...current.analysis, telemetry: [...(current.analysis.telemetry ?? []), ...(result.telemetry ? [result.telemetry] : [])] } }), { touch: false });
+        await update(projectId, (current) => ({ ...current, context: result.context, analysis: { ...current.analysis, telemetry: [...(current.analysis.telemetry ?? []), ...(result.telemetry ? [result.telemetry] : [])] } }), { touch: false, sync: false });
       } catch {
         // Context is only used for suggestions and flavor; never block on it.
       }
     }
-    await update(projectId, (current) => ({ ...current, analysis: { ...current.analysis, status: "done" } }), { touch: false });
+    // On its own, a finished analysis is new content other devices should get (a newer updatedAt
+    // is what makes them fetch it). During generation, the finished draft carries it instead.
+    const standalone = !generating.current.has(projectId);
+    await update(projectId, (current) => ({ ...current, analysis: { ...current.analysis, status: "done" } }), { touch: standalone, sync: standalone });
   }, [latest, update]);
 
   const analyze = useCallback((projectId: string) => {
@@ -168,14 +172,14 @@ export function OrchestratorProvider({ children }: { children: ReactNode }) {
         await runAnalysis(projectId, controller.signal);
       } catch (error) {
         if (!controller.signal.aborted) {
-          await update(projectId, (current) => ({ ...current, analysis: { status: "failed", error: userMessage(error) } }), { touch: false });
+          await update(projectId, (current) => ({ ...current, analysis: { status: "failed", error: userMessage(error) } }), { touch: false, sync: false });
         }
       } finally {
         release();
       }
       // A cancelled run must not leave the setup page waiting on analysis that will never finish.
       if (controller.signal.aborted) {
-        await update(projectId, (current) => current.analysis.status === "running" ? { ...current, analysis: { status: "idle" } } : current, { touch: false });
+        await update(projectId, (current) => current.analysis.status === "running" ? { ...current, analysis: { status: "idle" } } : current, { touch: false, sync: false });
       }
     })()
       .finally(() => {
@@ -195,10 +199,11 @@ export function OrchestratorProvider({ children }: { children: ReactNode }) {
     const release = await holdLock(aiLockName("generate", projectId));
 
     try {
-      await update(projectId, (current) => ({ ...current, generation: { status: "running", phase: "analyzing", startedAt: Date.now() } }));
+      // Run states stay in this browser; the finished draft below is the synced write.
+      await update(projectId, (current) => ({ ...current, generation: { status: "running", phase: "analyzing", startedAt: Date.now() } }), { touch: false, sync: false });
       await analyze(projectId);
       if (signal.aborted) throw new DOMException("Aborted", "AbortError");
-      await update(projectId, (current) => ({ ...current, generation: { status: "running", phase: "writing", startedAt: current.generation.status === "running" ? current.generation.startedAt : Date.now() } }), { touch: false });
+      await update(projectId, (current) => ({ ...current, generation: { status: "running", phase: "writing", startedAt: current.generation.status === "running" ? current.generation.startedAt : Date.now() } }), { touch: false, sync: false });
 
       const project = await latest(projectId);
       const plan = planPresentation(project.brief, project.slides);
@@ -273,7 +278,7 @@ export function OrchestratorProvider({ children }: { children: ReactNode }) {
       await update(projectId, (current) => ({
         ...current,
         generation: signal.aborted ? { status: "idle" } : { status: "failed", error: userMessage(error), at: Date.now() },
-      }), { touch: false });
+      }), { touch: false, sync: false });
       if (!signal.aborted) throw error;
     } finally {
       release();
