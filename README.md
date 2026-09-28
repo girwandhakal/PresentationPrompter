@@ -113,7 +113,17 @@ The app is a standard Next.js build, intended for Vercel (see the product overvi
 2. Run `npm run check`, then deploy; Vercel runs `next build` itself.
 
 `next.config.ts` adds security headers to every response and a strict Content Security Policy to
-production builds. No database, bucket, or queue is required yet.
+production builds.
+
+Sign-in, cloud copies, and quotas use Firebase (`NEXT_PUBLIC_FIREBASE_*`, see `.env.example`):
+
+- Deploy `firestore.rules` and `storage.rules` with the Firebase CLI before a client that depends
+  on them.
+- Slide images are uploaded to Cloud Storage and downloaded on other devices. Browsers can only
+  download them after the bucket allows cross-origin reads, once per bucket (Cloud Shell has gcloud):
+  `gcloud storage buckets update gs://<project>.firebasestorage.app --cors-file=storage.cors.json`.
+  Without it, presentations opened on another browser show title cards instead of slide images.
+  Access is still limited to each file's owner by `storage.rules`.
 
 ## Supported files and limits
 
