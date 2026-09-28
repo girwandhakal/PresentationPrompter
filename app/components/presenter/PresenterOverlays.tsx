@@ -1,62 +1,12 @@
 "use client";
 
-import { MonitorUp } from "lucide-react";
 import type { ReactNode } from "react";
-import type { Project } from "@/lib/domain/types";
 import { DEFAULT_PRESENTER_PREFS, type PresenterPrefs } from "@/lib/prefs";
 import { Button } from "../ui/button";
-import { Callout, Kbd, Segmented, Slider, Switch } from "../ui/controls";
+import { Kbd, Segmented, Slider, Switch } from "../ui/controls";
 import { Dialog } from "../ui/dialog";
 
 export type AudienceStatus = "none" | "connected" | "lost" | "blocked";
-
-export function StartDialog({ open, project, audience, countdown, onStart, onStartWithoutAudience, onCancel, onClose }: {
-  open: boolean;
-  project: Project;
-  audience: AudienceStatus;
-  /** Seconds left before the teleprompter starts, or null while waiting for the presenter to begin. */
-  countdown: number | null;
-  onStart: () => void;
-  onStartWithoutAudience: () => void;
-  onCancel: () => void;
-  onClose: () => void;
-}) {
-  const counting = countdown !== null;
-  return (
-    <Dialog
-      open={open}
-      onClose={counting ? onCancel : onClose}
-      size="sm"
-      className="theme-dark dialog--start"
-      title={counting ? "Starting" : "Ready to present?"}
-      footer={counting
-        ? <Button variant="ghost" onClick={onCancel}>Cancel</Button>
-        : <>
-            {audience === "blocked" && <Button variant="ghost" onClick={onStartWithoutAudience}>Start without audience window</Button>}
-            <Button variant="accent" icon={audience === "connected" ? undefined : <MonitorUp />} onClick={onStart}>
-              {audience === "blocked" ? "Try again" : "Start presenting"}
-            </Button>
-          </>}
-    >
-      {counting ? (
-        <div className="start-dialog__count" role="status">
-          <span className="start-dialog__number tabular" key={countdown}>{countdown}</span>
-          <span className="start-dialog__label">Your script starts when this reaches zero.</span>
-        </div>
-      ) : (
-        <div className="start-dialog">
-          {audience === "connected"
-            ? <p className="start-dialog__ok">Audience window connected</p>
-            : <p className="start-dialog__note">Your audience window opens when you start. It shows only your slides.</p>}
-          {audience === "blocked" && (
-            <Callout tone="warn" title="Your browser blocked the window">Allow pop-ups for this site, then choose Try again.</Callout>
-          )}
-          <p className="start-dialog__note">In Zoom, Teams, or Meet, share the <strong>“Audience · {project.title}”</strong> window, not your whole screen. This tab is private.</p>
-        </div>
-      )}
-    </Dialog>
-  );
-}
 
 export function PresenterSettings({ open, prefs, onChange, onClose }: {
   open: boolean;

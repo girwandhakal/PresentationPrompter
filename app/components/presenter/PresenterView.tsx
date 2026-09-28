@@ -18,12 +18,9 @@ import { Dialog } from "../ui/dialog";
 import { Menu } from "../ui/menu";
 import { RollingText } from "../ui/motion";
 import { useToast } from "../ui/toast";
-import { PresenterSettings, ShortcutsDialog, StartDialog, type AudienceStatus } from "./PresenterOverlays";
+import { PresenterSettings, ShortcutsDialog, type AudienceStatus } from "./PresenterOverlays";
 import { Teleprompter, type TeleprompterHandle } from "./Teleprompter";
 
-type Phase = "ready" | "countdown" | "live";
-
-const START_COUNTDOWN_SECONDS = 3;
 type Overlay = null | "settings" | "shortcuts" | "end";
 
 /** Accumulating stopwatch that survives pauses. */
@@ -45,8 +42,6 @@ export function PresenterView({ project }: { project: Project }) {
   const { update } = useProjects();
   const [prefs, setPrefs] = usePref("presenter");
 
-  const [phase, setPhase] = useState<Phase>("ready");
-  const [startCount, setStartCount] = useState(START_COUNTDOWN_SECONDS);
   const [index, setIndex] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [blank, setBlank] = useState(false);
@@ -54,7 +49,7 @@ export function PresenterView({ project }: { project: Project }) {
   const [atEnd, setAtEnd] = useState(false);
   const [overlay, setOverlay] = useState<Overlay>(null);
   const [audience, setAudience] = useState<AudienceStatus>("none");
-  const [hint, setHint] = useState<string | null>(null);
+  const [hint, setHint] = useState<string | null>("Press Space to start scrolling");
   const [idle, setIdle] = useState(false);
   const [, setTick] = useState(0);
 
@@ -76,8 +71,7 @@ export function PresenterView({ project }: { project: Project }) {
   const targetTotal = plan.speakingSeconds;
   const targetSlide = plan.slides[index]?.seconds || 0;
 
-  const live = phase === "live";
-  const overlayOpen = overlay !== null || phase !== "live";
+  const overlayOpen = overlay !== null;
 
   // ── Audience window sync ────────────────────────────────────────────────
   const broadcast = useCallback((override: Partial<Pick<AudienceState, "ended" | "blank" | "index">> = {}) => {
@@ -156,25 +150,22 @@ export function PresenterView({ project }: { project: Project }) {
   const go = useCallback((target: number) => {
     const clamped = Math.max(0, Math.min(slides.length - 1, target));
     if (clamped === index) return;
-    if (live) {
-      recordSlide();
-      const nextId = slides[clamped].id;
-      const entry = slideTimes.current.get(nextId) ?? { ms: 0, visits: 0 };
-      slideTimes.current.set(nextId, { ...entry, visits: entry.visits + 1 });
-    }
+    recordSlide();
+    const nextId = slides[clamped].id;
+    const entry = slideTimes.current.get(nextId) ?? { ms: 0, visits: 0 };
+    slideTimes.current.set(nextId, { ...entry, visits: entry.visits + 1 });
     slideClock.reset();
-    if (live && total.running()) slideClock.start();
+    if (total.running()) slideClock.start();
     setIndex(clamped);
     setCountdown(null);
     setAtEnd(false);
-  }, [index, live, recordSlide, slideClock, slides, total]);
+  }, [index, recordSlide, slideClock, slides, total]);
 
   useEffect(() => {
     commandRef.current = (command) => go(index + (command === "next" ? 1 : -1));
   }, [go, index]);
 
   const toggleTimer = useCallback(() => {
-    if (!live) return;
     if (total.running()) {
       total.stop();
       slideClock.stop();
@@ -185,43 +176,30 @@ export function PresenterView({ project }: { project: Project }) {
       setHint(null);
     }
     setTick((value) => value + 1);
-  }, [live, slideClock, total]);
+  }, [slideClock, total]);
 
-  const begin = useCallback(() => {
+  // Presenting starts as soon as the page opens. The pop-up is allowed only with a recent user
+  // action, so when it is blocked the audience chip in the top bar is the way to retry.
+  const firstSlideId = slides[0]?.id;
+  useEffect(() => {
     session.current = { id: shortId(12), startedAt: Date.now() };
-    slideTimes.current = new Map([[slides[index].id, { ms: 0, visits: 1 }]]);
+    slideTimes.current = new Map(firstSlideId ? [[firstSlideId, { ms: 0, visits: 1 }]] : []);
     total.start();
     slideClock.start();
-    setPhase("live");
-    setHint("Press Space to start scrolling");
     broadcastRef.current();
-  }, [index, slideClock, slides, total]);
-
-  // The click that starts is the user action that lets the browser open the audience window.
-  const start = useCallback((withAudience = true) => {
-    if (withAudience && audience !== "connected" && !openAudience()) return;
-    setOverlay(null);
-    setStartCount(START_COUNTDOWN_SECONDS);
-    setPhase("countdown");
-    // The new window takes focus; take it back so the keyboard controls work when the script starts.
-    window.setTimeout(() => window.focus(), 400);
-  }, [audience, openAudience]);
-
-  useEffect(() => {
-    if (phase !== "countdown") return;
+    // Give an audience window that is already open a moment to announce itself before opening another.
     const timer = window.setTimeout(() => {
-      if (startCount <= 1) begin();
-      else setStartCount(startCount - 1);
-    }, 1000);
+      if (lastHeartbeat.current) return;
+      if (openAudience()) window.setTimeout(() => window.focus(), 400);
+    }, 350);
     return () => window.clearTimeout(timer);
-  }, [begin, phase, startCount]);
+  }, [firstSlideId, openAudience, slideClock, total]);
 
   // Display clock
   useEffect(() => {
-    if (!live) return;
     const timer = window.setInterval(() => setTick((value) => value + 1), 250);
     return () => window.clearInterval(timer);
-  }, [live]);
+  }, []);
 
   // Auto-advance countdown
   useEffect(() => {
@@ -239,14 +217,14 @@ export function PresenterView({ project }: { project: Project }) {
 
   const onScriptEnd = useCallback(() => {
     setAtEnd(true);
-    if (!live || !playing) return;
+    if (!playing) return;
     if (index === slides.length - 1) {
       setPlaying(false);
       return;
     }
     // Guard against a short or empty script advancing before the presenter has spoken.
     if (prefs.autoAdvance && slideClock.ms() > 3000) setCountdown(prefs.advanceDelay);
-  }, [index, live, playing, prefs.advanceDelay, prefs.autoAdvance, slideClock, slides.length]);
+  }, [index, playing, prefs.advanceDelay, prefs.autoAdvance, slideClock, slides.length]);
 
   const onManualScroll = useCallback(() => {
     if (playing) {
@@ -257,7 +235,6 @@ export function PresenterView({ project }: { project: Project }) {
   }, [playing]);
 
   const togglePlay = useCallback(() => {
-    if (!live) return;
     setCountdown(null);
     setHint(null);
     if (!total.running()) {
@@ -265,7 +242,7 @@ export function PresenterView({ project }: { project: Project }) {
       slideClock.start();
     }
     setPlaying((value) => !value);
-  }, [live, slideClock, total]);
+  }, [slideClock, total]);
 
   // ── Session persistence ─────────────────────────────────────────────────
   const buildSession = useCallback((completed: boolean): PresenterSession | null => {
@@ -297,7 +274,6 @@ export function PresenterView({ project }: { project: Project }) {
   // Checkpoints protect the timing record in this browser; the account gets the session when it
   // ends, or when the page is hidden (it may be closing) so an abandoned talk still reaches it.
   useEffect(() => {
-    if (!live) return;
     const checkpoint = (sync: boolean) => {
       const snapshot = buildSession(false);
       if (snapshot) void putSession(snapshot, { sync }).catch(() => {});
@@ -309,7 +285,7 @@ export function PresenterView({ project }: { project: Project }) {
       window.clearInterval(timer);
       document.removeEventListener("visibilitychange", onHide);
     };
-  }, [buildSession, live]);
+  }, [buildSession]);
 
   const finish = useCallback(async () => {
     if (ended.current) return;
@@ -331,14 +307,11 @@ export function PresenterView({ project }: { project: Project }) {
     router.push(`/p/${project.id}/review?session=${snapshot.id}`);
   }, [buildSession, project.id, router, toast, update]);
 
-  const exit = useCallback(() => {
-    if (live) setOverlay("end");
-    else router.push(`/p/${project.id}`);
-  }, [live, project.id, router]);
+  const exit = useCallback(() => setOverlay("end"), []);
 
   // Keep the screen awake while presenting.
   useEffect(() => {
-    if (!live || !("wakeLock" in navigator)) return;
+    if (!("wakeLock" in navigator)) return;
     let lock: WakeLockSentinel | null = null;
     let cancelled = false;
     const acquire = () => navigator.wakeLock.request("screen").then((sentinel) => {
@@ -353,14 +326,13 @@ export function PresenterView({ project }: { project: Project }) {
       document.removeEventListener("visibilitychange", onVisible);
       void lock?.release();
     };
-  }, [live]);
+  }, []);
 
   useEffect(() => {
-    if (!live) return;
     const warn = (event: BeforeUnloadEvent) => { if (!ended.current) event.preventDefault(); };
     window.addEventListener("beforeunload", warn);
     return () => window.removeEventListener("beforeunload", warn);
-  }, [live]);
+  }, []);
 
   // Dim the controls while scrolling and the pointer is still.
   useEffect(() => {
@@ -431,12 +403,12 @@ export function PresenterView({ project }: { project: Project }) {
   const elapsed = Math.round(total.ms() / 1000);
   const remaining = targetTotal - elapsed;
   const slideElapsed = Math.round(slideClock.ms() / 1000);
-  const timerPaused = live && !total.running();
+  const timerPaused = !total.running();
 
   return (
-    <div className="presenter theme-dark" data-idle={idle && playing} data-phase={phase}>
+    <div className="presenter theme-dark" data-idle={idle && playing}>
       <header className="presenter__bar">
-        <IconButton label={live ? "End presentation" : "Close presenter"} onClick={exit} tooltip="bottom"><X /></IconButton>
+        <IconButton label="End presentation" onClick={exit} tooltip="bottom"><X /></IconButton>
         <Menu
           label="Jump to slide"
           items={slides.map((item, position) => ({ label: `${position + 1}. ${item.title}`, onSelect: () => go(position), hint: item.optional ? "Optional" : undefined }))}
@@ -448,7 +420,7 @@ export function PresenterView({ project }: { project: Project }) {
           )}
         />
         <div className="presenter__spacer" />
-        <button type="button" className="presenter__timer tabular" onClick={toggleTimer} disabled={!live} aria-label={`Elapsed ${formatClock(elapsed)} of ${formatClock(targetTotal)}. ${timerPaused ? "Resume" : "Pause"} timer`}>
+        <button type="button" className="presenter__timer tabular" onClick={toggleTimer} aria-label={`Elapsed ${formatClock(elapsed)} of ${formatClock(targetTotal)}. ${timerPaused ? "Resume" : "Pause"} timer`}>
           <span className="presenter__elapsed"><RollingText value={formatClock(elapsed)} /></span>
           <span className="presenter__remaining">{remaining >= 0 ? `${formatClock(remaining)} left` : `${formatClock(-remaining)} over`}</span>
           {timerPaused && <span className="presenter__paused">Paused</span>}
@@ -469,7 +441,7 @@ export function PresenterView({ project }: { project: Project }) {
             script={slide.script}
             slideKey={slide.id}
             prefs={prefs}
-            playing={playing && live && overlay === null}
+            playing={playing && overlay === null}
             wpm={project.brief.wpm}
             targetSeconds={targetSlide}
             onEnd={onScriptEnd}
@@ -481,7 +453,7 @@ export function PresenterView({ project }: { project: Project }) {
               <Button size="sm" variant="secondary" onClick={() => setCountdown(null)}>Stay here <Kbd>Esc</Kbd></Button>
             </div>
           )}
-          {atEnd && index === slides.length - 1 && live && (
+          {atEnd && index === slides.length - 1 && (
             <div className="presenter__countdown" role="status">
               <span>That&apos;s the end of your script.</span>
               <Button size="sm" variant="accent" onClick={() => void finish()}>End and review</Button>
@@ -515,7 +487,7 @@ export function PresenterView({ project }: { project: Project }) {
       <footer className="presenter__controls">
         <div className="presenter__controls-group">
           <Button variant="ghost" icon={<ArrowLeft />} onClick={() => go(index - 1)} disabled={index === 0} aria-keyshortcuts="ArrowLeft PageUp">Previous</Button>
-          <button type="button" className="play-button" onClick={togglePlay} disabled={!live} aria-label={playing ? "Pause scrolling" : "Start scrolling"} aria-keyshortcuts="Space">
+          <button type="button" className="play-button" onClick={togglePlay} aria-label={playing ? "Pause scrolling" : "Start scrolling"} aria-keyshortcuts="Space">
             {playing ? <Pause aria-hidden="true" /> : <Play aria-hidden="true" />}
           </button>
           <Button variant="ghost" trailing={<ArrowRight />} onClick={() => go(index + 1)} disabled={index === slides.length - 1} aria-keyshortcuts="ArrowRight PageDown">Next</Button>
@@ -536,16 +508,6 @@ export function PresenterView({ project }: { project: Project }) {
         {slides.map((item, position) => <span key={item.id} data-state={position < index ? "done" : position === index ? "current" : "todo"} />)}
       </div>
 
-      <StartDialog
-        open={phase !== "live"}
-        project={project}
-        audience={audience}
-        countdown={phase === "countdown" ? startCount : null}
-        onStart={() => start()}
-        onStartWithoutAudience={() => start(false)}
-        onCancel={() => setPhase("ready")}
-        onClose={() => router.push(`/p/${project.id}`)}
-      />
       <PresenterSettings open={overlay === "settings"} prefs={prefs} onChange={setPrefs} onClose={() => setOverlay(null)} />
       <ShortcutsDialog open={overlay === "shortcuts"} onClose={() => setOverlay(null)} />
       <Dialog
