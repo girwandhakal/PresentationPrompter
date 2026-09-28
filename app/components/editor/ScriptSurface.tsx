@@ -37,7 +37,12 @@ import { IconButton } from "../ui/button";
 
 export type ScriptSurfaceHandle = {
   insertCue: (label?: string) => void;
+  /** Reports any typing not yet passed to `onChange`; call before reading or saving the document. */
+  commitPending: () => void;
 };
+
+/** Typing reaches `onChange` at most this often, rather than re-rendering the editor per keystroke. */
+const COMMIT_MS = 250;
 
 export const CUE_PRESETS = [
   { label: "Pause", icon: Pause },
@@ -53,6 +58,8 @@ const SELECTION_ACTIONS: { action: SelectionAction; label: string }[] = [
 type Props = {
   document: ScriptDocument;
   onChange: (document: ScriptDocument) => void;
+  /** Called on every edit, before the (batched) `onChange`; keep it cheap. */
+  onEdit?: () => void;
   locked: boolean;
   aiEnabled: boolean;
   onSelectionRewrite: (action: SelectionAction, text: string, apply: (replacement: string) => void) => void;
@@ -65,7 +72,7 @@ type Props = {
  * The teleprompter script editor. Cues are atomic private nodes on their own line; formatting is
  * limited to what renders in Presenter (bold, italic, slow). Remount with a new `key` to load new content.
  */
-export const ScriptSurface = forwardRef<ScriptSurfaceHandle, Props>(function ScriptSurface({ document, onChange, locked, aiEnabled, onSelectionRewrite, toolbarEnd, label, autoFocus }, ref) {
+export const ScriptSurface = forwardRef<ScriptSurfaceHandle, Props>(function ScriptSurface({ document, onChange, onEdit, locked, aiEnabled, onSelectionRewrite, toolbarEnd, label, autoFocus }, ref) {
   const config = useMemo(() => ({
     namespace: "CueframeScript",
     nodes: [ScriptParagraphNode, CueNode, PARAGRAPH_REPLACEMENT],
@@ -73,6 +80,7 @@ export const ScriptSurface = forwardRef<ScriptSurfaceHandle, Props>(function Scr
     onError: (error: Error) => { throw error; },
   }), []);
   const surfaceRef = useRef<HTMLDivElement>(null);
+  const commitRef = useRef<() => void>(() => {});
 
   return (
     <LexicalComposer initialConfig={config}>
@@ -88,11 +96,11 @@ export const ScriptSurface = forwardRef<ScriptSurfaceHandle, Props>(function Scr
       </div>
       <HistoryPlugin />
       {autoFocus && <AutoFocusPlugin defaultSelection="rootEnd" />}
-      <DocumentPlugin document={document} onChange={onChange} />
+      <DocumentPlugin document={document} onChange={onChange} onEdit={onEdit} commitRef={commitRef} />
       <EditablePlugin editable={!locked} />
       <KeyboardPlugin />
       <ClipboardPlugin />
-      <HandlePlugin ref={ref} />
+      <HandlePlugin ref={ref} commitRef={commitRef} />
     </LexicalComposer>
   );
 });
@@ -178,7 +186,10 @@ function Toolbar({ end }: { end?: ReactNode }) {
   useEffect(() => editor.registerUpdateListener(({ editorState }) => {
     editorState.read(() => {
       const selection = $getSelection();
-      if ($isRangeSelection(selection)) setFormats({ bold: selection.hasFormat("bold"), italic: selection.hasFormat("italic"), slow: selection.hasFormat(SLOW_FORMAT) });
+      if (!$isRangeSelection(selection)) return;
+      const next = { bold: selection.hasFormat("bold"), italic: selection.hasFormat("italic"), slow: selection.hasFormat(SLOW_FORMAT) };
+      // Keep the same object when nothing changed, so typing doesn't re-render the toolbar per key.
+      setFormats((current) => current.bold === next.bold && current.italic === next.italic && current.slow === next.slow ? current : next);
     });
   }), [editor]);
 
@@ -209,20 +220,47 @@ function Toolbar({ end }: { end?: ReactNode }) {
   );
 }
 
-function DocumentPlugin({ document, onChange }: { document: ScriptDocument; onChange: (document: ScriptDocument) => void }) {
+/**
+ * Loads the document and reports edits. Serializing and handing the whole document up on every
+ * keystroke re-rendered the entire editor page per key, so edits are batched: `onEdit` fires at
+ * once, `onChange` at most every COMMIT_MS, and `commitRef` flushes on demand and on unmount.
+ */
+function DocumentPlugin({ document, onChange, onEdit, commitRef }: {
+  document: ScriptDocument;
+  onChange: (document: ScriptDocument) => void;
+  onEdit?: () => void;
+  commitRef: RefObject<() => void>;
+}) {
   const [editor] = useLexicalComposerContext();
   const initial = useRef(document);
-  const onChangeRef = useRef(onChange);
-  useEffect(() => { onChangeRef.current = onChange; }, [onChange]);
+  const callbacks = useRef({ onChange, onEdit });
+  useEffect(() => { callbacks.current = { onChange, onEdit }; }, [onChange, onEdit]);
 
   useEffect(() => {
     loadScriptDocument(editor, initial.current);
+    let timer: number | undefined;
+    let pending = false;
+    const commit = () => {
+      window.clearTimeout(timer);
+      timer = undefined;
+      if (!pending) return;
+      pending = false;
+      callbacks.current.onChange(documentFromLexicalState(editor.getEditorState()));
+    };
+    commitRef.current = commit;
     // Loading is tagged, and selection-only updates dirty no nodes, so anything else is an edit.
-    return editor.registerUpdateListener(({ editorState, dirtyElements, dirtyLeaves, tags }) => {
+    const unregister = editor.registerUpdateListener(({ dirtyElements, dirtyLeaves, tags }) => {
       if (tags.has("script-hydrate") || (!dirtyElements.size && !dirtyLeaves.size)) return;
-      onChangeRef.current(documentFromLexicalState(editorState as EditorState));
+      pending = true;
+      callbacks.current.onEdit?.();
+      timer ??= window.setTimeout(commit, COMMIT_MS);
     });
-  }, [editor]);
+    return () => {
+      unregister();
+      commit();
+      commitRef.current = () => {};
+    };
+  }, [commitRef, editor]);
   return null;
 }
 
@@ -319,9 +357,12 @@ function KeyboardPlugin() {
   return null;
 }
 
-const HandlePlugin = forwardRef<ScriptSurfaceHandle>(function HandlePlugin(_, ref) {
+const HandlePlugin = forwardRef<ScriptSurfaceHandle, { commitRef: RefObject<() => void> }>(function HandlePlugin({ commitRef }, ref) {
   const [editor] = useLexicalComposerContext();
-  useImperativeHandle(ref, () => ({ insertCue: (label?: string) => insertCue(editor, label) }), [editor]);
+  useImperativeHandle(ref, () => ({
+    insertCue: (label?: string) => insertCue(editor, label),
+    commitPending: () => commitRef.current(),
+  }), [commitRef, editor]);
   return null;
 });
 

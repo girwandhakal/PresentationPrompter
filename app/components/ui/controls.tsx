@@ -39,7 +39,7 @@ export function Segmented<T extends string>({ value, onChange, options, label, s
             className="segmented__option"
             onClick={() => onChange(option.value)}
           >
-            {option.value === value && <m.span layoutId="puck" className="segmented__puck" transition={GLIDE} aria-hidden="true" />}
+            {option.value === value && <m.span layoutId="puck" layoutDependency={value} className="segmented__puck" transition={GLIDE} aria-hidden="true" />}
             <span className="segmented__label">{option.label}</span>
           </button>
         ))}
@@ -138,7 +138,7 @@ export function Tabs<T extends string>({ value, onChange, tabs, label, idPrefix 
           >
             {tab.label}
             {tab.badge != null && <span className="tabs__badge">{tab.badge}</span>}
-            {tab.value === value && <m.span layoutId="underline" className="tabs__indicator" transition={GLIDE} aria-hidden="true" />}
+            {tab.value === value && <m.span layoutId="underline" layoutDependency={value} className="tabs__indicator" transition={GLIDE} aria-hidden="true" />}
           </button>
         ))}
       </LayoutGroup>

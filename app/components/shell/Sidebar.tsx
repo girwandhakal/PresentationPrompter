@@ -141,7 +141,7 @@ export function Sidebar({ collapsed, onToggleCollapsed, mobileOpen, onCloseMobil
                       }));
                     }}
                   >
-                    {project.id === activeId && <m.span layoutId="active" className="sidebar__active" transition={GLIDE} aria-hidden="true" />}
+                    {project.id === activeId && <m.span layoutId="active" layoutDependency={activeId} className="sidebar__active" transition={GLIDE} aria-hidden="true" />}
                     <Link
                       href={projectHref(project)}
                       className="sidebar__link"

@@ -84,6 +84,33 @@ test("import, brief, generate, edit, present, and review a deck", async ({ page,
   await expect(page.getByLabel("Script for slide 1")).toContainText("One more line for the room.");
 });
 
+test("typing is kept when switching slides or leaving the editor right away", async ({ page }) => {
+  const id = await importSample(page);
+  await page.getByRole("button", { name: "Write my script" }).click();
+  await page.waitForURL(new RegExp(`/p/${id}/edit`));
+  const first = page.getByRole("textbox", { name: "Script for slide 1" });
+  await expect(first).toContainText("Hello, everyone.");
+
+  // Edits reach the page in batches; switching slides mid-batch must not drop or misplace them.
+  await first.click();
+  await page.keyboard.press("Control+End");
+  await page.keyboard.type(" Typed just before switching.");
+  await page.keyboard.press("Alt+ArrowDown");
+  const second = page.getByRole("textbox", { name: "Script for slide 2" });
+  await expect(second).toBeVisible();
+  await expect(second).not.toContainText("Typed just before switching.");
+  await second.click();
+  await page.keyboard.press("Control+End");
+  await page.keyboard.type(" Typed just before presenting.");
+  await page.getByRole("link", { name: "Present", exact: true }).click();
+  await page.waitForURL(new RegExp(`/p/${id}/present`));
+
+  await page.goto(`/p/${id}/edit`);
+  await expect(page.getByRole("textbox", { name: "Script for slide 1" })).toContainText("Typed just before switching.");
+  await page.keyboard.press("Alt+ArrowDown");
+  await expect(page.getByRole("textbox", { name: "Script for slide 2" })).toContainText("Typed just before presenting.");
+});
+
 test("PowerPoint files import with titles and speaker notes", async ({ page }) => {
   const zip = new JSZip();
   zip.file("ppt/presentation.xml", `<?xml version="1.0"?><p:presentation xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><p:sldIdLst><p:sldId id="256" r:id="rId2"/><p:sldId id="257" r:id="rId3"/><p:sldId id="258" r:id="rId4"/></p:sldIdLst><p:sldSz cx="12192000" cy="6858000"/></p:presentation>`);

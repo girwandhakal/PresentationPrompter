@@ -192,7 +192,7 @@ export function ChoiceCards<T extends string>({ value, onChange, options, label,
               style={{ "--i": index } as React.CSSProperties}
               onClick={() => onChange(option.value)}
             >
-              {checked && <m.span layoutId="ring" className="choice-card__ring" transition={GLIDE} aria-hidden="true" />}
+              {checked && <m.span layoutId="ring" layoutDependency={option.value} className="choice-card__ring" transition={GLIDE} aria-hidden="true" />}
               {option.visual && <span className="choice-card__visual" aria-hidden="true">{option.visual}</span>}
               <span className="choice-card__head">
                 {option.icon && <span className="choice-card__icon" aria-hidden="true">{option.icon}</span>}
