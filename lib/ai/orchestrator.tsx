@@ -7,12 +7,12 @@ import type { DeckContext, Project, Slide, SlideAnalysis } from "../domain/types
 import { useProjects } from "../store/projects";
 import { aiFetch, AiRequestError, analysisInput, briefInput, contextInput, scriptFromWritten, slideImageForAi } from "./client";
 import { aiLockName } from "./lock";
-import type { DeliveredSlide, WrittenSlideOutput, GenerationTelemetry, QualityIssue } from "./schemas";
+import type { WrittenSlideOutput, GenerationTelemetry, QualityIssue } from "./schemas";
 
 /**
  * Runs the AI pipeline for a project from the browser, one bounded request at a time:
  *
- *   analyze (vision + text, batched)  →  deck context  →  plan (local)  →  outline  →  write (batched)  →  deliver
+ *   analyze (vision + text, batched)  →  deck context  →  plan (local)  →  outline  →  write (batched)
  *
  * Analysis starts as soon as slides are imported so the setup form can show suggestions. Generation
  * is deliberately quiet: the project shows one calm "writing" state, and the finished draft is
@@ -211,7 +211,6 @@ export function OrchestratorProvider({ children }: { children: ReactNode }) {
 
       const telemetry: GenerationTelemetry[] = [...(project.analysis.telemetry ?? [])];
       const warnings: { id: string; issues: QualityIssue[] }[] = [];
-      const deliveryModes = new Map<string, "ai" | "fallback" | "none">(project.slides.map((slide) => [slide.id, brief.cueDensity === "none" ? "none" : "fallback"]));
       const outline = await aiFetch<{ telemetry?: GenerationTelemetry; arc: string; voice: string; slides: { id: string; role: string; keyIdea: string; transition: string }[] }>("outline", {
         brief,
         context,
@@ -251,31 +250,6 @@ export function OrchestratorProvider({ children }: { children: ReactNode }) {
       const missing = project.slides.filter((slide) => !written.has(slide.id));
       if (missing.length) throw new AiRequestError(`The AI didn't return a script for ${missing.length === 1 ? "one slide" : `${missing.length} slides`}. Try again.`, 502, "incomplete");
 
-      // Pauses, bold and slow are marked once the whole deck's prose is final. If this pass fails,
-      // each slide keeps the rule-based marks the write step already placed.
-      if (brief.cueDensity !== "none") {
-        try {
-          const delivered = await aiFetch<{ slides: DeliveredSlide[]; telemetry?: GenerationTelemetry }>("deliver", {
-            density: brief.cueDensity,
-            slides: project.slides.map((slide) => ({
-              id: slide.id,
-              title: slide.title.slice(0, 300),
-              kind: slide.analysis?.kind ?? "content",
-              keyIdea: (planned.get(slide.id)?.keyIdea || slide.analysis?.mainPoint || "").slice(0, 600),
-              paragraphs: written.get(slide.id)!.paragraphs,
-            })),
-          }, signal);
-          if (delivered.telemetry) telemetry.push(delivered.telemetry);
-          for (const entry of delivered.slides) {
-            deliveryModes.set(entry.id, entry.deliveryMode ?? "fallback");
-            const script = written.get(entry.id);
-            if (script) written.set(entry.id, { ...script, cues: entry.cues, marks: entry.marks });
-          }
-        } catch (error) {
-          if (signal.aborted) throw error;
-        }
-      }
-
       // Keep what was there before, so regenerating is always reversible.
       const before = await latest(projectId);
       if (sourceFingerprint(before) !== sourceFingerprint(project)) throw new AiRequestError("The presentation changed while writing. Generate again to use your latest edits.", 409, "changed");
@@ -290,7 +264,7 @@ export function OrchestratorProvider({ children }: { children: ReactNode }) {
         status: "ready",
         generation: { status: "idle" },
         generatedWith: { minutes: brief.minutes, qaMinutes: brief.qaMinutes, wpm: brief.wpm, depth: brief.depth },
-        generationQuality: { reviewedAt: Date.now(), telemetry, warnings, delivery: [...deliveryModes].map(([id, mode]) => ({ id, mode })) },
+        generationQuality: { reviewedAt: Date.now(), telemetry, warnings },
         slides: current.slides.map((slide) => written.has(slide.id) ? { ...slide, script: scriptFromWritten(written.get(slide.id)!) } : slide),
         };
       });

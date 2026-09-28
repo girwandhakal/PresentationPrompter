@@ -1,5 +1,4 @@
 import { z } from "zod";
-import { CUE_TYPES } from "../domain/cues";
 
 /**
  * Contracts between the browser orchestrator and the AI gateway routes.
@@ -25,7 +24,6 @@ export const BriefInput = z.object({
   wpm: z.number().min(80).max(220),
   style: z.enum(["conversational", "measured", "concise", "energetic", "technical", "executive"]),
   depth: z.enum(["full", "notes", "cues"]),
-  cueDensity: z.enum(["none", "light", "detailed"]),
   includeQuestions: z.boolean(),
 });
 export type BriefInput = z.infer<typeof BriefInput>;
@@ -150,26 +148,10 @@ export const WriteRequest = z.object({
 });
 export type WriteRequest = z.infer<typeof WriteRequest>;
 
-export const CueOutput = z.object({
-  paragraph: z.number(),
-  afterSentence: z.number(),
-  type: z.enum(CUE_TYPES),
-  text: z.string(),
-});
-
-export const MarkOutput = z.object({
-  paragraph: z.number(),
-  sentence: z.number(),
-  text: z.string(),
-  mark: z.enum(["bold", "slow"]),
-});
-
 export const WrittenSlideOutput = z.object({
   id: z.string(),
   purpose: z.string(),
   paragraphs: z.array(z.string()),
-  cues: z.array(CueOutput),
-  marks: z.array(MarkOutput),
   concise: z.string(),
   keywords: z.array(z.string()),
   recovery: z.string(),
@@ -177,10 +159,7 @@ export const WrittenSlideOutput = z.object({
   questions: z.array(z.object({ question: z.string(), answer: z.string() })),
 });
 export type WrittenSlideOutput = z.infer<typeof WrittenSlideOutput>;
-/** What the model writes. Cues and marks are placed afterwards by code (lib/domain/cues.ts), never by the model. */
-export const WrittenSlideDraft = WrittenSlideOutput.omit({ cues: true, marks: true });
-export type WrittenSlideDraft = z.infer<typeof WrittenSlideDraft>;
-export const WriteOutput = z.object({ slides: z.array(WrittenSlideDraft) });
+export const WriteOutput = z.object({ slides: z.array(WrittenSlideOutput) });
 export type WriteOutput = z.infer<typeof WriteOutput>;
 
 export const QualityIssue = z.object({
@@ -194,51 +173,6 @@ export type QualityIssue = z.infer<typeof QualityIssue>;
 
 export type ModelCall = { stage: string; model: string; promptHash: string; effort: string; milliseconds: number; inputTokens: number; outputTokens: number; reasoningTokens: number; cachedTokens: number; status: string; requestId: string };
 export type GenerationTelemetry = { promptVersion: string; calls: ModelCall[] };
-
-// ── Delivery ────────────────────────────────────────────────────────────────
-
-/** Marks pauses, bold and slow across a whole written deck, once every slide's prose is final. */
-export const DeliverRequest = z.object({
-  density: z.enum(["none", "light", "detailed"]),
-  slides: z.array(z.object({
-    id: text(40).min(1),
-    title: text(300),
-    kind: text(20),
-    keyIdea: text(600),
-    paragraphs: z.array(text(4000)).max(40),
-  })).min(1).max(200),
-});
-export type DeliverRequest = z.infer<typeof DeliverRequest>;
-export type DeliveredSlide = { id: string; deliveryMode?: "ai" | "fallback" | "none" } & Pick<WrittenSlideOutput, "cues" | "marks">;
-
-// What the delivery coach is sent (server-internal).
-
-export type DeliverySlideInput = {
-  id: string;
-  title: string;
-  kind: string;
-  keyIdea: string;
-  /** Sentence texts in reading order; `paragraphStarts` holds the 1-based numbers that open a paragraph. */
-  sentences: string[];
-  paragraphStarts: number[];
-};
-export type DeliveryRequest = { slides: DeliverySlideInput[] };
-
-// Facts about each sentence, not placements: code turns agreed facts into cues and marks.
-export const DeliveryOutput = z.object({
-  slides: z.array(z.object({
-    id: z.string(),
-    sentences: z.array(z.object({
-      n: z.number(),
-      asksAudience: z.boolean(),
-      statesMainPoint: z.boolean(),
-      turnsArgument: z.boolean(),
-      mustCatchExactly: z.boolean(),
-      stress: z.string(),
-    })),
-  })),
-});
-export type DeliveryOutput = z.infer<typeof DeliveryOutput>;
 
 // ── Rewrite ─────────────────────────────────────────────────────────────────
 

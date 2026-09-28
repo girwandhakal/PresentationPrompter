@@ -27,7 +27,6 @@ const RESERVATION: Record<string, number> = {
   context: 15_000,
   outline: 15_000,
   write: 40_000,
-  deliver: 20_000,
   rewrite: 15_000,
 };
 const DEFAULT_RESERVATION = 20_000;

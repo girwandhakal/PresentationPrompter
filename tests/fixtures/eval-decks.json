@@ -1,7 +1,7 @@
 [
   {
     "name": "capstone-review",
-    "brief": { "goal": "Show our sponsor and instructor what Iteration 1 delivered and what's left before submission", "audience": "Project sponsor and course instructor", "keyMessage": "The body map works end to end; two open PRs and the email fix remain", "minutes": 7, "style": "conversational", "depth": "full", "cueDensity": "light" },
+    "brief": { "goal": "Show our sponsor and instructor what Iteration 1 delivered and what's left before submission", "audience": "Project sponsor and course instructor", "keyMessage": "The body map works end to end; two open PRs and the email fix remain", "minutes": 7, "style": "conversational", "depth": "full" },
     "slides": [
       { "title": "Naturallee Goode", "text": "Naturallee Goode\nPaid Pain Assessment\nIteration 1 Review\nSeptember 24, 2026\nGirwan Dhakal · Griffen Bon · Jay Roy · Lily Oswald\nCS 495 Capstone | Sponsor: Mia Miller" },
       { "title": "Iteration 1 planned work", "text": "Iteration 1 planned work\nBody map data #42–#45\nClient interaction #46–#51\nIntegration and acceptance #52–#53\nSubmission and deployment #5, #40, #61\nEngineering quality: CI, architecture and tests\nScope change: Arm and Leg brought in from the backlog" },
@@ -23,7 +23,7 @@
   },
   {
     "name": "launch-pitch",
-    "brief": { "goal": "Get approval for a one-month pilot", "audience": "Product leads", "keyMessage": "Start small and learn before we amplify", "minutes": 5, "style": "executive", "depth": "full", "cueDensity": "detailed" },
+    "brief": { "goal": "Get approval for a one-month pilot", "audience": "Product leads", "keyMessage": "Start small and learn before we amplify", "minutes": 5, "style": "executive", "depth": "full" },
     "slides": [
       { "title": "A quieter way to launch", "text": "A quieter way to launch\nStart small, learn quickly, scale when the signal is clear.\nNorthwind Labs | Q3 planning" },
       { "title": "Clarity is already compounding", "text": "Clarity is already compounding\nActivation rose from 61% to 74% in six weeks.\nThe first ten minutes got easier.\nWeek 1: 61% · Week 3: 68% · Week 6: 74%" },
@@ -35,7 +35,7 @@
   },
   {
     "name": "intro-lecture",
-    "brief": { "goal": "Help first-year students understand how photosynthesis turns light into stored energy", "audience": "First-year biology students", "keyMessage": "Light reactions capture energy; the Calvin cycle stores it in sugar", "minutes": 6, "style": "measured", "depth": "full", "cueDensity": "light" },
+    "brief": { "goal": "Help first-year students understand how photosynthesis turns light into stored energy", "audience": "First-year biology students", "keyMessage": "Light reactions capture energy; the Calvin cycle stores it in sugar", "minutes": 6, "style": "measured", "depth": "full" },
     "slides": [
       { "title": "Photosynthesis", "text": "Photosynthesis\nHow plants turn light into food\nBIO 101 · Week 4" },
       { "title": "The overall equation", "text": "The overall equation\n6 CO2 + 6 H2O + light → C6H12O6 + 6 O2\nInputs: carbon dioxide, water, light\nOutputs: glucose, oxygen" },

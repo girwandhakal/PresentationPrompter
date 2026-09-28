@@ -6,7 +6,6 @@ import {
   AnalyzeOutput,
   type ModelCall,
   ContextOutput,
-  DeliveryOutput,
   OutlineOutput,
   QuestionsOutput,
   ScriptRewriteOutput,
@@ -20,8 +19,6 @@ import {
   analyzeText,
   CONTEXT_INSTRUCTIONS,
   contextText,
-  DELIVERY_INSTRUCTIONS,
-  deliveryText,
   OUTLINE_INSTRUCTIONS,
   outlineText,
   rewriteInstructions,
@@ -33,11 +30,9 @@ import { PROMPT_VERSION } from "./writing-guide";
 import { AiOutputError, exactIds } from "./integrity";
 export { AiOutputError } from "./integrity";
 
-type Effort = "none" | "low" | "medium" | "high";
+type Effort = "low" | "medium" | "high";
 
 const isReasoningModel = (name: string) => /^(gpt-5|o\d)/i.test(name);
-// gpt-5.1 and later can switch reasoning off, which is also the only mode that accepts a temperature.
-const canDisableReasoning = (name: string) => /^gpt-5\.\d/i.test(name);
 
 /** One model for every stage; `writerModel` optionally gives script writing and rewrites a different one. */
 export function createOpenAiProvider({ apiKey, model, baseURL, writerModel = model }: { apiKey: string; model: string; baseURL?: string; writerModel?: string }): AiProvider {
@@ -65,8 +60,6 @@ export function createOpenAiProvider({ apiKey, model, baseURL, writerModel = mod
         // Reasoning effort and verbosity exist only on reasoning models (gpt-5, o-series). Sending them to
         // gpt-4.x/4o is a 400, so non-reasoning models (which are also the fastest) just skip them.
         ...(reasoningModel ? { reasoning: { effort } } : {}),
-        // With reasoning off, temperature 0 makes repeated reads of the same script agree more often.
-        ...(effort === "none" ? { temperature: 0 } : {}),
         instructions,
         input: [{ role: "user", content }],
         text: { ...(reasoningModel ? { verbosity } : {}), format: zodTextFormat(schema, name) },
@@ -110,13 +103,5 @@ export function createOpenAiProvider({ apiKey, model, baseURL, writerModel = mod
     support: (request, signal) => structured(SupportOutput, "slide_support", rewriteInstructions(request), [input(rewriteText(request))], { use: writerModel, effort: "low", verbosity: "low", signal }),
 
     questions: (request, signal) => structured(QuestionsOutput, "audience_questions", rewriteInstructions(request), [input(rewriteText(request))], { use: writerModel, effort: "low", signal }),
-
-    // Reasoning off and temperature 0 give the most repeatable answers; models that can't turn
-    // reasoning off use low effort.
-    delivery: (request, signal) => structured(DeliveryOutput, "delivery_marks", DELIVERY_INSTRUCTIONS, [input(deliveryText(request))], {
-      effort: canDisableReasoning(model) ? "none" : "low",
-      verbosity: "low",
-      signal,
-    }),
   };
 }

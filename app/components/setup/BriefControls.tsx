@@ -279,14 +279,12 @@ const SHAPES: Record<"full" | "notes" | "cues", number[]> = {
   cues: [24, 30, 20, 26, 18],
 };
 
-/** A miniature teleprompter page showing how much gets written, with Bluebell ticks for cues. */
-export function ShapeVisual({ depth, cues }: { depth: "full" | "notes" | "cues"; cues: number }) {
-  const lines = SHAPES[depth];
-  const cueAt = cues === 0 ? [] : cues === 1 ? [Math.floor(lines.length / 2)] : [1, Math.floor(lines.length / 2), lines.length - 2];
+/** A miniature teleprompter page showing how much gets written. */
+export function ShapeVisual({ depth }: { depth: "full" | "notes" | "cues" }) {
   return (
     <span className="shape-visual" data-depth={depth}>
-      {lines.map((width, index) => (
-        <i key={index} className={cueAt.includes(index) ? "is-cue" : undefined} style={{ "--w": `${width}%`, "--i": index } as React.CSSProperties} />
+      {SHAPES[depth].map((width, index) => (
+        <i key={index} style={{ "--w": `${width}%`, "--i": index } as React.CSSProperties} />
       ))}
     </span>
   );

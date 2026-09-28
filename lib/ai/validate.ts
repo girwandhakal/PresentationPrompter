@@ -1,5 +1,4 @@
-import { placeDelivery, type DeliveryContext } from "../domain/cues";
-import type { BriefInput, WriteSlideInput, WrittenSlideDraft, WrittenSlideOutput } from "./schemas";
+import type { BriefInput, WriteSlideInput, WrittenSlideOutput } from "./schemas";
 
 /**
  * Deterministic checks applied to every model response before it reaches the presenter.
@@ -61,33 +60,17 @@ export function frameTalk(paragraphs: string[], { first, last }: { first: boolea
   return result;
 }
 
-/** What cue placement needs to know about a written slide. */
-function deliveryContext(paragraphs: string[], input: WriteSlideInput, brief: BriefInput): DeliveryContext {
-  return {
-    paragraphs,
-    density: brief.cueDensity,
-    seed: input.id,
-    title: input.title,
-    keyIdea: input.keyIdea || input.analysis?.mainPoint,
-    kind: input.analysis?.kind,
-  };
-}
-
 /**
  * Normalizes one written slide against its input and the brief. With `position`, the first and
- * last slides of the talk get their greeting and thanks. Cues and marks come from the rules here;
- * the orchestrator replaces them with the AI delivery pass when it runs.
+ * last slides of the talk get their greeting and thanks. The script is plain prose: no cues or marks.
  */
-export function finalizeWrittenSlide(output: WrittenSlideDraft, input: WriteSlideInput, brief: BriefInput, position?: { first: boolean; last: boolean }): WrittenSlideOutput {
+export function finalizeWrittenSlide(output: WrittenSlideOutput, input: WriteSlideInput, brief: BriefInput, position?: { first: boolean; last: boolean }): WrittenSlideOutput {
   const sanitized = sanitizeParagraphs(output.paragraphs);
   const paragraphs = position && sanitized.length ? frameTalk(sanitized, position, brief.depth) : sanitized;
-  const { cues, marks } = placeDelivery(deliveryContext(paragraphs, input, brief));
   return {
     id: input.id,
     purpose: clean(output.purpose, 300),
     paragraphs,
-    cues,
-    marks,
     concise: clean(output.concise, 500),
     keywords: output.keywords.map((keyword) => clean(keyword, 60)).filter(Boolean).slice(0, 6),
     recovery: clean(output.recovery, 300),

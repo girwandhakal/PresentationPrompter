@@ -4,7 +4,7 @@ import { Briefcase, Cpu, Hourglass, MessageCircle, Scissors, Zap } from "lucide-
 import type { ReactNode } from "react";
 import { LIMITS } from "@/lib/domain/planner";
 import type { Brief, DeliveryStyle, ScriptDepth } from "@/lib/domain/types";
-import { Segmented, Slider } from "../ui/controls";
+import { Slider } from "../ui/controls";
 import { ChoiceCards, LengthPicker, PaceVisual, ShapeVisual } from "./BriefControls";
 
 const STYLES: { value: DeliveryStyle; label: string; icon: ReactNode }[] = [
@@ -28,9 +28,7 @@ const DEPTHS: { value: ScriptDepth; label: string }[] = [
   { value: "cues", label: "Keywords" },
 ];
 
-const CUE_COUNT: Record<Brief["cueDensity"], number> = { none: 0, light: 1, detailed: 3 };
-
-export type DeliveryValues = Pick<Brief, "minutes" | "wpm" | "style" | "depth" | "cueDensity">;
+export type DeliveryValues = Pick<Brief, "minutes" | "wpm" | "style" | "depth">;
 
 /**
  * Length, pace, voice, and script detail as visual controls. Shared by a presentation's setup and the
@@ -76,15 +74,8 @@ export function DeliveryFields({ value, onChange, perSlide = null }: {
             className="choice-cards--shape"
             value={value.depth}
             onChange={(depth) => onChange({ depth })}
-            options={DEPTHS.map((depth) => ({ value: depth.value, title: depth.label, visual: <ShapeVisual depth={depth.value} cues={CUE_COUNT[value.cueDensity]} /> }))}
+            options={DEPTHS.map((depth) => ({ value: depth.value, title: depth.label, visual: <ShapeVisual depth={depth.value} /> }))}
           />
-          <div className="cue-row">
-            <div>
-              <p className="cue-row__label">Delivery cues</p>
-              <p className="cue-row__hint">Private reminders like &ldquo;pause&rdquo; or &ldquo;point to chart&rdquo;.</p>
-            </div>
-            <Segmented label="Delivery cues" size="sm" value={value.cueDensity} onChange={(cueDensity) => onChange({ cueDensity })} options={[{ value: "none", label: "None" }, { value: "light", label: "A few" }, { value: "detailed", label: "Detailed" }]} />
-          </div>
         </div>
       </div>
     </div>

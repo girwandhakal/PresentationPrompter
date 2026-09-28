@@ -202,29 +202,6 @@ export function createDemoProvider(): AiProvider {
       };
     },
 
-    // Plain-text answers to the coach's questions, so demo runs exercise the same vote-then-place path.
-    async delivery(request) {
-      await delay();
-      return {
-        slides: request.slides.map((slide) => {
-          const key = new Set(keywords(slide.keyIdea));
-          const shared = slide.sentences.map((text) => keywords(text).filter((word) => key.has(word)).length);
-          const main = shared.indexOf(Math.max(2, ...shared));
-          return {
-            id: slide.id,
-            sentences: slide.sentences.map((text, index) => ({
-              n: index + 1,
-              asksAudience: text.trim().endsWith("?"),
-              statesMainPoint: index === main,
-              turnsArgument: /^(?:but|however|yet|instead|that said|the catch|the problem)\b/i.test(text.trim()),
-              mustCatchExactly: (text.match(/(?<!\w)\d[\d,.]*%?/g) ?? []).length >= 2,
-              stress: text.match(/(?<!\w)\d[\d,]*%?/)?.[0] ?? "",
-            })),
-          };
-        }),
-      };
-    },
-
     async questions(request) {
       await delay();
       return {

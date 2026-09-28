@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import { beforeEach, test } from "node:test";
 import { POST as analyze } from "../../app/api/ai/analyze/route";
 import { POST as context } from "../../app/api/ai/context/route";
-import { POST as deliver } from "../../app/api/ai/deliver/route";
 import { POST as outline } from "../../app/api/ai/outline/route";
 import { POST as rewrite } from "../../app/api/ai/rewrite/route";
 import { GET as status } from "../../app/api/ai/status/route";
@@ -42,7 +41,6 @@ const brief: BriefInput = {
   wpm: 130,
   style: "conversational",
   depth: "full",
-  cueDensity: "light",
   includeQuestions: true,
 };
 
@@ -94,30 +92,11 @@ test("the full pipeline returns grounded, budgeted scripts for every slide", asy
   assert.doesNotMatch(written.slides[1].script.paragraphs.join(" "), /Hello, everyone|Thank you, everyone/);
   assert.deepEqual(written.notes.map((entry: { id: string }) => entry.id), ["a1", "b2", "c3"]);
   for (const entry of written.slides) {
-    assert.ok(entry.script.cues.every((cue: { afterSentence: number }) => cue.afterSentence >= 1), "no slide opens with a pause");
     assert.ok(entry.script, `slide ${entry.id} has a script`);
     assert.ok(entry.script.paragraphs.length > 0);
-    assert.ok(entry.script.cues.length <= 2, "light cue density caps cues");
-    for (const cue of entry.script.cues) assert.ok(cue.paragraph >= 1 && cue.paragraph <= entry.script.paragraphs.length);
+    assert.ok(!("cues" in entry.script) && !("marks" in entry.script), "scripts are plain prose");
     assert.ok(entry.script.questions.length >= 1);
   }
-});
-
-test("deliver marks pauses, bold and slow across a written deck", async () => {
-  const response = await deliver(post({
-    density: "detailed",
-    slides: [
-      { id: "a1", title: "A quieter way to launch", kind: "title", keyIdea: "", paragraphs: ["Thanks for being here. Today is about launching quietly."] },
-      { id: "b2", title: "Clarity is compounding", kind: "chart", keyIdea: "Activation rose from 61% to 74% in six weeks", paragraphs: ["Why does clarity matter? Activation rose from 61% to 74% in six weeks.", "But traffic stayed flat, so the gain came from the product itself."] },
-    ],
-  }));
-  assert.equal(response.status, 200);
-  const { slides: delivered } = await body(response);
-  assert.deepEqual(delivered.map((slide: { id: string }) => slide.id), ["a1", "b2"]);
-  const chart = delivered[1];
-  assert.ok(chart.cues.length >= 1 && chart.cues.every((cue: { text: string }) => cue.text === "Pause"));
-  assert.ok(chart.cues.some((cue: { paragraph: number; afterSentence: number }) => cue.paragraph === 1 && cue.afterSentence === 1), "the question gets a pause");
-  assert.ok(chart.marks.every((mark: { sentence: number }) => mark.sentence >= 1));
 });
 
 test("rewrite supports script, selection, support, and questions requests", async () => {
@@ -125,6 +104,7 @@ test("rewrite supports script, selection, support, and questions requests", asyn
   const script = await body(await rewrite(post({ ...base, kind: "script", action: "fit", targetWords: 20 })));
   assert.equal(script.kind, "script");
   assert.ok(script.paragraphs.length > 0);
+  assert.deepEqual(Object.keys(script).sort(), ["kind", "paragraphs"], "a script rewrite is plain prose");
   const selection = await body(await rewrite(post({ ...base, kind: "selection", action: "shorter", selection: "Activation rose from sixty one to seventy four percent" })));
   assert.ok(selection.text.split(" ").length < 10);
   const support = await body(await rewrite(post({ ...base, kind: "support" })));

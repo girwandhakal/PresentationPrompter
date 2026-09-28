@@ -13,7 +13,6 @@ export const DEFAULT_BRIEF: Brief = {
   wpm: 130,
   style: "conversational",
   depth: "full",
-  cueDensity: "light",
   includeQuestions: true,
 };
 

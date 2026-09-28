@@ -1,6 +1,6 @@
 import type { BriefInput, WriteRequest } from "../schemas";
 
-export const PROMPT_VERSION = "speech-2.4.0";
+export const PROMPT_VERSION = "speech-2.5.0";
 export const SPEECH_GUIDE = `Priorities, in order: factual fidelity; essential coverage; listener comprehension; natural voice; timing.
 Keep numbers attached to subjects, units, dates and qualifiers. Preserve completed versus proposed work, ownership and uncertainty. A trend does not establish a cause. A screenshot does not prove a successful test. Narrative plans and inferred context organize facts; they are not evidence.
 Use concrete subjects and active verbs. Vary sentence length, with one main idea per sentence. Split stacked clauses. Preserve technical meaning. Use contractions where natural. First person requires a supported viewpoint; do not invent personal experience.

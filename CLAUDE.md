@@ -61,19 +61,19 @@ or replace the architecture based on a historical plan during unrelated work.
   Research documents are supporting evidence; changing them alone does not change
   generation. Version meaningful prompt changes and retain usage/model provenance.
 - The pipeline is analyze → deck context → local plan → outline → write (four slides
-  per call) → delivery (one read). There is no model reviewer, editor, repair, or
+  per call). There is no model reviewer, editor, repair, or
   voting pass; do not add one without a product decision. Local figure/coverage
   diagnostics are private advice and must not block a usable draft. Empty output,
   malformed structure, and mismatched slide IDs still fail.
 - The first slide opens with a greeting ("Hello, everyone.") and the last closes with
   thanks ("Thank you, everyone."), enforced in `frameTalk` (`lib/ai/validate.ts`) as
-  well as the prompt. No slide opens with a Pause cue.
+  well as the prompt.
 - Save a complete draft as a new version only after every slide is structurally
   valid. Preserve the previous script on failure or cancellation. Rewrites are
   explicit accept/discard proposals and must not silently overwrite edits.
-- Delivery markings are private and added after prose. Current cue lines support
-  **Pause**; bold supplies emphasis and slow marks pacing. Do not resurrect older
-  gesture, pointing, or look-up cues without a separate product change.
+- Generated scripts are plain prose with no cues, bold, or slow marks, and there is
+  no cue-density setting. Cues and formatting are the presenter's own, added in the
+  editor. Do not reintroduce generated delivery markings without a product decision.
 - **No further paid OpenAI experiments are authorized.** Use demo providers, unit
   tests, and saved-result analysis. A key in `.env.local` is not spending consent.
   Live evaluations require a newly agreed scope and token budget, plus explicit

@@ -179,23 +179,14 @@
 
 
 /* Script shape: a miniature prompter page per depth. */
-.shape-visual { display: flex; flex-direction: column; gap: 6px; width: 100%; height: 96px; padding: 10px 12px 10px 20px; margin-bottom: 4px; border-radius: var(--r-sm); background: var(--pitch); overflow: hidden; }
+.shape-visual { display: flex; flex-direction: column; gap: 6px; width: 100%; height: 96px; padding: 10px 12px; margin-bottom: 4px; border-radius: var(--r-sm); background: var(--pitch); overflow: hidden; }
 .shape-visual i { position: relative; display: block; height: 4px; width: var(--w); border-radius: 4px; background: color-mix(in srgb, var(--powder) 70%, transparent); transition: width 400ms var(--ease-out), background-color 300ms var(--ease); animation: line-in 480ms var(--ease-out) backwards; animation-delay: calc(var(--i) * 30ms); transform-origin: left; }
 .shape-visual[data-depth="cues"] { flex-direction: row; flex-wrap: wrap; align-content: flex-start; gap: 6px; }
 .shape-visual[data-depth="cues"] i { height: 8px; }
-.shape-visual i::before { content: ""; position: absolute; left: -12px; top: 50%; width: 7px; height: 3px; margin-top: -1.5px; border-radius: 3px; background: var(--bluebell); transform: scaleX(0); transform-origin: right; transition: transform 320ms var(--spring); }
-.shape-visual i.is-cue::before { transform: scaleX(1); }
-.shape-visual[data-depth="cues"] i.is-cue { background: color-mix(in srgb, var(--bluebell) 80%, var(--powder)); }
-.shape-visual[data-depth="cues"] i::before { content: none; }
 @keyframes line-in { from { transform: scaleX(0.2); opacity: 0; } }
 .choice-card:hover .shape-visual i { width: calc(var(--w) * 0.96); }
 .choice-card:not([aria-checked="true"]) .shape-visual { opacity: 0.72; transition: opacity 200ms var(--ease); }
 .choice-card:hover .shape-visual { opacity: 1; }
-
-.cue-row { display: flex; align-items: center; justify-content: space-between; gap: var(--s-4); padding-top: var(--s-3); border-top: 1px solid var(--line); }
-.cue-row__label { font-size: var(--t-lg); font-weight: 600; }
-.cue-row__hint { font-size: var(--t-sm); color: var(--text-2); }
-.cue-row .segmented { flex: 0 0 auto; }
 
 /* Responsive by container: the form column's width depends on the sidebar and plan card, so these
    follow the space each part really has rather than the window. */
@@ -213,8 +204,6 @@
 }
 @container block (max-width: 600px) {
   .choice-cards:not(.choice-cards--rows) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .cue-row { flex-direction: column; align-items: stretch; }
-  .cue-row .segmented { width: 100%; }
   /* Script detail: one card per row, the mini prompter beside the words. */
   .choice-cards--shape.choice-cards { grid-template-columns: minmax(0, 1fr); }
   .choice-cards--shape .choice-card { display: grid; grid-template-columns: 104px minmax(0, 1fr); column-gap: var(--s-3); align-items: center; }

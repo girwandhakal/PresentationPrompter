@@ -5,8 +5,6 @@ import type {
   AnalyzeRequest,
   ContextOutput,
   ContextRequest,
-  DeliveryOutput,
-  DeliveryRequest,
   OutlineOutput,
   OutlineRequest,
   QuestionsOutput,
@@ -36,8 +34,6 @@ export interface AiProvider {
   rewriteSelection(request: SelectionRewriteRequest, signal?: AbortSignal): Promise<SelectionRewriteOutput>;
   support(request: SupportRequest, signal?: AbortSignal): Promise<SupportOutput>;
   questions(request: QuestionsRequest, signal?: AbortSignal): Promise<QuestionsOutput>;
-  /** Marks pauses, slow and bold in finished scripts. Optional: without it, rules place them. */
-  delivery?(request: DeliveryRequest, signal?: AbortSignal): Promise<DeliveryOutput>;
 }
 
 function env(name: string) {
