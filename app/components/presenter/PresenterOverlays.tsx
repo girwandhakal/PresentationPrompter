@@ -2,7 +2,6 @@
 
 import { MonitorUp } from "lucide-react";
 import type { ReactNode } from "react";
-import { pluralize } from "@/lib/domain/format";
 import type { Project } from "@/lib/domain/types";
 import { DEFAULT_PRESENTER_PREFS, type PresenterPrefs } from "@/lib/prefs";
 import { Button } from "../ui/button";
@@ -28,7 +27,7 @@ export function StartDialog({ open, project, audience, countdown, onStart, onSta
       open={open}
       onClose={counting ? onCancel : onClose}
       size="sm"
-      className="theme-dark"
+      className="theme-dark dialog--start"
       title={counting ? "Starting" : "Ready to present?"}
       footer={counting
         ? <Button variant="ghost" onClick={onCancel}>Cancel</Button>
@@ -46,7 +45,6 @@ export function StartDialog({ open, project, audience, countdown, onStart, onSta
         </div>
       ) : (
         <div className="start-dialog">
-          <p className="start-dialog__summary tabular">{pluralize(project.slides.length, "slide")} · {project.brief.minutes} min{project.brief.qaMinutes ? ` incl. ${project.brief.qaMinutes} min Q&A` : ""}</p>
           {audience === "connected"
             ? <p className="start-dialog__ok">Audience window connected</p>
             : <p className="start-dialog__note">Your audience window opens when you start. It shows only your slides.</p>}
