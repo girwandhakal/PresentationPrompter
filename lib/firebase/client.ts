@@ -26,6 +26,7 @@ export function firebase() {
  * Firestore and Storage load on first use rather than with the page: sign-in needs only Auth, and
  * cloud sync starts after local data is already on screen. Together they are most of the SDK.
  */
+const DOWNLOAD_RETRY_MS = 15_000;
 let firestorePromise: Promise<Firestore> | null = null;
 let storagePromise: Promise<FirebaseStorage> | null = null;
 
@@ -38,7 +39,14 @@ export function firestore() {
 
 /** Storage paths are users/{uid}/...; storage.rules allow only the owner. */
 export function storage() {
-  storagePromise ??= import("firebase/storage").then(({ getStorage }) => getStorage(firebase().app))
+  storagePromise ??= import("firebase/storage").then(({ getStorage }) => {
+    const bucket = getStorage(firebase().app);
+    // Slide images are small. The SDK's default is to keep retrying a failed download (a blocked
+    // CORS request, say) for two minutes, leaving a spinner; give up sooner so the title-card
+    // fallback shows, and the next view tries again.
+    bucket.maxOperationRetryTime = DOWNLOAD_RETRY_MS;
+    return bucket;
+  })
     .catch((error: unknown) => { storagePromise = null; throw error; });
   return storagePromise;
 }

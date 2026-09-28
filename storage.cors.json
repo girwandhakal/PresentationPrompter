@@ -1,0 +1,8 @@
+[
+  {
+    "origin": ["*"],
+    "method": ["GET"],
+    "responseHeader": ["Content-Type", "Authorization", "X-Firebase-Storage-Version", "X-Firebase-GMPID", "X-Firebase-AppCheck"],
+    "maxAgeSeconds": 3600
+  }
+]
