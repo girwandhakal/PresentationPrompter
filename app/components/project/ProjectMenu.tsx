@@ -1,10 +1,10 @@
 "use client";
 
-import { Copy, Download, FileText, MoreHorizontal, PenLine, Printer, Replace, SlidersHorizontal, Trash2, Archive } from "lucide-react";
+import { Copy, FileText, MoreHorizontal, PenLine, Printer, Replace, SlidersHorizontal, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState, type ReactNode } from "react";
 import type { Project } from "@/lib/domain/types";
-import { exportBackup, exportMarkdown, exportText } from "@/lib/export";
+import { exportMarkdown, exportText } from "@/lib/export";
 import { hasScript, projectHref } from "@/lib/domain/planner";
 import { useProjects } from "@/lib/store/projects";
 import { Button, IconButton } from "../ui/button";
@@ -43,13 +43,6 @@ export function ProjectMenu({ project, trigger, align = "end" }: {
     { label: "Script as Markdown", icon: <FileText />, disabled: !scripted, onSelect: () => exportMarkdown(project) },
     { label: "Script as plain text", icon: <FileText />, disabled: !scripted, onSelect: () => exportText(project) },
     { label: "Print script", icon: <Printer />, disabled: !scripted, onSelect: () => window.open(`/p/${project.id}/print`, "_blank", "noopener") },
-    { label: "Backup file", icon: <Archive />, hint: ".cueframe", onSelect: async () => {
-      try {
-        await exportBackup([project]);
-      } catch {
-        toast({ message: "The backup couldn't be created.", tone: "error" });
-      }
-    } },
     { type: "separator" },
     { label: "Delete…", icon: <Trash2 />, tone: "danger", onSelect: () => setConfirmDelete(true) },
   ];
@@ -110,11 +103,10 @@ export function ProjectMenu({ project, trigger, align = "end" }: {
         open={confirmDelete}
         onClose={() => setConfirmDelete(false)}
         title={`Delete “${project.title}”?`}
-        description="This permanently removes the slides, script, versions, and session history from this browser. Download a backup first if you might need it."
+        description="This permanently removes the slides, script, versions, and session history from this browser."
         size="sm"
         footer={<>
           <Button variant="ghost" onClick={() => setConfirmDelete(false)}>Keep it</Button>
-          <Button variant="secondary" icon={<Download />} onClick={() => exportBackup([project])}>Backup</Button>
           <Button variant="primary" icon={<Trash2 />} loading={deleting} onClick={confirmRemove}>Delete</Button>
         </>}
       />

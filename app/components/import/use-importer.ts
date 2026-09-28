@@ -1,17 +1,16 @@
 "use client";
 
 import { useCallback, useRef, useState } from "react";
-import { detectKind, ImportError, importFiles, type ImportProgress, type ImportResult } from "@/lib/import";
+import { ImportError, importFiles, type ImportProgress, type ImportResult } from "@/lib/import";
 
 export type ImporterState =
   | { status: "idle" }
   | { status: "working"; fileName: string; progress: ImportProgress }
   | { status: "error"; message: string };
 
-/** Runs the in-browser import with progress and cancellation. Backups are routed to `onBackup`. */
-export function useImporter({ onImported, onBackup }: {
+/** Runs the in-browser import with progress and cancellation. */
+export function useImporter({ onImported }: {
   onImported: (result: ImportResult) => Promise<void> | void;
-  onBackup?: (file: File) => Promise<void> | void;
 }) {
   const [state, setState] = useState<ImporterState>({ status: "idle" });
   const cancelled = useRef(false);
@@ -21,11 +20,6 @@ export function useImporter({ onImported, onBackup }: {
     const fileName = files.length === 1 ? files[0].name : `${files.length} images`;
     setState({ status: "working", fileName, progress: { stage: "reading", done: 0, total: files.length } });
     try {
-      if (files.length === 1 && onBackup && (await detectKind(files[0])) === "backup") {
-        await onBackup(files[0]);
-        setState({ status: "idle" });
-        return;
-      }
       const result = await importFiles(files, (progress) => {
         if (cancelled.current) throw new DOMException("Import cancelled", "AbortError");
         setState({ status: "working", fileName, progress });
@@ -44,7 +38,7 @@ export function useImporter({ onImported, onBackup }: {
         : "This file couldn't be imported. Try exporting it again as PDF.";
       setState({ status: "error", message });
     }
-  }, [onBackup, onImported]);
+  }, [onImported]);
 
   const cancel = useCallback(() => {
     cancelled.current = true;
