@@ -53,6 +53,8 @@ test("import, brief, generate, edit, present, and review a deck", async ({ page,
   await audience.goto(`/audience/${id}`);
   await expect(page.getByText("Audience window connected")).toBeVisible();
   await page.getByRole("button", { name: "Start presenting" }).click();
+  // The countdown runs in the same dialog, then the teleprompter takes over.
+  await expect(page.getByRole("dialog")).toBeHidden();
 
   await expect(audience.getByRole("img", { name: "A quieter way to launch" })).toBeVisible();
   await page.keyboard.press("Space");

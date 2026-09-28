@@ -18,10 +18,12 @@ import { Dialog } from "../ui/dialog";
 import { Menu } from "../ui/menu";
 import { RollingText } from "../ui/motion";
 import { useToast } from "../ui/toast";
-import { Preflight, PresenterSettings, ShortcutsDialog, type AudienceStatus } from "./PresenterOverlays";
+import { PresenterSettings, ShortcutsDialog, StartDialog, type AudienceStatus } from "./PresenterOverlays";
 import { Teleprompter, type TeleprompterHandle } from "./Teleprompter";
 
-type Phase = "preflight" | "calm" | "live";
+type Phase = "ready" | "countdown" | "live";
+
+const START_COUNTDOWN_SECONDS = 3;
 type Overlay = null | "settings" | "shortcuts" | "end";
 
 /** Accumulating stopwatch that survives pauses. */
@@ -43,7 +45,8 @@ export function PresenterView({ project }: { project: Project }) {
   const { update } = useProjects();
   const [prefs, setPrefs] = usePref("presenter");
 
-  const [phase, setPhase] = useState<Phase>("preflight");
+  const [phase, setPhase] = useState<Phase>("ready");
+  const [startCount, setStartCount] = useState(START_COUNTDOWN_SECONDS);
   const [index, setIndex] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [blank, setBlank] = useState(false);
@@ -133,11 +136,12 @@ export function PresenterView({ project }: { project: Project }) {
     const opened = window.open(`/audience/${project.id}`, audienceWindowName(project.id), "popup,width=1280,height=720");
     if (!opened) {
       setAudience("blocked");
-      return;
+      return false;
     }
     audienceWindow.current = opened;
     opened.focus();
     window.setTimeout(() => broadcastRef.current(), 600);
+    return true;
   }, [project.id]);
 
   // ── Navigation and timing ───────────────────────────────────────────────
@@ -193,17 +197,24 @@ export function PresenterView({ project }: { project: Project }) {
     broadcastRef.current();
   }, [index, slideClock, slides, total]);
 
-  const start = useCallback(() => {
+  // The click that starts is the user action that lets the browser open the audience window.
+  const start = useCallback((withAudience = true) => {
+    if (withAudience && audience !== "connected" && !openAudience()) return;
     setOverlay(null);
-    if (prefs.calmStart) setPhase("calm");
-    else begin();
-  }, [begin, prefs.calmStart]);
+    setStartCount(START_COUNTDOWN_SECONDS);
+    setPhase("countdown");
+    // The new window takes focus; take it back so the keyboard controls work when the script starts.
+    window.setTimeout(() => window.focus(), 400);
+  }, [audience, openAudience]);
 
   useEffect(() => {
-    if (phase !== "calm") return;
-    const timer = window.setTimeout(begin, 4200);
+    if (phase !== "countdown") return;
+    const timer = window.setTimeout(() => {
+      if (startCount <= 1) begin();
+      else setStartCount(startCount - 1);
+    }, 1000);
     return () => window.clearTimeout(timer);
-  }, [begin, phase]);
+  }, [begin, phase, startCount]);
 
   // Display clock
   useEffect(() => {
@@ -525,23 +536,15 @@ export function PresenterView({ project }: { project: Project }) {
         {slides.map((item, position) => <span key={item.id} data-state={position < index ? "done" : position === index ? "current" : "todo"} />)}
       </div>
 
-      {phase === "calm" && (
-        <div className="calm-start" role="status">
-          <p className="calm-start__title">Take a breath.</p>
-          <p className="calm-start__text">Your first line is ready. Starting in a moment.</p>
-          <Button variant="ghost" onClick={begin}>Start now</Button>
-        </div>
-      )}
-
-      <Preflight
-        open={phase === "preflight"}
+      <StartDialog
+        open={phase !== "live"}
         project={project}
         audience={audience}
-        onOpenAudience={openAudience}
-        onStart={start}
+        countdown={phase === "countdown" ? startCount : null}
+        onStart={() => start()}
+        onStartWithoutAudience={() => start(false)}
+        onCancel={() => setPhase("ready")}
         onClose={() => router.push(`/p/${project.id}`)}
-        calmStart={prefs.calmStart}
-        onCalmStart={(calmStart) => setPrefs({ ...prefs, calmStart })}
       />
       <PresenterSettings open={overlay === "settings"} prefs={prefs} onChange={setPrefs} onClose={() => setOverlay(null)} />
       <ShortcutsDialog open={overlay === "shortcuts"} onClose={() => setOverlay(null)} />

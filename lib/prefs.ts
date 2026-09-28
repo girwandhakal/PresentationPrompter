@@ -20,7 +20,6 @@ export type PresenterPrefs = {
   autoAdvance: boolean;
   advanceDelay: number;
   showNext: boolean;
-  calmStart: boolean;
   mode: "full" | "notes" | "keywords" | "cues";
 };
 
@@ -36,7 +35,6 @@ export const DEFAULT_PRESENTER_PREFS: PresenterPrefs = {
   autoAdvance: true,
   advanceDelay: 2,
   showNext: true,
-  calmStart: false,
   mode: "full",
 };
 
