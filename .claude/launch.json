@@ -53,6 +53,15 @@
       "port": 3200
     },
     {
+      "name": "cueframe-preview",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run",
+        "preview"
+      ],
+      "port": 3000
+    },
+    {
       "name": "cueframe-demo-noauth",
       "runtimeExecutable": "npx",
       "runtimeArgs": [
