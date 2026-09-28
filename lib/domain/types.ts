@@ -53,7 +53,6 @@ export type Slide = {
 
 export type DeliveryStyle = "conversational" | "measured" | "concise" | "energetic" | "technical" | "executive";
 export type ScriptDepth = "full" | "notes" | "cues";
-export type CueDensity = "none" | "light" | "detailed";
 
 export type Brief = {
   goal: string;
@@ -68,7 +67,6 @@ export type Brief = {
   wpm: number;
   style: DeliveryStyle;
   depth: ScriptDepth;
-  cueDensity: CueDensity;
   includeQuestions: boolean;
 };
 
@@ -107,7 +105,6 @@ export type Project = {
     reviewedAt: number;
     telemetry: import("../ai/schemas").GenerationTelemetry[];
     warnings: { id: string; issues: import("../ai/schemas").QualityIssue[] }[];
-    delivery: { id: string; mode: "ai" | "fallback" | "none" }[];
   };
   lastPresentedAt: number | null;
 };

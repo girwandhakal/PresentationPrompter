@@ -105,7 +105,6 @@ export function briefInput(brief: Brief): BriefInput {
     wpm: brief.wpm,
     style: brief.style,
     depth: brief.depth,
-    cueDensity: brief.cueDensity,
     includeQuestions: false, // Q&A prep was removed from the UI; skipping it also shortens generation.
   };
 }
@@ -139,7 +138,7 @@ export function slideRewriteContext(project: Project, slide: Slide) {
   };
 }
 
-type ScriptResult = { kind: "script" } & Pick<WrittenSlideOutput, "paragraphs" | "cues" | "marks">;
+type ScriptResult = { kind: "script" } & Pick<WrittenSlideOutput, "paragraphs">;
 type SelectionResult = { kind: "selection"; text: string };
 type SupportResult = { kind: "support"; concise: string; keywords: string[]; recovery: string; transition: string };
 type QuestionsResult = { kind: "questions"; questions: { question: string; answer: string }[] };
@@ -191,13 +190,9 @@ export function generateQuestions(project: Project, slide: Slide, signal?: Abort
   }, signal);
 }
 
-/** Script prose plus the cues and marks the server placed in it, as an editable document. */
-export function documentFromWritten(written: Pick<WrittenSlideOutput, "paragraphs" | "cues" | "marks">) {
-  return documentFromAi(
-    written.paragraphs,
-    written.cues.map((cue) => ({ paragraph: cue.paragraph, afterSentence: cue.afterSentence, label: cue.text })),
-    written.marks ?? [],
-  );
+/** Script prose from the server, as an editable plain-text document. */
+export function documentFromWritten(written: Pick<WrittenSlideOutput, "paragraphs">) {
+  return documentFromAi(written.paragraphs);
 }
 
 /** Converts a written-slide payload into the stored script shape. */

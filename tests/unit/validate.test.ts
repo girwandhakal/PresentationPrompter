@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { finalizeWrittenSlide, frameTalk, needsRepair } from "../../lib/ai/validate";
-import type { BriefInput, WriteSlideInput, WrittenSlideDraft } from "../../lib/ai/schemas";
+import type { BriefInput, WriteSlideInput, WrittenSlideOutput } from "../../lib/ai/schemas";
 
 const brief: BriefInput = {
   goal: "Get approval for a one-month pilot",
@@ -15,7 +15,6 @@ const brief: BriefInput = {
   wpm: 130,
   style: "conversational",
   depth: "full",
-  cueDensity: "light",
   includeQuestions: true,
 };
 
@@ -35,7 +34,7 @@ const input: WriteSlideInput = {
   nextTitle: "",
 };
 
-const output = (values: Partial<WrittenSlideDraft> = {}): WrittenSlideDraft => ({
+const output = (values: Partial<WrittenSlideOutput> = {}): WrittenSlideOutput => ({
   id: "s1",
   purpose: "Shows the signal.",
   paragraphs: ["Activation rose from 61% to 74%.", "That's the signal."],
@@ -53,15 +52,6 @@ test("finalize trims, caps, and drops questions when not requested", () => {
   assert.equal(result.keywords.length, 6);
   assert.deepEqual(result.questions, []);
   assert.equal(result.id, "s1");
-});
-
-test("finalize places cues and marks from the prose and respects the density setting", () => {
-  const paragraphs = ["Why did activation move? We changed one thing in onboarding, and activation rose to 74% in six weeks.", "Traffic stayed flat, so the gain came from clarity."];
-  const light = finalizeWrittenSlide(output({ paragraphs }), input, brief);
-  assert.deepEqual(light.cues, [{ paragraph: 1, afterSentence: 1, type: "pause", text: "Pause" }]);
-  assert.deepEqual(light.marks, [{ paragraph: 1, sentence: 2, text: "74%", mark: "bold" }]);
-  const none = finalizeWrittenSlide(output({ paragraphs }), input, { ...brief, cueDensity: "none" });
-  assert.deepEqual([none.cues, none.marks], [[], []]);
 });
 
 test("rebalance only offers to fit a slide meaningfully off its word budget", () => {
@@ -85,5 +75,4 @@ test("finalize frames only when told the slide's position in the talk", () => {
   assert.equal(finalizeWrittenSlide(output(), input, brief).paragraphs[0], "Activation rose from 61% to 74%.");
   const framed = finalizeWrittenSlide(output(), input, brief, { first: true, last: false });
   assert.equal(framed.paragraphs[0], "Hello, everyone. Activation rose from 61% to 74%.");
-  assert.ok(framed.cues.every((cue) => cue.afterSentence >= 1), "no pause before the greeting");
 });

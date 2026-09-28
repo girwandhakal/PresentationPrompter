@@ -44,7 +44,7 @@ can still import, write scripts by hand, and present.
 Browser (everything the user creates lives here)
  ├─ Import: pdf.js renders PDFs; PPTX is parsed from OOXML; images are normalized
  ├─ IndexedDB: projects, slide images (Blobs), script versions, presenter sessions
- ├─ Orchestrator: analyze → deck context → plan (local) → outline → write → delivery, in bounded batches
+ ├─ Orchestrator: analyze → deck context → plan (local) → outline → write, in bounded batches
  ├─ Editor (Lexical), Presenter, Review
  └─ Audience window ◀── BroadcastChannel (slide index, blank, ended — never script text)
                 │
@@ -68,10 +68,9 @@ AI gateway: schema-validated requests → OpenAI structured outputs → validati
     Thin slides stay brief rather than being padded.
   - Local checks (figures not found in the slide, unreadable slides, very short drafts) become
     private notes. They never block saving and never call a model.
-  - Delivery coaching runs once after prose is final: one model read answers per-sentence
-    questions, and fixed rules place pauses, bold and slow. A slide never opens with a pause. If the
-    read fails, built-in rules place the cues. Fallback status, model and prompt versions, latency
-    and token usage are kept with the draft in local storage.
+  - Generated scripts are plain prose: no cues, bold or slow marks. Presenters add their own
+    private cues and formatting in the editor. Model and prompt versions, latency and token usage
+    are kept with the draft in local storage.
   - A draft is saved only when every slide came back valid, and earlier versions are kept in History.
 - **Rewrites.** Actions work on a slide or on selected text (shorten, simplify, clearer transition,
   add example, and so on). They always show a proposal to accept or discard, and never overwrite
@@ -100,8 +99,8 @@ AI gateway: schema-validated requests → OpenAI structured outputs → validati
 | `npm run check` | Lint, typecheck, unit tests, and build |
 | `npm run sample-deck` | Regenerate `public/sample-deck.pdf` (the first-run sample, also a test fixture) |
 
-A generation makes one analysis call per four slides, one context call, one outline call, one
-write call per four slides, and one delivery call per eight slides, all on `OPENAI_MODEL` unless
+A generation makes one analysis call per four slides, one context call, one outline call,
+and one write call per four slides, all on `OPENAI_MODEL` unless
 `OPENAI_WRITER_MODEL` is set. There are no automatic review, repair or retry-for-quality passes.
 API token caps are not dollar limits. No further paid experiments are currently authorized; the
 historical study in [research/](research/script-quality.md) measured an earlier, heavier pipeline.

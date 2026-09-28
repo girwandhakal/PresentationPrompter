@@ -45,7 +45,7 @@ type PrefMap = {
   sidebarCollapsed: boolean;
   editorInspector: boolean;
   presenter: PresenterPrefs;
-  defaultBrief: Pick<Brief, "minutes" | "qaMinutes" | "wpm" | "style" | "depth" | "cueDensity" | "includeQuestions">;
+  defaultBrief: Pick<Brief, "minutes" | "qaMinutes" | "wpm" | "style" | "depth" | "includeQuestions">;
 };
 
 const DEFAULTS: PrefMap = {
@@ -59,7 +59,6 @@ const DEFAULTS: PrefMap = {
     wpm: DEFAULT_BRIEF.wpm,
     style: DEFAULT_BRIEF.style,
     depth: DEFAULT_BRIEF.depth,
-    cueDensity: DEFAULT_BRIEF.cueDensity,
     includeQuestions: DEFAULT_BRIEF.includeQuestions,
   },
 };

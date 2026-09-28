@@ -163,7 +163,7 @@ export function SetupView({ project }: { project: Project }) {
       schedule(filled, title);
     }
     await flush();
-    setPref("defaultBrief", { minutes: brief.minutes, qaMinutes: brief.qaMinutes, wpm: brief.wpm, style: brief.style, depth: brief.depth, cueDensity: brief.cueDensity, includeQuestions: brief.includeQuestions });
+    setPref("defaultBrief", { minutes: brief.minutes, qaMinutes: brief.qaMinutes, wpm: brief.wpm, style: brief.style, depth: brief.depth, includeQuestions: brief.includeQuestions });
     orchestrator.generate(project.id).catch(() => { /* surfaced through project.generation */ });
   }
 

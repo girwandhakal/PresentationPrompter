@@ -51,40 +51,17 @@ test("sentences split on terminal punctuation and keep it", () => {
   assert.deepEqual(splitSentences(""), []);
 });
 
-test("AI prose becomes a document with cues on their own line after the anchored sentence", () => {
-  const document = documentFromAi(
-    ["Most launches compete for attention. Ours earns trust. Here's how.", "First, invite early users."],
-    [
-      { paragraph: 1, afterSentence: 2, label: "Pause here" },
-      { paragraph: 2, afterSentence: 9, label: "Look up" },
-    ],
-  );
-  const lines = document.paragraphs.map((paragraph) => paragraph.children.map((child) => child.type === "cue" ? `[${child.label}]` : child.type === "text" ? child.text : "").join(""));
-  assert.deepEqual(lines, [
-    "Most launches compete for attention. Ours earns trust.",
-    "[Pause here]",
-    "Here's how.",
-    "First, invite early users.",
-    "[Look up]",
-  ]);
-  assert.equal(documentCues(document).length, 2);
-  assert.deepEqual(documentToParagraphs(document), ["Most launches compete for attention. Ours earns trust.", "Here's how.", "First, invite early users."]);
+test("AI prose becomes a plain document, one block per paragraph", () => {
+  const document = documentFromAi(["Most launches compete for attention. Ours earns trust. Here's how.", "  First,  invite early users. ", ""]);
+  assert.deepEqual(documentToParagraphs(document), ["Most launches compete for attention. Ours earns trust. Here's how.", "First, invite early users."]);
+  assert.equal(documentCues(document).length, 0);
+  assert.ok(document.paragraphs.every((paragraph) => paragraph.children.every((child) => child.type === "text" && !child.bold && !child.slow)));
   assert.equal(documentSentences(document).length, 4);
-});
-
-test("cues with out-of-range anchors are clamped rather than dropped", () => {
-  const document = documentFromAi(["Only sentence."], [{ paragraph: 7, afterSentence: 0, label: "Breathe" }]);
-  assert.equal(documentCueCount(document), 1);
-  assert.equal(documentToWordCount(document), 2);
-});
-
-test("a cue anchored after sentence 0 opens its paragraph", () => {
-  const document = documentFromAi(["First point. Second point."], [{ paragraph: 1, afterSentence: 0, label: "Let them read the chart" }]);
-  assert.equal(documentToPlainText(document), "[Let them read the chart]\n\nFirst point. Second point.");
+  assert.deepEqual(documentToParagraphs(documentFromAi([])), []);
 });
 
 test("plain-text export marks cues as bracketed notes", () => {
-  const document = documentFromAi(["Hello there. Welcome."], [{ paragraph: 1, afterSentence: 1, label: "Smile" }]);
+  const document = documentFromLegacy("Hello there.\n[cue: Smile]\nWelcome.");
   assert.equal(documentToPlainText(document), "Hello there.\n\n[Smile]\n\nWelcome.");
   assert.equal(documentToPlainText(document, { includeCues: false }), "Hello there.\n\nWelcome.");
 });

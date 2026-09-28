@@ -1,6 +1,6 @@
 /**
  * Script-generation eval: runs fixture decks through the real AI routes, the same pipeline the app
- * runs (analyze → context → plan → outline → write → deliver), and scores what comes back.
+ * runs (analyze → context → plan → outline → write), and scores what comes back.
  *
  * Paid calls require explicit --live=true, --deck=<name> and --budget=<token-cap>.
  *
@@ -10,15 +10,13 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { POST as analyzeRoute } from "../app/api/ai/analyze/route";
 import { POST as contextRoute } from "../app/api/ai/context/route";
-import { POST as deliverRoute } from "../app/api/ai/deliver/route";
 import { POST as outlineRoute } from "../app/api/ai/outline/route";
 import { POST as writeRoute } from "../app/api/ai/write/route";
-import type { BriefInput, DeliveredSlide, WriteRequest, WrittenSlideOutput } from "../lib/ai/schemas";
+import type { BriefInput, WriteRequest, WrittenSlideOutput } from "../lib/ai/schemas";
 import { slideSource, spokenProblems, ungroundedFigures } from "../lib/ai/server/spoken-lint";
 import { paragraphsWords } from "../lib/ai/validate";
-import { placeDelivery } from "../lib/domain/cues";
 import { DEFAULT_BRIEF, planPresentation } from "../lib/domain/planner";
-import { documentFromAi, splitSentences } from "../lib/domain/script";
+import { splitSentences } from "../lib/domain/script";
 import type { Brief, SlideAnalysis } from "../lib/domain/types";
 
 type Fixture = { name: string; brief: Partial<Brief>; slides: { title: string; text: string; notes?: string }[] };
@@ -82,7 +80,7 @@ const chunk = <T,>(items: T[], size: number) => Array.from({ length: Math.ceil(i
 
 async function generate(fixture: Fixture) {
   const brief: Brief = { ...DEFAULT_BRIEF, ...fixture.brief };
-  const input: BriefInput = { goal: brief.goal, audience: brief.audience, keyMessage: brief.keyMessage, mustInclude: brief.mustInclude, avoid: brief.avoid, presenterRole: brief.presenterRole, minutes: brief.minutes, qaMinutes: 0, wpm: brief.wpm, style: brief.style, depth: brief.depth, cueDensity: brief.cueDensity, includeQuestions: false };
+  const input: BriefInput = { goal: brief.goal, audience: brief.audience, keyMessage: brief.keyMessage, mustInclude: brief.mustInclude, avoid: brief.avoid, presenterRole: brief.presenterRole, minutes: brief.minutes, qaMinutes: 0, wpm: brief.wpm, style: brief.style, depth: brief.depth, includeQuestions: false };
   const slides = fixture.slides.map((slide, index) => ({ id: `s${index + 1}`, index: index + 1, title: slide.title, text: slide.text, notes: slide.notes ?? "" }));
   const timings: Record<string, number> = {};
   const stage = async <T,>(name: string, work: () => Promise<T>) => {
@@ -135,28 +133,18 @@ async function generate(fixture: Fixture) {
     for (const entry of result.slides) if (entry.script) written.set(entry.id, entry.script);
   }));
 
-  const delivered = await stage("deliver", () => call<{ slides: DeliveredSlide[] }>(deliverRoute, {
-    density: input.cueDensity,
-    slides: slides.map((slide) => ({ id: slide.id, title: slide.title, kind: analyses.get(slide.id)?.kind ?? "content", keyIdea: planned.get(slide.id)?.keyIdea ?? "", paragraphs: written.get(slide.id)?.paragraphs ?? [] })),
-  }));
-  for (const entry of delivered.slides) {
-    const script = written.get(entry.id);
-    if (script) written.set(entry.id, { ...script, cues: entry.cues, marks: entry.marks });
-  }
-
   const sources = new Map(requests.flatMap((request) => request.slides.map((slide) => [slide.id, slideSource(slide, request.brief)])));
   return { brief: input, slides, targets, planned, outline, written, sources, analyses, timings, notes, telemetry: [...telemetry] };
 }
 
 function score(result: Awaited<ReturnType<typeof generate>>) {
-  const { slides, targets, written, sources, brief, analyses, planned } = result;
+  const { slides, targets, written, sources } = result;
   const rows = slides.map((slide) => {
     const script = written.get(slide.id);
     const paragraphs = script?.paragraphs ?? [];
     const words = paragraphsWords(paragraphs);
     const target = targets.get(slide.id) ?? 0;
     const opener = (splitSentences(paragraphs[0] ?? "")[0] ?? "").toLowerCase().replace(/[^a-z' ]/g, "").split(" ").slice(0, 2).join(" ");
-    const rules = placeDelivery({ paragraphs, density: brief.cueDensity, seed: slide.id, title: slide.title, keyIdea: planned.get(slide.id)?.keyIdea, kind: analyses.get(slide.id)?.kind ?? "content" });
     return {
       id: slide.id,
       missing: !script,
@@ -164,10 +152,6 @@ function score(result: Awaited<ReturnType<typeof generate>>) {
       problems: spokenProblems(paragraphs, sources.get(slide.id)),
       invented: ungroundedFigures(paragraphs, sources.get(slide.id) ?? ""),
       opener,
-      pauses: script?.cues.length ?? 0,
-      bold: script?.marks.filter((mark) => mark.mark === "bold").length ?? 0,
-      slow: script?.marks.filter((mark) => mark.mark === "slow").length ?? 0,
-      coached: JSON.stringify({ cues: script?.cues, marks: script?.marks }) !== JSON.stringify(rules),
     };
   });
   const openers = new Map<string, number>();
@@ -181,11 +165,6 @@ function score(result: Awaited<ReturnType<typeof generate>>) {
     lint: rows.filter((row) => row.problems.length).length,
     invented: rows.flatMap((row) => row.invented),
     repeatedOpeners: repeated.map(([opener, count]) => `"${opener}" ×${count}`),
-    pauses: rows.reduce((sum, row) => sum + row.pauses, 0),
-    bold: rows.reduce((sum, row) => sum + row.bold, 0),
-    slow: rows.reduce((sum, row) => sum + row.slow, 0),
-    noGuidance: rows.filter((row) => !row.pauses && !row.bold && !row.slow).length,
-    coached: rows.filter((row) => row.coached).length,
   };
 }
 
@@ -196,10 +175,7 @@ function render(result: Awaited<ReturnType<typeof generate>>, scored: ReturnType
     const row = scored.rows.find((item) => item.id === slide.id)!;
     lines.push(`### ${slide.index}. ${slide.title} — ${paragraphsWords(script?.paragraphs ?? [])}/${result.targets.get(slide.id)} words${row.problems.length ? ` — ⚠ ${row.problems.join(" ")}` : ""}`);
     if (!script) { lines.push("(missing)", ""); continue; }
-    const document = documentFromAi(script.paragraphs, script.cues.map((cue) => ({ paragraph: cue.paragraph, afterSentence: cue.afterSentence, label: cue.text })), script.marks);
-    for (const paragraph of document.paragraphs) {
-      lines.push(paragraph.children.map((child) => child.type === "cue" ? `> **[${child.label}]**` : child.type === "text" ? (child.slow ? `〔slow: ${child.bold ? `**${child.text}**` : child.text}〕` : child.bold ? `**${child.text}**` : child.text) : "").join(""));
-    }
+    lines.push(...script.paragraphs);
     lines.push(`*Summary:* ${script.concise}`, `*Transition:* ${script.transition}`, "");
   }
   return lines.join("\n");
@@ -209,7 +185,7 @@ mkdirSync("outputs", { recursive: true });
 const stamp = new Date().toISOString().replace(/[:.]/g, "-");
 const report: string[] = [];
 console.log(`Eval with ${process.env.OPENAI_WRITER_MODEL || process.env.OPENAI_MODEL || "gpt-5.4-mini-2026-03-17"} (writing) and ${process.env.OPENAI_MODEL || "gpt-5.4-mini-2026-03-17"} (everything else)\n`);
-console.log("deck               run  time   fit±  off  lint  invented  repeated openers        pauses bold slow  none  coached");
+console.log("deck               run  time   fit±  off  lint  invented  repeated openers");
 for (const fixture of decks) {
   for (let run = 1; run <= runs; run += 1) {
     const started = Date.now();
@@ -223,8 +199,7 @@ for (const fixture of decks) {
       console.log([
         fixture.name.padEnd(18), String(run).padStart(3), `${seconds.toFixed(0)}s`.padStart(6), `${(scored.fitError * 100).toFixed(0)}%`.padStart(5),
         `${scored.offBudget}/${n}`.padStart(5), `${scored.lint}/${n}`.padStart(5), String(scored.invented.length ? scored.invented.join(",") : "0").padStart(9).slice(0, 9),
-        `  ${(scored.repeatedOpeners.join(" ") || "none").padEnd(22).slice(0, 22)}`, String(scored.pauses).padStart(6), String(scored.bold).padStart(4), String(scored.slow).padStart(4),
-        `${scored.noGuidance}/${n}`.padStart(6), `${scored.coached}/${n}`.padStart(8),
+        `  ${(scored.repeatedOpeners.join(" ") || "none").padEnd(22).slice(0, 22)}`,
       ].join(" "));
       if (scored.missing) console.log(`  ⚠ ${scored.missing} slide(s) came back without a script`);
       report.push(`## ${fixture.name} — run ${run} (${seconds.toFixed(0)}s; ${Object.entries(result.timings).map(([name, time]) => `${name} ${time.toFixed(0)}s`).join(", ")})`, "", render(result, scored), "");
@@ -236,5 +211,4 @@ for (const fixture of decks) {
 const file = `outputs/eval-${stamp}.md`;
 writeFileSync(file, report.join("\n"));
 console.log(`\nfit± = average distance from each slide's word target · off = slides more than 20% off · lint = slides failing the speech checks`);
-console.log(`none = slides with no pause, bold or slow · coached = slides where the AI coach's marks differ from the rule fallback`);
 console.log(`Full scripts: ${file}`);
