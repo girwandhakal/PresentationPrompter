@@ -1,75 +1,12 @@
 "use client";
 
-import { Check, MonitorUp } from "lucide-react";
 import type { ReactNode } from "react";
-import { pluralize } from "@/lib/domain/format";
-import type { Project } from "@/lib/domain/types";
 import { DEFAULT_PRESENTER_PREFS, type PresenterPrefs } from "@/lib/prefs";
 import { Button } from "../ui/button";
-import { Callout, Kbd, Segmented, Slider, Switch } from "../ui/controls";
+import { Kbd, Segmented, Slider, Switch } from "../ui/controls";
 import { Dialog } from "../ui/dialog";
 
 export type AudienceStatus = "none" | "connected" | "lost" | "blocked";
-
-export function Preflight({ open, project, audience, onOpenAudience, onStart, onClose, calmStart, onCalmStart }: {
-  open: boolean;
-  project: Project;
-  audience: AudienceStatus;
-  onOpenAudience: () => void;
-  onStart: () => void;
-  onClose: () => void;
-  calmStart: boolean;
-  onCalmStart: (value: boolean) => void;
-}) {
-  return (
-    <Dialog
-      open={open}
-      onClose={onClose}
-      size="md"
-      className="theme-dark"
-      title="Ready to present?"
-      description="A quick check so your audience sees only your slides."
-      footer={audience === "connected"
-        ? <Button variant="accent" onClick={onStart}>Start presenting</Button>
-        : <Button variant="secondary" onClick={onStart}>Start without audience window</Button>}
-    >
-      <ol className="preflight">
-        <li data-done={audience === "connected"}>
-          <span className="preflight__step" aria-hidden="true">{audience === "connected" ? <Check /> : "1"}</span>
-          <div>
-            <p className="preflight__title">Open the audience window</p>
-            <p className="preflight__text">It shows only your slides. Move it to the projector or second display, then press <Kbd>F</Kbd> in it for full screen.</p>
-            <div className="preflight__action">
-              {audience === "connected"
-                ? <span className="preflight__ok">Audience window connected</span>
-                : <Button size="sm" variant="primary" icon={<MonitorUp />} onClick={onOpenAudience}>Open audience window</Button>}
-            </div>
-            {audience === "blocked" && (
-              <Callout tone="warn" title="Your browser blocked the window">Allow pop-ups for this site, then choose Open audience window again.</Callout>
-            )}
-          </div>
-        </li>
-        <li>
-          <span className="preflight__step" aria-hidden="true">2</span>
-          <div>
-            <p className="preflight__title">Share only that window</p>
-            <p className="preflight__text">In Zoom, Teams, or Meet, choose to share a <strong>window</strong> and pick <strong>“Audience · {project.title}”</strong>. Don&apos;t share your whole screen or this tab — this tab is private.</p>
-          </div>
-        </li>
-        <li>
-          <span className="preflight__step" aria-hidden="true">3</span>
-          <div>
-            <p className="preflight__title">Check the plan</p>
-            <p className="preflight__text tabular">{pluralize(project.slides.length, "slide")} · {project.brief.minutes} min{project.brief.qaMinutes ? ` incl. ${project.brief.qaMinutes} min Q&A` : ""} · {project.brief.wpm} words per minute</p>
-          </div>
-        </li>
-      </ol>
-      <div className="preflight__options">
-        <Switch checked={calmStart} onChange={onCalmStart} label="Calm start" description="A short pause and a breath before the timer starts." />
-      </div>
-    </Dialog>
-  );
-}
 
 export function PresenterSettings({ open, prefs, onChange, onClose }: {
   open: boolean;

@@ -51,8 +51,9 @@ test("import, brief, generate, edit, present, and review a deck", async ({ page,
   await page.waitForURL(new RegExp(`/p/${id}/present`));
   const audience = await context.newPage();
   await audience.goto(`/audience/${id}`);
-  await expect(page.getByText("Audience window connected")).toBeVisible();
-  await page.getByRole("button", { name: "Start presenting" }).click();
+  // Presenting starts on its own, with no dialog in front of the teleprompter.
+  await expect(page.getByRole("button", { name: /Audience window connected/ })).toBeVisible();
+  await expect(page.getByRole("dialog")).toBeHidden();
 
   await expect(audience.getByRole("img", { name: "A quieter way to launch" })).toBeVisible();
   await page.keyboard.press("Space");
