@@ -11,7 +11,7 @@ async function ready(page: Page, url: string) {
 }
 
 async function importSample(page: Page) {
-  await ready(page, "/");
+  await ready(page, "/home");
   await expect(page.getByRole("heading", { name: "Import your slides" })).toBeVisible();
   await page.locator("input[type=file]").first().setInputFiles(SAMPLE);
   await page.waitForURL(/\/p\/[a-z0-9]+\/setup$/);

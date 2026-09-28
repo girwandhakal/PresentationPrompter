@@ -1,12 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { NewPresentation } from "../../components/import/NewPresentation";
-import { ProjectMenu } from "../../components/project/ProjectMenu";
-import { SlideImage } from "../../components/project/SlideImage";
-import { projectStatus } from "../../components/shell/Sidebar";
-import { Skeleton } from "../../components/ui/controls";
-import { RevealWords } from "../../components/ui/motion";
+import { NewPresentation } from "../../../components/import/NewPresentation";
+import { ProjectMenu } from "../../../components/project/ProjectMenu";
+import { SlideImage } from "../../../components/project/SlideImage";
+import { projectStatus } from "../../../components/shell/Sidebar";
+import { Skeleton } from "../../../components/ui/controls";
+import { RevealWords } from "../../../components/ui/motion";
 import { formatRelative } from "@/lib/domain/format";
 import { projectHref } from "@/lib/domain/planner";
 import { useProjects } from "@/lib/store/projects";
