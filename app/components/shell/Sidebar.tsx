@@ -1,7 +1,7 @@
 "use client";
 
 import { PanelLeftClose, PanelLeftOpen, Plus, Search, Settings, X } from "lucide-react";
-import { AnimatePresence, LayoutGroup, m } from "motion/react";
+import { LayoutGroup, m } from "motion/react";
 import Link from "next/link";
 import { useParams, usePathname } from "next/navigation";
 import { useMemo, useState } from "react";
@@ -55,7 +55,7 @@ export function Sidebar({ collapsed, onToggleCollapsed, mobileOpen, onCloseMobil
   const params = useParams<{ id?: string }>();
   const pathname = usePathname();
   const [query, setQuery] = useState("");
-  const [hovered, setHovered] = useState<string | null>(null);
+  const [hover, setHover] = useState<{ top: number; left: number; width: number; height: number; visible: boolean; fresh: boolean } | null>(null);
   const activeId = params?.id;
   const writing = projects.some((project) => project.generation.status === "running");
 
@@ -110,7 +110,7 @@ export function Sidebar({ collapsed, onToggleCollapsed, mobileOpen, onCloseMobil
         </div>
 
         {/* data-ready marks when saved presentations have loaded (the e2e suite waits on it). */}
-        <nav className="sidebar__list" aria-label="Your presentations" data-ready={ready || undefined} onPointerLeave={() => setHovered(null)}>
+        <nav className="sidebar__list" aria-label="Your presentations" data-ready={ready || undefined} onPointerLeave={() => setHover((previous) => previous && { ...previous, visible: false })}>
           {!ready && (
             <div className="sidebar__loading">
               {[72, 56, 64].map((width) => <Skeleton key={width} width={`${width}%`} height={12} />)}
@@ -128,22 +128,20 @@ export function Sidebar({ collapsed, onToggleCollapsed, mobileOpen, onCloseMobil
                     className="sidebar__item"
                     data-active={project.id === activeId}
                     style={{ "--i": Math.min(projects.indexOf(project), 12) } as React.CSSProperties}
-                    onPointerEnter={() => setHovered(project.id)}
+                    onPointerEnter={(event) => {
+                      if (event.pointerType === "touch") return;
+                      const row = event.currentTarget;
+                      setHover((previous) => ({
+                        top: row.offsetTop,
+                        left: row.offsetLeft,
+                        width: row.offsetWidth,
+                        height: row.offsetHeight,
+                        visible: true,
+                        fresh: !previous?.visible,
+                      }));
+                    }}
                   >
                     {project.id === activeId && <m.span layoutId="active" className="sidebar__active" transition={GLIDE} aria-hidden="true" />}
-                    <AnimatePresence>
-                      {hovered === project.id && (
-                        <m.span
-                          layoutId="hover"
-                          className="sidebar__hover"
-                          initial={{ opacity: 0 }}
-                          animate={{ opacity: 1 }}
-                          exit={{ opacity: 0, transition: { duration: 0.18 } }}
-                          transition={GLIDE}
-                          aria-hidden="true"
-                        />
-                      )}
-                    </AnimatePresence>
                     <Link
                       href={projectHref(project)}
                       className="sidebar__link"
@@ -171,6 +169,17 @@ export function Sidebar({ collapsed, onToggleCollapsed, mobileOpen, onCloseMobil
             </section>
           ))}
           </LayoutGroup>
+          {/* One pill for the whole list: it glides from row to row and only fades when the pointer
+              enters or leaves the list, so two rows never look hovered at once. */}
+          {hover && (
+            <m.span
+              className="sidebar__hover"
+              initial={{ opacity: 0, x: hover.left, y: hover.top, width: hover.width, height: hover.height }}
+              animate={{ opacity: hover.visible ? 1 : 0, x: hover.left, y: hover.top, width: hover.width, height: hover.height }}
+              transition={hover.fresh ? { duration: 0, opacity: { duration: 0.16 } } : { ...GLIDE, opacity: { duration: 0.18 } }}
+              aria-hidden="true"
+            />
+          )}
         </nav>
 
         <div className="sidebar__footer">
