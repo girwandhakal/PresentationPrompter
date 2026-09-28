@@ -40,8 +40,8 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
     <html lang="en" suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: THEME_BOOTSTRAP }} />
-        <link rel="preload" href="/fonts/instrument-sans-latin.woff2" as="font" type="font/woff2" crossOrigin="" />
-        <link rel="preload" href="/fonts/bricolage-grotesque-latin.woff2" as="font" type="font/woff2" crossOrigin="" />
+        <link rel="preload" href="/fonts/instrument-sans-latin.6219bc4b.woff2" as="font" type="font/woff2" crossOrigin="" />
+        <link rel="preload" href="/fonts/bricolage-grotesque-latin.4fd48b2c.woff2" as="font" type="font/woff2" crossOrigin="" />
       </head>
       <body>
         <MotionProvider>

@@ -54,7 +54,12 @@ const nextConfig: NextConfig = {
           { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains" },
         ]
       : [];
-    return [{ source: "/:path*", headers: [...SECURITY_HEADERS, ...csp] }];
+    return [
+      { source: "/:path*", headers: [...SECURITY_HEADERS, ...csp] },
+      // Font file names carry a content hash (rename the file when it changes), so browsers can
+      // keep them for a year instead of revalidating on every visit.
+      { source: "/fonts/:file", headers: [{ key: "Cache-Control", value: "public, max-age=31536000, immutable" }] },
+    ];
   },
 };
 
