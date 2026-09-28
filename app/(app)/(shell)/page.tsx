@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { NewPresentation } from "../../components/import/NewPresentation";
+import { ProjectMenu } from "../../components/project/ProjectMenu";
 import { SlideImage } from "../../components/project/SlideImage";
 import { projectStatus } from "../../components/shell/Sidebar";
 import { Skeleton } from "../../components/ui/controls";
@@ -42,17 +43,23 @@ export default function HomePage() {
       </header>
       <div className="home-grid stagger">
         {projects.map((project) => (
-          <Link key={project.id} href={projectHref(project)} className="project-card">
-            <SlideImage slide={project.slides[0]} aspectRatio={project.aspectRatio} size="thumb" className="project-card__thumb" />
-            <div className="project-card__body">
-              <p className="project-card__title">{project.title}</p>
-              <p className="project-card__meta">
-                <span>{projectStatus(project)}</span>
-                <span aria-hidden="true">·</span>
-                <span>{formatRelative(project.updatedAt)}</span>
-              </p>
+          <div key={project.id} className="project-card">
+            <Link href={projectHref(project)} className="project-card__link">
+              <SlideImage slide={project.slides[0]} aspectRatio={project.aspectRatio} size="thumb" className="project-card__thumb" />
+              <div className="project-card__body">
+                <p className="project-card__title">{project.title}</p>
+                <p className="project-card__meta">
+                  <span>{projectStatus(project)}</span>
+                  <span aria-hidden="true">·</span>
+                  <span>{formatRelative(project.updatedAt)}</span>
+                </p>
+              </div>
+            </Link>
+            {/* A sibling of the link, not inside it: a button can't live in a link. */}
+            <div className="project-card__menu">
+              <ProjectMenu project={project} />
             </div>
-          </Link>
+          </div>
         ))}
       </div>
     </div>

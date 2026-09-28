@@ -15,7 +15,7 @@ import { useImporter } from "./use-importer";
 /** Import step of the create flow: file → slides saved locally → setup form. */
 export function NewPresentation() {
   const router = useRouter();
-  const { create, projects } = useProjects();
+  const { create } = useProjects();
 
   const onImported = useCallback(async (result: ImportResult) => {
     const project = createProject({
