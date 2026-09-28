@@ -2,7 +2,7 @@ import OpenAI from "openai";
 import type { z } from "zod";
 import { authenticate, serverAuthEnabled } from "./auth";
 import { AiOutputError } from "./integrity";
-import { QuotaError, quotasEnabled, reserve, settle, usedTokens, type Reservation } from "./quota";
+import { QuotaError, quotaExempt, quotasEnabled, reserve, settle, usedTokens, type Reservation } from "./quota";
 import { getProvider, type AiProvider } from "./provider";
 
 const WINDOW_MS = 60_000;
@@ -60,10 +60,11 @@ export async function handleAi<S extends z.ZodType>(
   const provider = getProvider();
   if (!provider) return failure(503, "ai_unavailable", "AI isn't set up on this server yet. Add OPENAI_API_KEY to enable script writing.");
   let uid: string | undefined;
+  let email: string | null = null;
   if (serverAuthEnabled) {
     const caller = await authenticate(request);
     if ("error" in caller) return failure(caller.status, caller.code, caller.error);
-    uid = caller.uid;
+    ({ uid, email } = caller);
   }
   if (rateLimited(request, uid)) return failure(429, "rate_limited", "Too many AI requests at once. Wait a moment and try again.", { "retry-after": "20" });
 
@@ -76,7 +77,7 @@ export async function handleAi<S extends z.ZodType>(
   let reservation: Reservation | null = null;
   if (uid && quotasEnabled()) {
     try {
-      reservation = await reserve(uid, new URL(request.url).pathname.split("/").pop() ?? "");
+      reservation = await reserve(uid, new URL(request.url).pathname.split("/").pop() ?? "", quotaExempt(email));
     } catch (error) {
       if (error instanceof QuotaError) return failure(429, "quota", error.message, { "x-quota-reset": error.resetAt });
       console.error("[ai] quota check failed", error instanceof Error ? error.name : typeof error);
