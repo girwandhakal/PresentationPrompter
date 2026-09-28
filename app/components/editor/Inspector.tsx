@@ -8,6 +8,9 @@ import { ScriptText } from "../presenter/ScriptText";
 import { SlideImage } from "../project/SlideImage";
 import { Segmented } from "../ui/controls";
 
+/** The prompter preview is this much taller than the slide above it, so more script shows at once. */
+const PREVIEW_TALLER = 1.5;
+
 export function Inspector({ project, slide }: { project: Project; slide: Slide }) {
   const [prefs] = usePref("presenter");
   const [previewMode, setPreviewMode] = useState(prefs.mode === "cues" ? "full" : prefs.mode);
@@ -24,7 +27,7 @@ export function Inspector({ project, slide }: { project: Project; slide: Slide }
 
         <div className="inspector__screen">
           <Segmented size="sm" label="Reading mode" value={previewMode} onChange={setPreviewMode} options={[{ value: "full", label: "Script" }, { value: "notes", label: "Short" }, { value: "keywords", label: "Keywords" }]} />
-          <div className="presenter-preview theme-dark" style={{ aspectRatio: String(project.aspectRatio) }} tabIndex={0} role="region" aria-label="Prompter preview">
+          <div className="presenter-preview theme-dark" style={{ aspectRatio: String(project.aspectRatio / PREVIEW_TALLER) }} tabIndex={0} role="region" aria-label="Prompter preview">
             <ScriptText script={script} mode={previewMode} showCues={prefs.showCues} />
           </div>
         </div>
