@@ -22,10 +22,9 @@ export function Inspector({ project, slide }: { project: Project; slide: Slide }
           <p key={warning.message} className="inspector__warning"><AlertCircle aria-hidden="true" /> {warning.message}</p>
         ))}
 
-        <div className="inspector__group">
-          <h3 className="inspector__heading">Preview</h3>
+        <div className="inspector__screen">
           <Segmented size="sm" label="Reading mode" value={previewMode} onChange={setPreviewMode} options={[{ value: "full", label: "Script" }, { value: "notes", label: "Short" }, { value: "keywords", label: "Keywords" }]} />
-          <div className="presenter-preview theme-dark">
+          <div className="presenter-preview theme-dark" style={{ aspectRatio: String(project.aspectRatio) }} tabIndex={0} aria-label="Prompter preview">
             <ScriptText script={script} mode={previewMode} showCues={prefs.showCues} />
           </div>
         </div>
