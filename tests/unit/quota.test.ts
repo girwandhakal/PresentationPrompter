@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { admit, DEFAULT_LIMITS, usedTokens, utcDay } from "../../lib/ai/server/quota";
+import { admit, DEFAULT_LIMITS, quotaExempt, usedTokens, utcDay } from "../../lib/ai/server/quota";
 
 const fresh = { tokens: 0, reserved: 0, generations: 0 };
 const idle = { tokens: 0, reserved: 0 };
@@ -27,6 +27,24 @@ test("only new generations (outline) are capped per day", () => {
   const used = { ...fresh, generations: DEFAULT_LIMITS.userDailyGenerations };
   assert.equal(admit("outline", DEFAULT_LIMITS, used, idle).ok, false);
   assert.equal(admit("rewrite", DEFAULT_LIMITS, used, idle).ok, true);
+});
+
+test("exempt operators are admitted past every allowance, with the usual reservation", () => {
+  const exhausted = { tokens: DEFAULT_LIMITS.userDailyTokens, reserved: 0, generations: DEFAULT_LIMITS.userDailyGenerations };
+  const shared = { tokens: DEFAULT_LIMITS.globalDailyTokens, reserved: 0 };
+  assert.equal(admit("outline", DEFAULT_LIMITS, exhausted, shared).ok, false);
+  const decision = admit("outline", DEFAULT_LIMITS, exhausted, shared, true);
+  assert.ok(decision.ok && decision.estimate > 0);
+});
+
+test("the exempt list matches verified emails exactly, ignoring case and spacing", () => {
+  const list = " Boss@Example.com , second@example.com";
+  assert.equal(quotaExempt("boss@example.com", list), true);
+  assert.equal(quotaExempt("second@example.com", list), true);
+  assert.equal(quotaExempt("someone@example.com", list), false);
+  assert.equal(quotaExempt("boss@example.co", list), false);
+  assert.equal(quotaExempt(null, list), false);
+  assert.equal(quotaExempt("boss@example.com", ""), false);
 });
 
 test("usage sums input and output tokens across calls", () => {

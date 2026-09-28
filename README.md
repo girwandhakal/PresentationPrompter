@@ -111,6 +111,7 @@ can still import, write scripts by hand, and present.
 | `NEXT_PUBLIC_AUTH_MODE` | No | Set to `off` to skip sign-in even when Firebase is configured (this is how the e2e suite runs). |
 | `NEXT_PUBLIC_RECAPTCHA_SITE_KEY` / `NEXT_PUBLIC_APPCHECK_DEBUG_TOKEN` | No | Firebase App Check, once enforcement is turned on. |
 | `FIREBASE_SERVICE_ACCOUNT` | No | Server-side only. The AI routes verify sign-in without it; with it they also reject revoked sessions and disabled users. Never commit it. |
+| `QUOTA_EXEMPT_EMAILS` | No | Server-side only. Comma-separated verified sign-in emails exempt from the daily AI allowances (usage is still recorded). Takes effect only with `FIREBASE_SERVICE_ACCOUNT` set. |
 | `NEXT_PUBLIC_SITE_URL` | No | Public origin for social-card links. |
 
 When Firebase is configured, Google sign-in gates the workspace and every local write mirrors to that
@@ -212,6 +213,16 @@ for what's implemented today versus still planned.
 `next.config.ts` adds security headers to every response and a strict Content Security Policy to
 production builds. Cloud sync is entirely optional — without it the app needs no database, bucket, or
 queue at all.
+
+Sign-in, cloud copies, and quotas use Firebase (`NEXT_PUBLIC_FIREBASE_*`, see `.env.example`):
+
+- Deploy `firestore.rules` and `storage.rules` with the Firebase CLI before a client that depends
+  on them.
+- Slide images are uploaded to Cloud Storage and downloaded on other devices. Browsers can only
+  download them after the bucket allows cross-origin reads, once per bucket (Cloud Shell has gcloud):
+  `gcloud storage buckets update gs://<project>.firebasestorage.app --cors-file=storage.cors.json`.
+  Without it, presentations opened on another browser show title cards instead of slide images.
+  Access is still limited to each file's owner by `storage.rules`.
 
 ## Supported files and limits
 
