@@ -31,6 +31,16 @@ const RESERVATION: Record<string, number> = {
 };
 const DEFAULT_RESERVATION = 20_000;
 
+/**
+ * Operators exempt from every allowance, by verified sign-in email: QUOTA_EXEMPT_EMAILS is a
+ * comma-separated list (server-side only). Their calls are still reserved and recorded in the
+ * usage ledger, so shared totals stay accurate; they are just never refused.
+ */
+export function quotaExempt(email: string | null, list = process.env.QUOTA_EXEMPT_EMAILS ?? "") {
+  if (!email) return false;
+  return list.split(",").some((entry) => entry.trim().toLowerCase() === email.toLowerCase());
+}
+
 /** Quotas apply only where the server can write Firestore (a service account is configured). */
 export const quotasEnabled = () => hasAdminCredentials();
 
@@ -75,8 +85,10 @@ export function admit(
   limit: Limits,
   user: { tokens: number; reserved: number; generations: number },
   global: { tokens: number; reserved: number },
+  exempt = false,
 ) {
   const estimate = RESERVATION[stage] ?? DEFAULT_RESERVATION;
+  if (exempt) return { ok: true as const, estimate };
   if (stage === "outline" && user.generations >= limit.userDailyGenerations) {
     return { ok: false as const, message: `You've used today's ${limit.userDailyGenerations} script generations. They reset at midnight UTC.` };
   }
@@ -89,7 +101,7 @@ export function admit(
   return { ok: true as const, estimate };
 }
 
-export async function reserve(uid: string, stage: string): Promise<Reservation> {
+export async function reserve(uid: string, stage: string, exempt = false): Promise<Reservation> {
   const db = getFirestore(adminApp());
   const day = utcDay();
   const limit = await limits();
@@ -102,6 +114,7 @@ export async function reserve(uid: string, stage: string): Promise<Reservation> 
       limit,
       { tokens: user.get("tokens") ?? 0, reserved: user.get("reserved") ?? 0, generations: user.get("generations") ?? 0 },
       { tokens: global.get("tokens") ?? 0, reserved: global.get("reserved") ?? 0 },
+      exempt,
     );
     if (!decision.ok) throw new QuotaError(decision.message, nextReset());
     const at = FieldValue.serverTimestamp();

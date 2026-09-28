@@ -30,7 +30,8 @@ export function adminApp() {
   return app;
 }
 
-export type Caller = { uid: string };
+/** `email` is set only when Google has verified it; it identifies quota-exempt operators. */
+export type Caller = { uid: string; email: string | null };
 
 export type AuthFailure = { status: 401 | 403; code: string; error: string };
 
@@ -45,7 +46,7 @@ export async function authenticate(request: Request): Promise<Caller | AuthFailu
   if (!token) return { status: 401, code: "unauthenticated", error: "Sign in to use AI features." };
   try {
     const decoded = await getAuth(adminApp()).verifyIdToken(token, checkRevoked);
-    return { uid: decoded.uid };
+    return { uid: decoded.uid, email: decoded.email_verified && decoded.email ? decoded.email.toLowerCase() : null };
   } catch (error) {
     const code = (error as { code?: string }).code ?? "";
     if (code === "auth/id-token-revoked" || code === "auth/user-disabled") {
