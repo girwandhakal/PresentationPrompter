@@ -62,8 +62,8 @@ const errorCode = (error: unknown) => {
 };
 
 function describe(error: unknown) {
-  if (error instanceof Error && error.message.startsWith("too-large")) return "A presentation is too large to back up to your account. It's still saved in this browser.";
-  if (errorCode(error).includes("unauthorized")) return "Your account didn't accept the backup. Sign out and in, then try again.";
+  if (error instanceof Error && error.message.startsWith("too-large")) return "A presentation is too large to save to your account. It's still saved in this browser.";
+  if (errorCode(error).includes("unauthorized")) return "Your account didn't accept the change. Sign out and in, then try again.";
   return "Changes are saved in this browser but haven't reached your account yet.";
 }
 

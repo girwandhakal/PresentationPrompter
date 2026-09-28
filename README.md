@@ -54,7 +54,7 @@ AI gateway: schema-validated requests → OpenAI structured outputs → validati
 
 - **Local-first.** Decks, scripts and history are stored in the browser's IndexedDB, and all storage
   goes through [`lib/store/db.ts`](lib/store/db.ts) so a sync backend can be added later. Settings has
-  backup/restore (`.cueframe` files) and delete-everything.
+  delete-everything.
 - **AI pipeline.** [`lib/ai/orchestrator.tsx`](lib/ai/orchestrator.tsx):
   - Analysis starts as soon as slides are imported. It reads each slide's image and text and
     prefills the setup form with suggestions.

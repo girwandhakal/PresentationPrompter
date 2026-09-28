@@ -8,7 +8,7 @@ import { ImportError, MAX_FILE_BYTES, MAX_SLIDES, type ImportContext, type Impor
 
 export { ImportError, MAX_SLIDES, type ImportProgress };
 
-export type DetectedKind = SourceKind | "backup" | "legacy-ppt" | "keynote" | "unknown";
+export type DetectedKind = SourceKind | "legacy-ppt" | "keynote" | "unknown";
 
 export type ImportResult = {
   title: string;
@@ -23,7 +23,7 @@ export type ImportResult = {
 /** Archives opened while detecting a file's type, reused by the importer instead of unzipping twice. */
 const openedArchives = new WeakMap<File, import("jszip")>();
 
-export const ACCEPTED_TYPES = ".pdf,.pptx,.png,.jpg,.jpeg,.webp,.cueframe,application/pdf,image/png,image/jpeg,image/webp";
+export const ACCEPTED_TYPES = ".pdf,.pptx,.png,.jpg,.jpeg,.webp,application/pdf,image/png,image/jpeg,image/webp";
 
 /** Identifies a file by its leading bytes; names and browser MIME types are only hints. */
 export async function detectKind(file: File): Promise<DetectedKind> {
@@ -36,14 +36,12 @@ export async function detectKind(file: File): Promise<DetectedKind> {
   if (ascii.startsWith("RIFF") && ascii.slice(8, 12) === "WEBP") return "images";
   if (head[0] === 0xd0 && head[1] === 0xcf && head[2] === 0x11 && head[3] === 0xe0) return name.endsWith(".ppt") ? "legacy-ppt" : "unknown";
   if (ascii.startsWith("PK")) {
-    if (name.endsWith(".cueframe")) return "backup";
     if (name.endsWith(".key")) return "keynote";
     const { default: JSZip } = await import("jszip");
     try {
       const zip = await JSZip.loadAsync(file);
       openedArchives.set(file, zip);
       if (zip.file("ppt/presentation.xml")) return "pptx";
-      if (zip.file("manifest.json")) return "backup";
       if (zip.file(/^Index\//).length) return "keynote";
     } catch { /* fall through */ }
   }
@@ -103,6 +101,5 @@ export async function importFiles(files: File[], onProgress: (progress: ImportPr
     const title = files.length === 1 ? fileBaseName(file.name) : "Untitled presentation";
     return { title, fileName: files.length === 1 ? file.name : `${files.length} images`, kind: "images", bytes, aspectRatio: slides[0].width / slides[0].height, slides, blobs };
   }
-  if (kind === "backup") throw new ImportError("This is a Cueframe backup. Restore it from Settings → Backups.");
   throw new ImportError(explainUnsupported(kind, file));
 }

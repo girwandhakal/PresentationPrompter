@@ -79,7 +79,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signOut = useCallback(async () => {
-    // Queued backups need this account's credentials, so send them before signing out.
+    // Queued cloud writes need this account's credentials, so send them before signing out.
     await flushCloud();
     await firebaseSignOut(firebase().auth);
   }, []);
