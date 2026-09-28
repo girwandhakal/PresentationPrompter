@@ -25,7 +25,9 @@ The working stack is TypeScript, React, and Next.js App Router, built with
 in IndexedDB, one database per signed-in account. Firebase Google sign-in gates
 the workspace, and the AI routes verify the Firebase ID token (`proxy.ts` screens
 first). Local writes mirror to the account in Firestore/Storage (`lib/store/cloud.ts`,
-newest `updatedAt` wins), AI calls draw on Firestore quotas (`lib/ai/server/quota.ts`),
+newest `updatedAt` wins; after the first listing a device reads only documents newer
+than its server-time `syncedAt` cursor, and unconfirmed writes retry from an IndexedDB
+outbox), AI calls draw on Firestore quotas (`lib/ai/server/quota.ts`),
 and a blocking function caps signups (`functions/`). Durable server jobs are still planned.
 
 | Area | Implementation |
