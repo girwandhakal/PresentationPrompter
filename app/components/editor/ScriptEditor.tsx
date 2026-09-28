@@ -104,6 +104,7 @@ export function ScriptEditor({ project, initialSlideId }: { project: Project; in
   useEffect(() => {
     const onHide = () => { if (document.visibilityState === "hidden") void flush(); };
     const onUnload = (event: BeforeUnloadEvent) => {
+      surface.current?.commitPending();
       if (!dirty.current) return;
       void flush();
       event.preventDefault();
@@ -200,10 +201,13 @@ export function ScriptEditor({ project, initialSlideId }: { project: Project; in
 
   async function onSelectionRewrite(action: SelectionAction, text: string, apply: (replacement: string) => void) {
     if (!active) return;
+    // The request carries the slide's paragraphs; include typing the surface hasn't reported yet.
+    surface.current?.commitPending();
     controller.current = new AbortController();
     setPending(SELECTION_LABELS[action]);
     try {
-      const result = await rewriteSelection({ ...working, slides: latest.current }, active, action, text, controller.current.signal);
+      const slide = latest.current.find((item) => item.id === active.id) ?? active;
+      const result = await rewriteSelection({ ...working, slides: latest.current }, slide, action, text, controller.current.signal);
       setProposal({ kind: "selection", label: SELECTION_LABELS[action], before: text, after: result.text, apply });
     } catch (error) {
       if (!controller.current?.signal.aborted) toast({ message: error instanceof AiRequestError ? error.message : "That rewrite didn't work. Try again.", tone: "error" });

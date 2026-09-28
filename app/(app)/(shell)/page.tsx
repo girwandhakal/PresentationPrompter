@@ -13,11 +13,11 @@ import { useProjects } from "@/lib/store/projects";
 import { useDocumentTitle } from "@/lib/use-document-title";
 
 export default function HomePage() {
-  const { projects, ready, syncing } = useProjects();
+  const { projects, ready, firstSync } = useProjects();
   useDocumentTitle("Home");
 
-  // An empty library may still be filling from the account (a new device); don't offer an import yet.
-  if (!ready || (!projects.length && syncing)) {
+  // On a device new to this account, an empty library may still be filling; don't offer an import yet.
+  if (!ready || (!projects.length && firstSync)) {
     return (
       <div className="page">
         <Skeleton width={280} height={36} />

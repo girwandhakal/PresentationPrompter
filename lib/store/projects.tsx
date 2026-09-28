@@ -22,6 +22,8 @@ type ProjectsStore = {
    * device the account's presentations arrive then, so "not found" must wait for it.
    */
   syncing: boolean;
+  /** `syncing`, on a device that has never synced this account (its library may be empty only so far). */
+  firstSync: boolean;
   loadError: string | null;
   saveError: string | null;
   projects: Project[];
@@ -51,6 +53,7 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
   const [projects, setProjects] = useState<Project[]>([]);
   const [ready, setReady] = useState(false);
   const [syncing, setSyncing] = useState(authEnabled);
+  const [firstSync, setFirstSync] = useState(authEnabled);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
 
@@ -84,8 +87,11 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
       if (cancelled) return;
       await reload();
       if (cancelled) return;
+      if (await store.hasSyncedBefore().catch(() => true)) setFirstSync(false);
       await Promise.race([syncCloud(), new Promise((resolve) => setTimeout(resolve, FIRST_SYNC_WAIT_MS))]);
-      if (!cancelled) setSyncing(false);
+      if (cancelled) return;
+      setSyncing(false);
+      setFirstSync(false);
     })();
     const online = () => void syncCloud();
     window.addEventListener("online", online);
@@ -201,8 +207,8 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
   }, [saveVersion, update]);
 
   const value = useMemo<ProjectsStore>(() => ({
-    ready, syncing, loadError, saveError, projects, get, create, update, remove, duplicate, saveVersion, restoreVersion, reload,
-  }), [ready, syncing, loadError, saveError, projects, get, create, update, remove, duplicate, saveVersion, restoreVersion, reload]);
+    ready, syncing, firstSync, loadError, saveError, projects, get, create, update, remove, duplicate, saveVersion, restoreVersion, reload,
+  }), [ready, syncing, firstSync, loadError, saveError, projects, get, create, update, remove, duplicate, saveVersion, restoreVersion, reload]);
 
   return <ProjectsContext.Provider value={value}>{children}</ProjectsContext.Provider>;
 }

@@ -30,13 +30,16 @@ let firestorePromise: Promise<Firestore> | null = null;
 let storagePromise: Promise<FirebaseStorage> | null = null;
 
 export function firestore() {
-  firestorePromise ??= import("firebase/firestore").then(({ getFirestore }) => getFirestore(firebase().app));
+  firestorePromise ??= import("firebase/firestore").then(({ getFirestore }) => getFirestore(firebase().app))
+    // A chunk that failed to load (offline) is retried on the next call rather than cached.
+    .catch((error: unknown) => { firestorePromise = null; throw error; });
   return firestorePromise;
 }
 
 /** Storage paths are users/{uid}/...; storage.rules allow only the owner. */
 export function storage() {
-  storagePromise ??= import("firebase/storage").then(({ getStorage }) => getStorage(firebase().app));
+  storagePromise ??= import("firebase/storage").then(({ getStorage }) => getStorage(firebase().app))
+    .catch((error: unknown) => { storagePromise = null; throw error; });
   return storagePromise;
 }
 

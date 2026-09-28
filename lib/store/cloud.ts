@@ -89,13 +89,16 @@ let storageSdk: Promise<StorageSdk> | null = null;
 
 function fs() {
   firestoreSdk ??= Promise.all([import("firebase/firestore"), import("../firebase/client")])
-    .then(async ([sdk, client]) => ({ ...sdk, db: await client.firestore() }));
+    .then(async ([sdk, client]) => ({ ...sdk, db: await client.firestore() }))
+    // A chunk that failed to load (offline) is retried by the next operation rather than cached.
+    .catch((error: unknown) => { firestoreSdk = null; throw error; });
   return firestoreSdk;
 }
 
 function st() {
   storageSdk ??= Promise.all([import("firebase/storage"), import("../firebase/client")])
-    .then(async ([sdk, client]) => ({ ...sdk, bucket: await client.storage() }));
+    .then(async ([sdk, client]) => ({ ...sdk, bucket: await client.storage() }))
+    .catch((error: unknown) => { storageSdk = null; throw error; });
   return storageSdk;
 }
 
@@ -128,12 +131,13 @@ async function writeProject(uid: string, project: Project, { always = false } = 
 // ── Debounced writes ────────────────────────────────────────────────────────
 
 const timers = new Map<string, { timer: ReturnType<typeof setTimeout>; run: () => Promise<void>; since: number }>();
-/** Keys whose write has left the debounce queue but not finished. */
-const inflight = new Set<string>();
+/** Writes that have left the debounce queue but not finished, by key. */
+const inflight = new Map<string, Promise<void>>();
 
 function send(key: string, run: () => Promise<void>) {
-  inflight.add(key);
-  return track(run).finally(() => inflight.delete(key));
+  const sending = track(run).finally(() => { if (inflight.get(key) === sending) inflight.delete(key); });
+  inflight.set(key, sending);
+  return sending;
 }
 
 function debounce(key: string, delay: number, run: () => Promise<void>) {
@@ -189,7 +193,10 @@ export function removeProject(uid: string, project: Project, onRemoved?: () => v
   if (queued) clearTimeout(queued.timer);
   timers.delete(key);
   lastSent.delete(`${uid}/${project.id}`);
+  const sending = inflight.get(key);
   background(async () => {
+    // A save already on its way could otherwise land after the tombstone and revive the project.
+    await sending?.catch(() => {});
     const f = await fs();
     await f.setDoc(projectRef(f, uid, project.id), { deleted: true, updatedAt: Date.now(), syncedAt: f.serverTimestamp() });
     const children = await Promise.all((["versions", "sessions"] as const).map((kind) => f.getDocs(childrenRef(f, uid, project.id, kind))));

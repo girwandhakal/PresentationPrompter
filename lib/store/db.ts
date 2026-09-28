@@ -54,6 +54,12 @@ export function setStoreOwner(uid: string | null) {
   dbPromise = null;
 }
 
+/** Whether this browser has completed a cloud sync for the current account before. */
+export async function hasSyncedBefore() {
+  if (!mirror()) return true;
+  return Boolean(await (await db()).get("meta", "sync"));
+}
+
 /** The account the workspace in this browser last opened, until it signs out. */
 export function rememberedStoreOwner() {
   try {
@@ -191,13 +197,16 @@ export async function putProject(project: Project, { sync = true } = {}) {
     await database.put("projects", project);
   }
   notify({ type: "project", id: project.id });
-  if (uid) cloud.saveProject(uid, project, () => void settleOutbox(project.id, rev));
+  if (uid) cloud.saveProject(uid, project, () => void settleOutbox(database, project.id, rev));
 }
 
-/** Clears an outbox entry once the account copy has the write it recorded. */
-async function settleOutbox(id: string, rev: string) {
+/**
+ * Clears an outbox entry once the account copy has the write it recorded. Uses the database the
+ * entry was written to: after a sign-out db() would open (and create) the signed-out one instead.
+ */
+async function settleOutbox(database: IDBPDatabase<CueframeDB>, id: string, rev: string) {
   try {
-    const tx = (await db()).transaction("outbox", "readwrite");
+    const tx = database.transaction("outbox", "readwrite");
     if ((await tx.store.get(id))?.rev === rev) await tx.store.delete(id);
     await tx.done;
   } catch { /* the entry stays and is retried at the next sync */ }
@@ -218,7 +227,7 @@ export async function deleteProject(project: Project) {
   for (const key of await tx.objectStore("sessions").index("projectId").getAllKeys(project.id)) await tx.objectStore("sessions").delete(key);
   await tx.done;
   notify({ type: "project-deleted", id: project.id });
-  if (uid) cloud.removeProject(uid, project, () => void settleOutbox(project.id, rev));
+  if (uid) cloud.removeProject(uid, project, () => void settleOutbox(database, project.id, rev));
 }
 
 // ── Slide images ────────────────────────────────────────────────────────────
@@ -352,7 +361,7 @@ export async function syncWithCloud() {
     // A write from this tab is already queued or on its way and settles its own outbox entry.
     if (cloud.isProjectBusy(project.id)) continue;
     const pending = outbox.get(project.id);
-    const settle = pending ? () => void settleOutbox(project.id, pending.rev) : undefined;
+    const settle = pending ? () => void settleOutbox(database, project.id, pending.rev) : undefined;
     if (known.has(project.id)) {
       if (pending || upload.has(project.id)) cloud.saveProject(uid, project, settle);
       continue;
@@ -374,8 +383,8 @@ export async function syncWithCloud() {
 
   for (const entry of outbox.values()) {
     if (local.has(entry.id)) continue;
-    if (entry.deleted) cloud.removeProject(uid, entry.deleted, () => void settleOutbox(entry.id, entry.rev));
-    else await settleOutbox(entry.id, entry.rev); // The project is gone; nothing left to send.
+    if (entry.deleted) cloud.removeProject(uid, entry.deleted, () => void settleOutbox(database, entry.id, entry.rev));
+    else await settleOutbox(database, entry.id, entry.rev); // The project is gone; nothing left to send.
   }
 
   // Another tab may have synced meanwhile; keep whichever cursor is further along.
