@@ -138,14 +138,19 @@ export function SetupView({ project }: { project: Project }) {
   }, [project.context]);
 
   // ── Generation lifecycle ─────────────────────────────────────────────────
-  const wasRunning = useRef(running);
+  // A finished run hands straight over to the editor. The writing screen stays up until the editor
+  // replaces it; otherwise the setup form flashes between the two while the route loads.
+  const [handoff, setHandoff] = useState(false);
+  const [wasRunning, setWasRunning] = useState(running);
+  if (running !== wasRunning) {
+    setWasRunning(running);
+    if (!running && project.generation.status === "idle" && project.status === "ready") setHandoff(true);
+  }
   useEffect(() => {
-    if (wasRunning.current && !running && project.generation.status === "idle" && project.status === "ready") {
-      toast("Your script is ready");
-      router.push(`/p/${project.id}/edit`);
-    }
-    wasRunning.current = running;
-  }, [running, project.generation.status, project.status, project.id, router, toast]);
+    if (!handoff) return;
+    toast("Your script is ready");
+    router.push(`/p/${project.id}/edit`);
+  }, [handoff, project.id, router, toast]);
 
   // Nothing here is required: a blank goal or audience is written with these defaults.
   const defaults = {
@@ -178,7 +183,7 @@ export function SetupView({ project }: { project: Project }) {
     toast("Saved. Timing estimates and teleprompter pace now use the new settings.");
   }
 
-  if (running) return <GeneratingView onCancel={() => orchestrator.cancel(project.id)} />;
+  if (running || handoff) return <GeneratingView onCancel={() => orchestrator.cancel(project.id)} />;
 
   const failed = project.generation.status === "failed" ? project.generation.error : null;
 
