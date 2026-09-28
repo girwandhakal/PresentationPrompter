@@ -25,9 +25,10 @@ export function SessionReview({ project, sessionId }: { project: Project; sessio
 
   useEffect(() => {
     let active = true;
-    listSessions(project.id).then((items) => { if (active) setSessions(items.filter((item) => item.totalSeconds > 0)); }).catch(() => { if (active) setSessions([]); });
+    // Empty sessions are hidden, except the one just ended: a run under half a second rounds to 0s.
+    listSessions(project.id).then((items) => { if (active) setSessions(items.filter((item) => item.totalSeconds > 0 || item.id === sessionId)); }).catch(() => { if (active) setSessions([]); });
     return () => { active = false; };
-  }, [project.id]);
+  }, [project.id, sessionId]);
 
   if (!sessions) return <div className="center-state"><Spinner label="Loading sessions" /></div>;
   if (!sessions.length) {
