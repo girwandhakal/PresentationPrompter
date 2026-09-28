@@ -64,6 +64,8 @@ type Props = {
   aiEnabled: boolean;
   onSelectionRewrite: (action: SelectionAction, text: string, apply: (replacement: string) => void) => void;
   toolbarEnd?: ReactNode;
+  /** Shown between the toolbar and the text, e.g. a pending or proposed AI rewrite. */
+  notice?: ReactNode;
   label: string;
   autoFocus?: boolean;
 };
@@ -72,7 +74,7 @@ type Props = {
  * The teleprompter script editor. Cues are atomic private nodes on their own line; formatting is
  * limited to what renders in Presenter (bold, italic, slow). Remount with a new `key` to load new content.
  */
-export const ScriptSurface = forwardRef<ScriptSurfaceHandle, Props>(function ScriptSurface({ document, onChange, onEdit, locked, aiEnabled, onSelectionRewrite, toolbarEnd, label, autoFocus }, ref) {
+export const ScriptSurface = forwardRef<ScriptSurfaceHandle, Props>(function ScriptSurface({ document, onChange, onEdit, locked, aiEnabled, onSelectionRewrite, toolbarEnd, notice, label, autoFocus }, ref) {
   const config = useMemo(() => ({
     namespace: "CueframeScript",
     nodes: [ScriptParagraphNode, CueNode, PARAGRAPH_REPLACEMENT],
@@ -85,6 +87,7 @@ export const ScriptSurface = forwardRef<ScriptSurfaceHandle, Props>(function Scr
   return (
     <LexicalComposer initialConfig={config}>
       <Toolbar end={toolbarEnd} />
+      {notice}
       <div className="script-surface" ref={surfaceRef} data-locked={locked}>
         <RichTextPlugin
           contentEditable={<ContentEditable className="script-surface__input" aria-label={label} aria-multiline="true" spellCheck />}

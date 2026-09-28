@@ -260,6 +260,32 @@ export function ScriptEditor({ project, initialSlideId }: { project: Project; in
   const empty = words === 0 && active.script.origin === "empty";
   const locked = Boolean(pending || proposal);
 
+  const notice = pending ? (
+    <div className="ai-pending" role="status">
+      <LoaderCircle className="spin" aria-hidden="true" />
+      <span><span className="shimmer-text">{pending}…</span></span>
+      <Button size="sm" variant="ghost" onClick={cancelPending}>Cancel</Button>
+    </div>
+  ) : proposal ? (
+    <section className="proposal" aria-label="Proposed change">
+      <header className="proposal__head">
+        <p><Sparkles aria-hidden="true" /> <strong>{proposal.label}</strong>{proposal.kind === "script" && <span className="tabular"> · {proposal.before} → {proposal.after} words · about {formatClock(secondsFor(proposal.after))}</span>}</p>
+        <div className="proposal__actions">
+          <Button size="sm" variant="ghost" icon={<X />} onClick={() => setProposal(null)}>Discard</Button>
+          <Button size="sm" variant="primary" icon={<Check />} onClick={acceptProposal}>Accept</Button>
+        </div>
+      </header>
+      {proposal.kind === "script" ? (
+        <ScriptText className="proposal__script" script={{ ...active.script, document: proposal.document }} />
+      ) : (
+        <div className="proposal__selection">
+          <p className="proposal__before"><span className="sr-only">Before: </span>{proposal.before}</p>
+          <p className="proposal__after"><span className="sr-only">After: </span><RevealWords text={proposal.after} /></p>
+        </div>
+      )}
+    </section>
+  ) : null;
+
   return (
     <div className="editor" data-save-state={saveState}>
       <header className="page-header editor__header">
@@ -307,34 +333,6 @@ export function ScriptEditor({ project, initialSlideId }: { project: Project; in
               />
             </div>
 
-            {pending && (
-              <div className="ai-pending" role="status">
-                <LoaderCircle className="spin" aria-hidden="true" />
-                <span><span className="shimmer-text">{pending}…</span></span>
-                <Button size="sm" variant="ghost" onClick={cancelPending}>Cancel</Button>
-              </div>
-            )}
-
-            {proposal && (
-              <section className="proposal" aria-label="Proposed change">
-                <header className="proposal__head">
-                  <p><Sparkles aria-hidden="true" /> <strong>{proposal.label}</strong>{proposal.kind === "script" && <span className="tabular"> · {proposal.before} → {proposal.after} words · about {formatClock(secondsFor(proposal.after))}</span>}</p>
-                  <div className="proposal__actions">
-                    <Button size="sm" variant="ghost" icon={<X />} onClick={() => setProposal(null)}>Discard</Button>
-                    <Button size="sm" variant="primary" icon={<Check />} onClick={acceptProposal}>Accept</Button>
-                  </div>
-                </header>
-                {proposal.kind === "script" ? (
-                  <ScriptText className="proposal__script" script={{ ...active.script, document: proposal.document }} />
-                ) : (
-                  <div className="proposal__selection">
-                    <p className="proposal__before"><span className="sr-only">Before: </span>{proposal.before}</p>
-                    <p className="proposal__after"><span className="sr-only">After: </span><RevealWords text={proposal.after} /></p>
-                  </div>
-                )}
-              </section>
-            )}
-
             {empty && !proposal && !pending ? (
               <div className="editor-empty">
                 <p>No script for this slide yet.</p>
@@ -355,19 +353,17 @@ export function ScriptEditor({ project, initialSlideId }: { project: Project; in
                 label={`Script for slide ${index + 1}`}
                 autoFocus={focusEditor}
                 onSelectionRewrite={onSelectionRewrite}
+                notice={notice}
                 toolbarEnd={aiEnabled ? (
                   <Menu
                     label="Improve this slide"
                     align="end"
                     items={improveItems}
-                    trigger={(props) => <Button {...props} size="sm" variant="secondary" icon={<Sparkles />} trailing={<ChevronDown />} disabled={locked}>Improve</Button>}
+                    trigger={(props) => <Button {...props} size="sm" variant="ghost" icon={<Sparkles />} trailing={<ChevronDown />} disabled={locked}><span className="editor-toolbar__label">Improve</span></Button>}
                   />
                 ) : undefined}
               />
             )}
-
-
-
 
             <nav className="editor-pager" aria-label="Slide navigation">
               <Button variant="ghost" size="sm" icon={<ArrowLeft />} disabled={index === 0 || locked} onClick={() => select(slides[index - 1].id)} data-tooltip="Alt+↑" data-tooltip-side="top" aria-keyshortcuts="Alt+ArrowUp">Previous</Button>
