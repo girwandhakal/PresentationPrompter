@@ -2,9 +2,8 @@
 
 import { FirebaseError } from "firebase/app";
 import { GoogleAuthProvider, onAuthStateChanged, signInWithPopup, signOut as firebaseSignOut, type User } from "firebase/auth";
-import { doc, onSnapshot, serverTimestamp, setDoc } from "firebase/firestore";
 import { useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
-import { authEnabled, firebase } from "./firebase/client";
+import { authEnabled, firebase, firestore } from "./firebase/client";
 import { flushCloud } from "./store/cloud";
 import { stableContext } from "./stable-context";
 
@@ -24,9 +23,12 @@ const AuthContext = stableContext<AuthState | null>("auth", null);
 
 const toAccount = (user: User): Account => ({ uid: user.uid, name: user.displayName, email: user.email, photoUrl: user.photoURL });
 
-/** Keeps the signed-in user's profile document current. Owner-only per firestore.rules. */
+/**
+ * Records the profile when the user signs in. Owner-only per firestore.rules. Written only on an
+ * actual sign-in, not each time a tab restores the session, which cost a write per page load.
+ */
 async function saveProfile(user: User) {
-  const { db } = firebase();
+  const [{ doc, serverTimestamp, setDoc }, db] = await Promise.all([import("firebase/firestore"), firestore()]);
   await setDoc(
     doc(db, "users", user.uid),
     { displayName: user.displayName ?? null, email: user.email ?? null, photoURL: user.photoURL ?? null, lastSignInAt: serverTimestamp() },
@@ -65,15 +67,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return onAuthStateChanged(firebase().auth, (user) => {
       setAccount(user ? toAccount(user) : null);
       setStatus(user ? "signed-in" : "signed-out");
-      // The profile is a convenience record; the workspace must not wait on or fail with it.
-      if (user) saveProfile(user).catch(() => {});
     });
   }, []);
 
   const signIn = useCallback(async () => {
     const provider = new GoogleAuthProvider();
     provider.setCustomParameters({ prompt: "select_account" });
-    await signInWithPopup(firebase().auth, provider);
+    const { user } = await signInWithPopup(firebase().auth, provider);
+    // The profile is a convenience record; the workspace must not wait on or fail with it.
+    saveProfile(user).catch(() => {});
   }, []);
 
   const signOut = useCallback(async () => {
@@ -103,11 +105,20 @@ export function useTodayUsage(uid: string | null) {
   useEffect(() => {
     if (!authEnabled || !uid) return;
     const day = new Date().toISOString().slice(0, 10);
-    return onSnapshot(
-      doc(firebase().db, "usage", day, "users", uid),
-      (snapshot) => setUsage({ tokens: Number(snapshot.get("tokens") ?? 0), generations: Number(snapshot.get("generations") ?? 0) }),
-      () => setUsage(null),
-    );
+    let active = true;
+    let unsubscribe = () => {};
+    void Promise.all([import("firebase/firestore"), firestore()]).then(([{ doc, onSnapshot }, db]) => {
+      if (!active) return;
+      unsubscribe = onSnapshot(
+        doc(db, "usage", day, "users", uid),
+        (snapshot) => setUsage({ tokens: Number(snapshot.get("tokens") ?? 0), generations: Number(snapshot.get("generations") ?? 0) }),
+        () => setUsage(null),
+      );
+    }).catch(() => setUsage(null));
+    return () => {
+      active = false;
+      unsubscribe();
+    };
   }, [uid]);
   return usage;
 }

@@ -1,10 +1,8 @@
 "use client";
 
-import { FirebaseError } from "firebase/app";
-import { collection, deleteDoc, doc, getDocs, orderBy, query, serverTimestamp, setDoc, Timestamp, where } from "firebase/firestore";
-import { deleteObject, getBlob, ref, uploadBytes } from "firebase/storage";
+import type { Timestamp } from "firebase/firestore";
 import type { PresenterSession, Project, ScriptVersion } from "../domain/types";
-import { authEnabled, firebase } from "../firebase/client";
+import { authEnabled } from "../firebase/config";
 
 /**
  * The signed-in account's copy of every presentation, so it survives a cleared browser and follows
@@ -19,6 +17,9 @@ import { authEnabled, firebase } from "../firebase/client";
  * the app never queries inside them. Rules (firestore.rules, storage.rules) limit every path to
  * its owner. Conflicts resolve by `updatedAt`, last writer wins. `syncedAt` is the server's time of
  * each project write, so a device can ask for only what changed since its last sync.
+ *
+ * The Firestore and Storage SDKs are imported on first use, so pages that never reach the cloud
+ * (the audience window) or haven't yet (first paint) don't load them.
  */
 
 /** Firestore documents max out at 1 MiB; leave headroom for the other fields. */
@@ -54,9 +55,15 @@ function setState(next: SyncState) {
   for (const listener of listeners) listener(state);
 }
 
+/** Firebase errors carry a string `code`; checked by shape so this module needn't import the SDK. */
+const errorCode = (error: unknown) => {
+  const code = (error as { code?: unknown } | null)?.code;
+  return typeof code === "string" ? code : "";
+};
+
 function describe(error: unknown) {
   if (error instanceof Error && error.message.startsWith("too-large")) return "A presentation is too large to back up to your account. It's still saved in this browser.";
-  if (error instanceof FirebaseError && error.code.includes("unauthorized")) return "Your account didn't accept the backup. Sign out and in, then try again.";
+  if (errorCode(error).includes("unauthorized")) return "Your account didn't accept the backup. Sign out and in, then try again.";
   return "Changes are saved in this browser but haven't reached your account yet.";
 }
 
@@ -73,13 +80,32 @@ function background(work: () => Promise<unknown>) {
   void track(work).catch(() => {});
 }
 
-// ── Paths ───────────────────────────────────────────────────────────────────
+// ── SDKs and paths ──────────────────────────────────────────────────────────
 
-const projectsRef = (uid: string) => collection(firebase().db, "users", uid, "projects");
-const projectRef = (uid: string, id: string) => doc(firebase().db, "users", uid, "projects", id);
-const childRef = (uid: string, projectId: string, kind: "versions" | "sessions", id: string) =>
-  doc(firebase().db, "users", uid, "projects", projectId, kind, id);
-const blobRef = (uid: string, key: string) => ref(firebase().storage, `users/${uid}/blobs/${key}`);
+type FirestoreSdk = typeof import("firebase/firestore") & { db: import("firebase/firestore").Firestore };
+type StorageSdk = typeof import("firebase/storage") & { bucket: import("firebase/storage").FirebaseStorage };
+let firestoreSdk: Promise<FirestoreSdk> | null = null;
+let storageSdk: Promise<StorageSdk> | null = null;
+
+function fs() {
+  firestoreSdk ??= Promise.all([import("firebase/firestore"), import("../firebase/client")])
+    .then(async ([sdk, client]) => ({ ...sdk, db: await client.firestore() }));
+  return firestoreSdk;
+}
+
+function st() {
+  storageSdk ??= Promise.all([import("firebase/storage"), import("../firebase/client")])
+    .then(async ([sdk, client]) => ({ ...sdk, bucket: await client.storage() }));
+  return storageSdk;
+}
+
+const projectsRef = (f: FirestoreSdk, uid: string) => f.collection(f.db, "users", uid, "projects");
+const projectRef = (f: FirestoreSdk, uid: string, id: string) => f.doc(f.db, "users", uid, "projects", id);
+const childRef = (f: FirestoreSdk, uid: string, projectId: string, kind: "versions" | "sessions", id: string) =>
+  f.doc(f.db, "users", uid, "projects", projectId, kind, id);
+const childrenRef = (f: FirestoreSdk, uid: string, projectId: string, kind: "versions" | "sessions") =>
+  f.collection(f.db, "users", uid, "projects", projectId, kind);
+const blobRef = (s: StorageSdk, uid: string, key: string) => s.ref(s.bucket, `users/${uid}/blobs/${key}`);
 
 function encode(value: unknown) {
   const json = JSON.stringify(value);
@@ -94,7 +120,8 @@ async function writeProject(uid: string, project: Project, { always = false } = 
   const json = encode(project);
   const key = `${uid}/${project.id}`;
   if (!always && lastSent.get(key) === json) return;
-  await setDoc(projectRef(uid, project.id), { json, updatedAt: project.updatedAt, syncedAt: serverTimestamp() });
+  const f = await fs();
+  await f.setDoc(projectRef(f, uid, project.id), { json, updatedAt: project.updatedAt, syncedAt: f.serverTimestamp() });
   lastSent.set(key, json);
 }
 
@@ -163,10 +190,10 @@ export function removeProject(uid: string, project: Project, onRemoved?: () => v
   timers.delete(key);
   lastSent.delete(`${uid}/${project.id}`);
   background(async () => {
-    await setDoc(projectRef(uid, project.id), { deleted: true, updatedAt: Date.now(), syncedAt: serverTimestamp() });
-    const children = await Promise.all((["versions", "sessions"] as const).map((kind) =>
-      getDocs(collection(firebase().db, "users", uid, "projects", project.id, kind))));
-    await Promise.all(children.flatMap((snapshot) => snapshot.docs.map((entry) => deleteDoc(entry.ref))));
+    const f = await fs();
+    await f.setDoc(projectRef(f, uid, project.id), { deleted: true, updatedAt: Date.now(), syncedAt: f.serverTimestamp() });
+    const children = await Promise.all((["versions", "sessions"] as const).map((kind) => f.getDocs(childrenRef(f, uid, project.id, kind))));
+    await Promise.all(children.flatMap((snapshot) => snapshot.docs.map((entry) => f.deleteDoc(entry.ref))));
     await deleteStoredBlobs(uid, project.slides.flatMap((slide) => [slide.imageKey, slide.thumbKey]));
     onRemoved?.();
   });
@@ -177,8 +204,9 @@ export function uploadBlobs(uid: string, entries: [string, Blob][]) {
 }
 
 async function uploadNow(uid: string, entries: [string, Blob][]) {
+  const s = await st();
   await Promise.all(entries.filter(([key]) => key).map(([key, blob]) =>
-    uploadBytes(blobRef(uid, key), blob, { contentType: IMAGE_TYPES.has(blob.type) ? blob.type : "image/png" })));
+    s.uploadBytes(blobRef(s, uid, key), blob, { contentType: IMAGE_TYPES.has(blob.type) ? blob.type : "image/png" })));
 }
 
 export function deleteBlobs(uid: string, keys: string[]) {
@@ -186,22 +214,30 @@ export function deleteBlobs(uid: string, keys: string[]) {
 }
 
 async function deleteStoredBlobs(uid: string, keys: string[]) {
-  await Promise.all(keys.filter(Boolean).map((key) => deleteObject(blobRef(uid, key)).catch((error: unknown) => {
-    if (!(error instanceof FirebaseError && error.code === "storage/object-not-found")) throw error;
+  const s = await st();
+  await Promise.all(keys.filter(Boolean).map((key) => s.deleteObject(blobRef(s, uid, key)).catch((error: unknown) => {
+    if (errorCode(error) !== "storage/object-not-found") throw error;
   })));
 }
 
 export function saveVersion(uid: string, version: ScriptVersion) {
-  background(() => setDoc(childRef(uid, version.projectId, "versions", version.id), { json: encode(version), createdAt: version.createdAt }));
+  background(async () => {
+    const f = await fs();
+    await f.setDoc(childRef(f, uid, version.projectId, "versions", version.id), { json: encode(version), createdAt: version.createdAt });
+  });
 }
 
 export function deleteVersion(uid: string, projectId: string, id: string) {
-  background(() => deleteDoc(childRef(uid, projectId, "versions", id)));
+  background(async () => {
+    const f = await fs();
+    await f.deleteDoc(childRef(f, uid, projectId, "versions", id));
+  });
 }
 
 export function saveSession(uid: string, session: PresenterSession) {
   debounce(`session:${session.id}`, SESSION_DEBOUNCE_MS, async () => {
-    await setDoc(childRef(uid, session.projectId, "sessions", session.id), { json: encode(session), createdAt: session.startedAt });
+    const f = await fs();
+    await f.setDoc(childRef(f, uid, session.projectId, "sessions", session.id), { json: encode(session), createdAt: session.startedAt });
   });
 }
 
@@ -218,15 +254,16 @@ export type SyncCursor = { seconds: number; nanoseconds: number };
  */
 export function listRemoteProjects(uid: string, since: SyncCursor | null): Promise<{ projects: RemoteProject[]; cursor: SyncCursor | null }> {
   return track(async () => {
-    const snapshot = await getDocs(since
-      ? query(projectsRef(uid), where("syncedAt", ">", new Timestamp(since.seconds, since.nanoseconds)), orderBy("syncedAt"))
-      : projectsRef(uid));
+    const f = await fs();
+    const snapshot = await f.getDocs(since
+      ? f.query(projectsRef(f, uid), f.where("syncedAt", ">", new f.Timestamp(since.seconds, since.nanoseconds)), f.orderBy("syncedAt"))
+      : projectsRef(f, uid));
     let cursor = since;
     const projects = snapshot.docs.map((entry): RemoteProject => {
       const data = entry.data() as { json?: string; updatedAt: number; deleted?: boolean; syncedAt?: Timestamp };
       // Documents written before syncedAt existed lack it; they are only seen by a full listing.
       const at = data.syncedAt;
-      if (at instanceof Timestamp && (!cursor || at.seconds > cursor.seconds || (at.seconds === cursor.seconds && at.nanoseconds > cursor.nanoseconds))) {
+      if (at instanceof f.Timestamp && (!cursor || at.seconds > cursor.seconds || (at.seconds === cursor.seconds && at.nanoseconds > cursor.nanoseconds))) {
         cursor = { seconds: at.seconds, nanoseconds: at.nanoseconds };
       }
       return data.deleted || !data.json
@@ -243,10 +280,11 @@ export function listRemoteProjects(uid: string, since: SyncCursor | null): Promi
  */
 export function listRemoteChildren(uid: string, projectId: string, versionsSince: number | null) {
   return track(async () => {
-    const versionsRef = collection(firebase().db, "users", uid, "projects", projectId, "versions");
+    const f = await fs();
+    const versionsRef = childrenRef(f, uid, projectId, "versions");
     const [versions, sessions] = await Promise.all([
-      getDocs(versionsSince == null ? versionsRef : query(versionsRef, where("createdAt", ">", versionsSince - VERSION_CLOCK_MARGIN_MS))),
-      getDocs(collection(firebase().db, "users", uid, "projects", projectId, "sessions")),
+      f.getDocs(versionsSince == null ? versionsRef : f.query(versionsRef, f.where("createdAt", ">", versionsSince - VERSION_CLOCK_MARGIN_MS))),
+      f.getDocs(childrenRef(f, uid, projectId, "sessions")),
     ]);
     return {
       versions: versions.docs.map((entry) => JSON.parse(entry.get("json")) as ScriptVersion),
@@ -257,10 +295,11 @@ export function listRemoteChildren(uid: string, projectId: string, versionsSince
 
 /** Fetches one slide image from the account copy; undefined when it was never uploaded. */
 export async function downloadBlob(uid: string, key: string) {
+  const s = await st();
   try {
-    return await getBlob(blobRef(uid, key));
+    return await s.getBlob(blobRef(s, uid, key));
   } catch (error) {
-    if (error instanceof FirebaseError && error.code === "storage/object-not-found") return undefined;
+    if (errorCode(error) === "storage/object-not-found") return undefined;
     throw error;
   }
 }
@@ -269,9 +308,10 @@ export async function downloadBlob(uid: string, key: string) {
 export function backfillProject(uid: string, project: Project, blobs: [string, Blob][], versions: ScriptVersion[], sessions: PresenterSession[], onSaved?: () => void) {
   background(async () => {
     await uploadNow(uid, blobs);
+    const f = await fs();
     await Promise.all([
-      ...versions.map((version) => setDoc(childRef(uid, project.id, "versions", version.id), { json: encode(version), createdAt: version.createdAt })),
-      ...sessions.map((session) => setDoc(childRef(uid, project.id, "sessions", session.id), { json: encode(session), createdAt: session.startedAt })),
+      ...versions.map((version) => f.setDoc(childRef(f, uid, project.id, "versions", version.id), { json: encode(version), createdAt: version.createdAt })),
+      ...sessions.map((session) => f.setDoc(childRef(f, uid, project.id, "sessions", session.id), { json: encode(session), createdAt: session.startedAt })),
     ]);
     // The project document last, so another device never sees it before its images exist.
     await writeProject(uid, project, { always: true });

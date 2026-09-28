@@ -37,12 +37,30 @@ const STORES = ["projects", "blobs", "versions", "sessions"] as const;
 let owner: string | null = null;
 let dbPromise: Promise<IDBPDatabase<CueframeDB>> | null = null;
 
-/** Points every read and write at one account's database (null: the shared, signed-out one). */
+const OWNER_KEY = "cueframe:owner";
+
+/**
+ * Points every read and write at one account's database (null: the shared, signed-out one), and
+ * remembers the account for the audience window, which opens that database without signing in.
+ */
 export function setStoreOwner(uid: string | null) {
+  try {
+    if (uid) localStorage.setItem(OWNER_KEY, uid);
+    else localStorage.removeItem(OWNER_KEY);
+  } catch { /* storage blocked: the audience window then shows the shared database */ }
   if (uid === owner) return;
   owner = uid;
   void dbPromise?.then((database) => database.close()).catch(() => {});
   dbPromise = null;
+}
+
+/** The account the workspace in this browser last opened, until it signs out. */
+export function rememberedStoreOwner() {
+  try {
+    return localStorage.getItem(OWNER_KEY);
+  } catch {
+    return null;
+  }
 }
 
 /** The account whose cloud copy mirrors local writes, when sign-in is on. */

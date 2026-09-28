@@ -2,7 +2,7 @@
 
 import { Maximize } from "lucide-react";
 import { use, useEffect, useRef, useState } from "react";
-import { getProject } from "@/lib/store/db";
+import { getProject, rememberedStoreOwner, setStoreOwner } from "@/lib/store/db";
 import { useBlobUrl } from "@/lib/store/blob-url";
 import { audienceWindowName, channelName, HEARTBEAT_MS, isAudienceState, type AudienceCommand, type AudienceMessage, type AudienceState } from "@/lib/sync/protocol";
 
@@ -26,6 +26,7 @@ export default function AudiencePage({ params }: { params: Promise<{ id: string 
 
   useEffect(() => {
     let active = true;
+    setStoreOwner(rememberedStoreOwner());
     getProject(id).then((project) => {
       if (!active) return;
       if (!project) return setMissing(true);

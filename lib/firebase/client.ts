@@ -3,39 +3,41 @@
 import { getApp, getApps, initializeApp, type FirebaseApp } from "firebase/app";
 import { initializeAppCheck, ReCaptchaEnterpriseProvider } from "firebase/app-check";
 import { getAuth, type Auth } from "firebase/auth";
-import { getFirestore, type Firestore } from "firebase/firestore";
-import { getStorage, type FirebaseStorage } from "firebase/storage";
+import type { Firestore } from "firebase/firestore";
+import type { FirebaseStorage } from "firebase/storage";
+import { authEnabled, firebaseConfig } from "./config";
 
-/**
- * The web config identifies the Firebase project; it is not a secret. Access control comes from
- * Firebase Authentication, Security Rules (`firestore.rules`), and the authorized-domain list.
- * Next.js inlines NEXT_PUBLIC_* values only when each is referenced by its full name.
- */
-const config = {
-  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
-  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
-  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
-  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
-};
+export { authEnabled };
 
-/** Sign-in is skipped when Firebase isn't configured or is switched off (the e2e suite does this). */
-export const authEnabled =
-  process.env.NEXT_PUBLIC_AUTH_MODE !== "off" && Boolean(config.apiKey && config.authDomain && config.projectId && config.appId);
+let services: { app: FirebaseApp; auth: Auth } | null = null;
 
-let services: { app: FirebaseApp; auth: Auth; db: Firestore; storage: FirebaseStorage } | null = null;
-
-/** Lazily initializes Firebase in the browser. Call only when `authEnabled` is true. */
+/** Lazily initializes Firebase and Auth in the browser. Call only when `authEnabled` is true. */
 export function firebase() {
   if (!services) {
     const existing = getApps().length > 0;
-    const app = existing ? getApp() : initializeApp(config);
+    const app = existing ? getApp() : initializeApp(firebaseConfig);
     if (!existing) startAppCheck(app);
-    // Storage paths are users/{uid}/...; storage.rules allow only the owner.
-    services = { app, auth: getAuth(app), db: getFirestore(app), storage: getStorage(app) };
+    services = { app, auth: getAuth(app) };
   }
   return services;
+}
+
+/**
+ * Firestore and Storage load on first use rather than with the page: sign-in needs only Auth, and
+ * cloud sync starts after local data is already on screen. Together they are most of the SDK.
+ */
+let firestorePromise: Promise<Firestore> | null = null;
+let storagePromise: Promise<FirebaseStorage> | null = null;
+
+export function firestore() {
+  firestorePromise ??= import("firebase/firestore").then(({ getFirestore }) => getFirestore(firebase().app));
+  return firestorePromise;
+}
+
+/** Storage paths are users/{uid}/...; storage.rules allow only the owner. */
+export function storage() {
+  storagePromise ??= import("firebase/storage").then(({ getStorage }) => getStorage(firebase().app));
+  return storagePromise;
 }
 
 /**
