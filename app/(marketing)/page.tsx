@@ -7,6 +7,7 @@ import setup from "@/public/landing/setup.webp";
 import { Clip, StagePair } from "../components/landing/Clip";
 import { LandingCta } from "../components/landing/LandingCta";
 import { Steps } from "../components/landing/Steps";
+import { Words } from "../components/landing/Words";
 
 export const metadata: Metadata = {
   title: { absolute: "Cueframe · Know what to say on every slide" },
@@ -58,8 +59,8 @@ export default function LandingPage() {
       <section className="hero" aria-labelledby="hero-title">
         <div className="wrap">
           <h1 id="hero-title" className="hero__title">
-            <span className="hero__line hero__line--read">Know what to say</span>
-            <span className="hero__line hero__line--current">on every slide.</span>
+            <span className="hero__line hero__line--read"><Words text="Know what to say" className="hero__word" /></span>
+            <span className="hero__line hero__line--current"><Words text="on every slide." from={4} className="hero__word" /></span>
             <span className="reading-line" aria-hidden="true" />
           </h1>
           <div className="hero__row">
@@ -85,7 +86,7 @@ export default function LandingPage() {
 
       <section className="problem" aria-labelledby="problem-title">
         <div className="wrap problem__grid">
-          <h2 id="problem-title">The slides are done. The talking is the hard part.</h2>
+          <h2 id="problem-title"><Words text="The slides are done. The talking is the hard part." /></h2>
           <ul className="problem__list">
             <li><strong>The blank notes box.</strong> It&apos;s the night before, and you know the slides but not the sentences.</li>
             <li><strong>Reading bullets aloud.</strong> Slide text is written to be read, so saying it word for word sounds stiff.</li>
@@ -97,7 +98,7 @@ export default function LandingPage() {
       <section id="how" className="section" aria-labelledby="how-title">
         <div className="wrap">
           <header className="section__head">
-            <h2 id="how-title">From deck to delivery in three steps</h2>
+            <h2 id="how-title"><Words text="From deck to delivery in three steps" /></h2>
           </header>
           <Steps steps={STEPS} />
         </div>
@@ -106,7 +107,7 @@ export default function LandingPage() {
       <section className="section section--split" aria-labelledby="edit-title">
         <div className="wrap split">
           <div className="split__text">
-            <h2 id="edit-title">It&apos;s your script. Edit it like a document.</h2>
+            <h2 id="edit-title"><Words text="It's your script. Edit it like a document." /></h2>
             <ul className="checks">
               <li>Bold the words you want to stress.</li>
               <li>Add cues only you will see, like <span className="cue-sample">Point at the orange bar</span>.</li>
@@ -128,7 +129,7 @@ export default function LandingPage() {
       <section id="stage" className="stage theme-dark" aria-labelledby="stage-title">
         <div className="wrap">
           <header className="stage__head">
-            <h2 id="stage-title">Two screens. Only one of them is yours.</h2>
+            <h2 id="stage-title"><Words text="Two screens. Only one of them is yours." /></h2>
             <p>Share the audience window in Zoom, Teams, or Meet, or send it to the projector. Your script, cues, and notes never reach it.</p>
           </header>
           <StagePair
@@ -151,7 +152,7 @@ export default function LandingPage() {
       <section className="section section--split" aria-labelledby="review-title">
         <div className="wrap split split--reverse">
           <div className="split__text">
-            <h2 id="review-title">See where the time went.</h2>
+            <h2 id="review-title"><Words text="See where the time went." /></h2>
             <p className="section__lede">After each run, Cueframe compares every slide to your plan. You&apos;ll know which slide to trim before the real thing, not during it.</p>
           </div>
           <div className="frame split__media">
@@ -163,7 +164,7 @@ export default function LandingPage() {
       <section id="privacy" className="section privacy" aria-labelledby="privacy-title">
         <div className="wrap">
           <header className="section__head">
-            <h2 id="privacy-title">Private by default</h2>
+            <h2 id="privacy-title"><Words text="Private by default" /></h2>
           </header>
           <dl className="privacy__list">
             <div><dt>Your account, your presentations</dt><dd>Presentations belong to your Google account. No one else can open them.</dd></div>
@@ -176,7 +177,7 @@ export default function LandingPage() {
 
       <section id="questions" className="section" aria-labelledby="faq-title">
         <div className="wrap faq">
-          <h2 id="faq-title">Questions</h2>
+          <h2 id="faq-title"><Words text="Questions" /></h2>
           <div className="faq__list">
             {FAQ.map((item) => (
               <details key={item.q}>
@@ -190,7 +191,7 @@ export default function LandingPage() {
 
       <section className="closing" aria-labelledby="closing-title">
         <div className="wrap closing__inner">
-          <h2 id="closing-title">Walk in knowing what to say.</h2>
+          <h2 id="closing-title"><Words text="Walk in knowing what to say." /></h2>
           <LandingCta />
         </div>
       </section>
