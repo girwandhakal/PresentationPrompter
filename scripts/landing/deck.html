@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Cooler streets</title>
+<!--
+  Sample deck for the landing-page captures. Printed to PDF by scripts/landing/capture.mjs, then
+  imported through the real app. The palette is deliberately not Cueframe's: it is someone's deck.
+-->
+<style>
+  @font-face { font-family: "Inter"; font-weight: 100 900; src: url("../../public/fonts/inter-latin.3100e775.woff2") format("woff2"); }
+  @page { size: 1280px 720px; margin: 0; }
+  :root { --head: Georgia, "Times New Roman", serif; --forest: #1d3a2a; --leaf: #6fa36f; --moss: #a9c79a; --paper: #f4f1e6; --ink: #16231b; --muted: #5d6b60; --heat: #d9793d; }
+  * { box-sizing: border-box; margin: 0; }
+  html, body { background: var(--paper); }
+  body { font-family: "Inter", sans-serif; color: var(--ink); -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .slide { width: 1280px; height: 720px; position: relative; overflow: hidden; padding: 72px 88px; page-break-after: always; background: var(--paper); display: flex; flex-direction: column; }
+  .eyebrow { font-size: 19px; color: var(--muted); font-weight: 600; }
+  h1, h2 { font-family: var(--head); letter-spacing: -0.02em; line-height: 1.04; font-weight: 700; }
+  h2 { font-size: 64px; margin-top: 14px; max-width: 900px; }
+  .lede { font-size: 26px; line-height: 1.4; color: var(--muted); margin-top: 22px; max-width: 760px; }
+  .foot { position: absolute; left: 88px; right: 88px; bottom: 40px; display: flex; justify-content: space-between; font-size: 15px; color: var(--muted); }
+  .dark { background: var(--forest); color: var(--paper); }
+  .dark .eyebrow, .dark .foot, .dark .lede { color: var(--moss); }
+
+  /* 1 */
+  .title h1 { font-size: 112px; margin-top: 150px; }
+  .title .lede { color: var(--moss); font-size: 30px; max-width: 900px; }
+  .canopy { position: absolute; right: -70px; top: -90px; width: 440px; height: 440px; }
+
+  /* 2 */
+  .bars { display: flex; gap: 48px; align-items: flex-end; margin-top: auto; height: 300px; }
+  .bar { width: 170px; display: flex; flex-direction: column; justify-content: flex-end; gap: 12px; }
+  .bar i { display: block; border-radius: 10px 10px 0 0; }
+  .bar b { font-family: var(--head); font-size: 44px; letter-spacing: -0.02em; }
+  .bar span { font-size: 17px; color: var(--muted); }
+  .note { position: absolute; right: 88px; bottom: 150px; width: 330px; font-size: 21px; line-height: 1.45; border-left: 4px solid var(--heat); padding-left: 20px; }
+
+  /* 3 */
+  .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 28px; margin-top: auto; margin-bottom: 40px; }
+  .card { background: #fff; border-radius: 18px; padding: 30px; min-height: 250px; display: flex; flex-direction: column; gap: 14px; }
+  .card svg { width: 54px; height: 54px; }
+  .card h3 { font-family: var(--head); font-size: 30px; letter-spacing: -0.02em; }
+  .card p { font-size: 19px; line-height: 1.45; color: var(--muted); }
+
+  /* 4 */
+  .phases { display: grid; grid-template-columns: repeat(3, 1fr); margin-top: auto; margin-bottom: 44px; border-top: 3px solid var(--forest); }
+  .phase { padding: 26px 26px 0 0; position: relative; }
+  .phase::before { content: ""; position: absolute; top: -12px; left: 0; width: 21px; height: 21px; border-radius: 50%; background: var(--leaf); border: 4px solid var(--paper); }
+  .phase .year { font-size: 18px; font-weight: 700; color: var(--leaf); }
+  .phase h3 { font-family: var(--head); font-size: 34px; letter-spacing: -0.02em; margin: 10px 0; }
+  .phase p { font-size: 19px; line-height: 1.45; color: var(--muted); max-width: 320px; }
+
+  /* 5 */
+  .ask { display: grid; grid-template-columns: 1.1fr 1fr; gap: 56px; margin-top: auto; margin-bottom: 44px; align-items: end; }
+  .ask .big { font-family: var(--head); font-size: 120px; letter-spacing: -0.04em; line-height: 0.9; color: var(--paper); }
+  .ask .big small { display: block; font-size: 26px; letter-spacing: 0; color: var(--moss); margin-top: 16px; font-family: "Inter"; }
+  .ask ul { list-style: none; padding: 0; display: grid; gap: 18px; font-size: 23px; line-height: 1.35; }
+  .ask li { padding-left: 34px; position: relative; }
+  .ask li::before { content: ""; position: absolute; left: 0; top: 10px; width: 14px; height: 14px; border-radius: 50%; background: var(--leaf); }
+
+  /* 6 */
+  .end h2 { font-size: 86px; margin-top: auto; }
+  .end .lede { color: var(--muted); }
+</style>
+</head>
+<body>
+
+<section class="slide dark title">
+  <svg class="canopy" viewBox="0 0 560 560" aria-hidden="true">
+    <circle cx="300" cy="260" r="210" fill="#2c5a3e"/>
+    <circle cx="200" cy="320" r="150" fill="#3f7a52"/>
+    <circle cx="360" cy="380" r="120" fill="#6fa36f"/>
+    <circle cx="420" cy="200" r="90" fill="#a9c79a" opacity="0.9"/>
+  </svg>
+  <p class="eyebrow">Eastside neighborhood council</p>
+  <h1>Cooler streets</h1>
+  <p class="lede">A plan to plant 1,200 street trees on the Eastside by 2029.</p>
+  <div class="foot"><span>Spring budget review</span><span>1 / 6</span></div>
+</section>
+
+<section class="slide">
+  <p class="eyebrow">The problem</p>
+  <h2>Our blocks run hotter than the rest of the city.</h2>
+  <div class="bars">
+    <div class="bar"><b>84°F</b><i style="height:120px;background:var(--moss)"></i><span>Riverside Park</span></div>
+    <div class="bar"><b>89°F</b><i style="height:170px;background:#c9b38a"></i><span>City average</span></div>
+    <div class="bar"><b>95°F</b><i style="height:236px;background:var(--heat)"></i><span>Eastside blocks</span></div>
+  </div>
+  <p class="note">Measured on July afternoons at street level. Only 9% of Eastside sidewalks have shade.</p>
+  <div class="foot"><span>Source: summer heat survey, volunteer readings</span><span>2 / 6</span></div>
+</section>
+
+<section class="slide">
+  <p class="eyebrow">Why trees</p>
+  <h2>Shade is the cheapest cooling we can buy.</h2>
+  <div class="grid3">
+    <div class="card">
+      <svg viewBox="0 0 54 54"><circle cx="27" cy="27" r="12" fill="none" stroke="#d9793d" stroke-width="4"/><path d="M27 3v8M27 43v8M3 27h8M43 27h8" stroke="#d9793d" stroke-width="4" stroke-linecap="round"/></svg>
+      <h3>Cooler homes</h3><p>Shaded houses need less air conditioning in July and August.</p>
+    </div>
+    <div class="card">
+      <svg viewBox="0 0 54 54"><path d="M27 6c9 12 14 20 14 27a14 14 0 0 1-28 0c0-7 5-15 14-27z" fill="none" stroke="#3f7a52" stroke-width="4"/></svg>
+      <h3>Less flooding</h3><p>Roots and soil slow down storm water before it reaches the drains.</p>
+    </div>
+    <div class="card">
+      <svg viewBox="0 0 54 54"><circle cx="20" cy="11" r="6" fill="#1d3a2a"/><path d="M20 20l-4 14 8 6 2 10M16 34l-6 14M20 22l10 6 8-4" fill="none" stroke="#1d3a2a" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <h3>More walking</h3><p>People walk more on streets that feel comfortable at midday.</p>
+    </div>
+  </div>
+  <div class="foot"><span>Eastside neighborhood council</span><span>3 / 6</span></div>
+</section>
+
+<section class="slide">
+  <p class="eyebrow">The plan</p>
+  <h2>Three phases, starting where people walk most.</h2>
+  <div class="phases">
+    <div class="phase"><p class="year">2026</p><h3>School routes</h3><p>400 trees along the walks to Lincoln and Oak Street schools.</p></div>
+    <div class="phase"><p class="year">2027</p><h3>Bus stops</h3><p>300 trees around the 24 busiest stops, where people wait in the sun.</p></div>
+    <div class="phase"><p class="year">2028–29</p><h3>Every block</h3><p>500 trees filling the remaining gaps, chosen with residents.</p></div>
+  </div>
+  <div class="foot"><span>Eastside neighborhood council</span><span>4 / 6</span></div>
+</section>
+
+<section class="slide dark">
+  <p class="eyebrow">What we're asking for</p>
+  <h2>A three-year commitment from the city.</h2>
+  <div class="ask">
+    <p class="big">$180,000<small>over three years, about $150 per tree</small></p>
+    <ul>
+      <li>Planting and the first two years of care</li>
+      <li>Sidewalk repairs where roots need room</li>
+      <li>Residents sign up to water the tree outside their door</li>
+    </ul>
+  </div>
+  <div class="foot"><span>Eastside neighborhood council</span><span>5 / 6</span></div>
+</section>
+
+<section class="slide end">
+  <p class="eyebrow">Thank you</p>
+  <h2>Let's make the Eastside a cooler place to walk.</h2>
+  <p class="lede">Questions, ideas, and volunteers are all welcome.</p>
+  <div class="foot"><span>Eastside neighborhood council</span><span>6 / 6</span></div>
+</section>
+
+</body>
+</html>

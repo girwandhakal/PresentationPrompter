@@ -18,7 +18,7 @@ export function ProjectRoute({ params, children }: { params: Promise<{ id: strin
   if (!project) {
     return (
       <div className="center-state">
-        <EmptyState icon={<FileQuestion />} title="This presentation isn't here" action={<ButtonLink href="/" variant="primary">Go to your presentations</ButtonLink>}>
+        <EmptyState icon={<FileQuestion />} title="This presentation isn't here" action={<ButtonLink href="/home" variant="primary">Go to your presentations</ButtonLink>}>
           {authEnabled
             ? "It may have been deleted, or it belongs to a different account."
             : "It may have been deleted, or it was created in a different browser. Presentations are stored only in the browser where you made them."}

@@ -14,7 +14,7 @@ export default function ErrorPage({ error, reset }: { error: Error & { digest?: 
       <p>Your presentations are saved in this browser and weren&apos;t affected. Try again, or go back to your presentations.</p>
       <div className="standalone__actions">
         <button type="button" className="btn btn--primary btn--md" onClick={reset}>Try again</button>
-        <Link className="btn btn--secondary btn--md" href="/">Your presentations</Link>
+        <Link className="btn btn--secondary btn--md" href="/home">Your presentations</Link>
       </div>
     </main>
   );

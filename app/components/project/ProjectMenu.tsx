@@ -61,7 +61,7 @@ export function ProjectMenu({ project, trigger, align = "end" }: {
       await remove(project.id);
       setConfirmDelete(false);
       toast(`Deleted “${project.title}”`);
-      if (window.location.pathname.startsWith(`/p/${project.id}`)) router.replace("/");
+      if (window.location.pathname.startsWith(`/p/${project.id}`)) router.replace("/home");
     } catch {
       toast({ message: "The presentation couldn't be deleted. Try again.", tone: "error" });
     } finally {

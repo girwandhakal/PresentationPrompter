@@ -6,7 +6,7 @@ export default function NotFound() {
       <p className="eyebrow">404</p>
       <h1>This page doesn&apos;t exist</h1>
       <p>The link may be old, or the presentation was created in another browser.</p>
-      <Link className="btn btn--primary btn--md" href="/">Go to your presentations</Link>
+      <Link className="btn btn--primary btn--md" href="/home">Go to your presentations</Link>
     </main>
   );
 }
