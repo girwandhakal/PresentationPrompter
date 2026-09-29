@@ -13,7 +13,7 @@ import { ImportProgressCard } from "./ImportProgressCard";
 import { useImporter } from "./use-importer";
 
 /** Import step of the create flow: file → slides saved locally → setup form. */
-export function NewPresentation() {
+export function NewPresentation({ onCreating }: { onCreating?: () => void } = {}) {
   const router = useRouter();
   const { create } = useProjects();
 
@@ -27,9 +27,11 @@ export function NewPresentation() {
       slides: result.slides,
       brief: getPref("defaultBrief"),
     });
+    // Saving adds the first project, which can swap this screen out from under the redirect below.
+    onCreating?.();
     await create(project, result.blobs);
     router.push(`/p/${project.id}/setup`);
-  }, [create, router]);
+  }, [create, onCreating, router]);
 
   const { state, start, cancel, reset } = useImporter({ onImported });
 
