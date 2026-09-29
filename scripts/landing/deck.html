@@ -8,16 +8,15 @@
   imported through the real app. The palette is deliberately not Cueframe's: it is someone's deck.
 -->
 <style>
-  @font-face { font-family: "Bricolage Grotesque"; font-weight: 200 800; src: url("../../public/fonts/bricolage-grotesque-latin.4fd48b2c.woff2") format("woff2"); }
-  @font-face { font-family: "Instrument Sans"; font-weight: 400 700; src: url("../../public/fonts/instrument-sans-latin.6219bc4b.woff2") format("woff2"); }
+  @font-face { font-family: "Inter"; font-weight: 100 900; src: url("../../public/fonts/inter-latin.3100e775.woff2") format("woff2"); }
   @page { size: 1280px 720px; margin: 0; }
-  :root { --forest: #1d3a2a; --leaf: #6fa36f; --moss: #a9c79a; --paper: #f4f1e6; --ink: #16231b; --muted: #5d6b60; --heat: #d9793d; }
+  :root { --head: Georgia, "Times New Roman", serif; --forest: #1d3a2a; --leaf: #6fa36f; --moss: #a9c79a; --paper: #f4f1e6; --ink: #16231b; --muted: #5d6b60; --heat: #d9793d; }
   * { box-sizing: border-box; margin: 0; }
   html, body { background: var(--paper); }
-  body { font-family: "Instrument Sans", sans-serif; color: var(--ink); -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body { font-family: "Inter", sans-serif; color: var(--ink); -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   .slide { width: 1280px; height: 720px; position: relative; overflow: hidden; padding: 72px 88px; page-break-after: always; background: var(--paper); display: flex; flex-direction: column; }
   .eyebrow { font-size: 19px; color: var(--muted); font-weight: 600; }
-  h1, h2 { font-family: "Bricolage Grotesque", sans-serif; letter-spacing: -0.03em; line-height: 1.02; font-weight: 700; }
+  h1, h2 { font-family: var(--head); letter-spacing: -0.02em; line-height: 1.04; font-weight: 700; }
   h2 { font-size: 64px; margin-top: 14px; max-width: 900px; }
   .lede { font-size: 26px; line-height: 1.4; color: var(--muted); margin-top: 22px; max-width: 760px; }
   .foot { position: absolute; left: 88px; right: 88px; bottom: 40px; display: flex; justify-content: space-between; font-size: 15px; color: var(--muted); }
@@ -33,7 +32,7 @@
   .bars { display: flex; gap: 48px; align-items: flex-end; margin-top: auto; height: 300px; }
   .bar { width: 170px; display: flex; flex-direction: column; justify-content: flex-end; gap: 12px; }
   .bar i { display: block; border-radius: 10px 10px 0 0; }
-  .bar b { font-family: "Bricolage Grotesque"; font-size: 44px; letter-spacing: -0.02em; }
+  .bar b { font-family: var(--head); font-size: 44px; letter-spacing: -0.02em; }
   .bar span { font-size: 17px; color: var(--muted); }
   .note { position: absolute; right: 88px; bottom: 150px; width: 330px; font-size: 21px; line-height: 1.45; border-left: 4px solid var(--heat); padding-left: 20px; }
 
@@ -41,7 +40,7 @@
   .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 28px; margin-top: auto; margin-bottom: 40px; }
   .card { background: #fff; border-radius: 18px; padding: 30px; min-height: 250px; display: flex; flex-direction: column; gap: 14px; }
   .card svg { width: 54px; height: 54px; }
-  .card h3 { font-family: "Bricolage Grotesque"; font-size: 30px; letter-spacing: -0.02em; }
+  .card h3 { font-family: var(--head); font-size: 30px; letter-spacing: -0.02em; }
   .card p { font-size: 19px; line-height: 1.45; color: var(--muted); }
 
   /* 4 */
@@ -49,19 +48,19 @@
   .phase { padding: 26px 26px 0 0; position: relative; }
   .phase::before { content: ""; position: absolute; top: -12px; left: 0; width: 21px; height: 21px; border-radius: 50%; background: var(--leaf); border: 4px solid var(--paper); }
   .phase .year { font-size: 18px; font-weight: 700; color: var(--leaf); }
-  .phase h3 { font-family: "Bricolage Grotesque"; font-size: 34px; letter-spacing: -0.02em; margin: 10px 0; }
+  .phase h3 { font-family: var(--head); font-size: 34px; letter-spacing: -0.02em; margin: 10px 0; }
   .phase p { font-size: 19px; line-height: 1.45; color: var(--muted); max-width: 320px; }
 
   /* 5 */
   .ask { display: grid; grid-template-columns: 1.1fr 1fr; gap: 56px; margin-top: auto; margin-bottom: 44px; align-items: end; }
-  .ask .big { font-family: "Bricolage Grotesque"; font-size: 120px; letter-spacing: -0.04em; line-height: 0.9; color: var(--paper); }
-  .ask .big small { display: block; font-size: 26px; letter-spacing: 0; color: var(--moss); margin-top: 16px; font-family: "Instrument Sans"; }
+  .ask .big { font-family: var(--head); font-size: 120px; letter-spacing: -0.04em; line-height: 0.9; color: var(--paper); }
+  .ask .big small { display: block; font-size: 26px; letter-spacing: 0; color: var(--moss); margin-top: 16px; font-family: "Inter"; }
   .ask ul { list-style: none; padding: 0; display: grid; gap: 18px; font-size: 23px; line-height: 1.35; }
   .ask li { padding-left: 34px; position: relative; }
   .ask li::before { content: ""; position: absolute; left: 0; top: 10px; width: 14px; height: 14px; border-radius: 50%; background: var(--leaf); }
 
   /* 6 */
-  .end h2 { font-size: 110px; margin-top: auto; }
+  .end h2 { font-size: 86px; margin-top: auto; }
   .end .lede { color: var(--muted); }
 </style>
 </head>

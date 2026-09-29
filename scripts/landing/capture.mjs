@@ -236,23 +236,22 @@ await edit.stop();
 await page.locator('.editor[data-save-state="saved"]').waitFor({ state: "attached" });
 
 // ── The stage: presenter and audience, recorded together ────────────────────
-await page.goto(`${BASE}/p/${id}/present`);
-await page.getByRole("button", { name: "Start presenting" }).waitFor();
-await page.mouse.move(1200, 700);
-await wait(800);
-const stage = await record(page, "stage-presenter");
-await wait(600);
-const size = stage.frames[0] && await sharp(stage.frames[0].file).metadata();
-if (!size || size.width !== 1440) throw new Error(`Presenter frames are ${size?.width}x${size?.height}, expected 1440 wide`);
-// Starting opens the audience as a pop-up window, as it does for a real presenter. Its own window
-// keeps both pages at their full size while they're recorded together.
+// Presenting starts as soon as the page opens, and the app opens the audience as its own pop-up
+// window, as it does for a real presenter. Its own window keeps both pages at full size.
 const popup = context.waitForEvent("page");
-await click(page, page.getByRole("button", { name: "Start presenting" }));
+await page.goto(`${BASE}/p/${id}/present`);
 const audience = await popup;
 await audience.setViewportSize({ width: 1280, height: 720 });
+await audience.getByRole("img").first().waitFor();
+await page.getByLabel("Teleprompter").waitFor();
+await page.mouse.move(1200, 700);
+await wait(900);
+const stage = await record(page, "stage-presenter");
 const room = await record(audience, "stage-audience");
-await page.getByRole("dialog").waitFor({ state: "hidden" });
-// Both clips start once the talk is live: the audience window is still loading before that.
+await wait(500);
+const size = stage.frames[0] && await sharp(stage.frames[0].file).metadata();
+if (!size || size.width !== 1440) throw new Error(`Presenter frames are ${size?.width}x${size?.height}, expected 1440 wide`);
+// Both clips start together, with the talk live and the slide already on the audience screen.
 const live = Date.now() / 1000;
 await page.mouse.move(1430, 890, { steps: 12 });
 await wait(900);
@@ -284,8 +283,7 @@ await endSession();
 // time on each slide instead of the capture waiting eight minutes.
 await page.getByRole("link", { name: "Present again" }).click();
 await page.waitForURL(new RegExp(`/p/${id}/present`));
-await page.getByRole("button", { name: "Start presenting" }).click();
-await page.getByRole("dialog").waitFor({ state: "hidden" });
+await page.getByLabel("Teleprompter").waitFor();
 for (const [index, seconds] of [62, 96, 71, 104, 88, 38].entries()) {
   await wait(300);
   await context.clock.fastForward(seconds * 1000);
