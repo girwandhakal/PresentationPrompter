@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
 import { NewPresentation } from "../../../components/import/NewPresentation";
 import { ProjectMenu } from "../../../components/project/ProjectMenu";
 import { SlideImage } from "../../../components/project/SlideImage";
@@ -15,6 +16,9 @@ import { useDocumentTitle } from "@/lib/use-document-title";
 export default function HomePage() {
   const { projects, ready, firstSync } = useProjects();
   useDocumentTitle("Home");
+  // The first import adds a project before the redirect to setup lands; keep the import screen up
+  // until then instead of flashing the library.
+  const [importing, setImporting] = useState(false);
 
   // On a device new to this account, an empty library may still be filling; don't offer an import yet.
   if (!ready || (!projects.length && firstSync)) {
@@ -27,12 +31,12 @@ export default function HomePage() {
     );
   }
 
-  if (!projects.length) {
+  if (!projects.length || importing) {
     return (
       <div className="page page--narrow home-empty stagger">
         <h1 className="page-title"><RevealWords text="Import your slides" /></h1>
         <p className="page-lede">Cueframe generates your script for you.</p>
-        <NewPresentation />
+        <NewPresentation onCreating={() => setImporting(true)} />
       </div>
     );
   }
