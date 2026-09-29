@@ -1,8 +1,7 @@
 import type { ImportedSlide } from "../domain/factory";
 import { createCanvas, encodeCanvas, makeThumbnail, SLIDE_WIDTH, yieldToBrowser } from "./raster";
+import { firstLine, guessTitle, itemsToText, type TextItem } from "./pdf-text";
 import { ImportError, sparseTextWarning, type ImportContext } from "./types";
-
-type TextItem = { str: string; hasEOL: boolean; height: number; transform: number[] };
 
 
 export async function importPdf(file: File, context: ImportContext): Promise<ImportedSlide[]> {
@@ -70,33 +69,4 @@ export async function importPdf(file: File, context: ImportContext): Promise<Imp
   }
   context.progress({ stage: "rendering", done: total, total });
   return slides;
-}
-
-function itemsToText(items: TextItem[]) {
-  let text = "";
-  for (const item of items) {
-    text += item.str;
-    if (item.hasEOL) text += "\n";
-    else if (item.str && !item.str.endsWith(" ")) text += " ";
-  }
-  return text.replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").replace(/[ \t]{2,}/g, " ").trim();
-}
-
-/** The largest text in the upper part of the page is usually the slide title. */
-function guessTitle(items: TextItem[], pageHeight: number) {
-  const candidates = items.filter((item) => item.str.trim() && item.height > 0 && item.transform[5] > pageHeight * 0.35);
-  if (!candidates.length) return "";
-  const max = Math.max(...candidates.map((item) => item.height));
-  const title = candidates
-    .filter((item) => item.height >= max * 0.9)
-    .map((item) => item.str.trim())
-    .join(" ")
-    .replace(/\s+/g, " ")
-    .trim();
-  return title.length > 140 ? `${title.slice(0, 137)}…` : title;
-}
-
-function firstLine(text: string) {
-  const line = text.split("\n").find((value) => value.trim())?.trim() ?? "";
-  return line.length > 100 ? `${line.slice(0, 97)}…` : line;
 }
