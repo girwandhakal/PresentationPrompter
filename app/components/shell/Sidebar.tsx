@@ -70,7 +70,7 @@ export function Sidebar({ collapsed, onToggleCollapsed, mobileOpen, onCloseMobil
       {mobileOpen && <div className="sidebar-scrim" onClick={onCloseMobile} aria-hidden="true" />}
       <aside className="sidebar" data-collapsed={collapsed} data-mobile-open={mobileOpen} aria-label="Presentations">
         <div className="sidebar__top">
-          <Link href="/" className="sidebar__brand" aria-label="Cueframe home" onClick={onCloseMobile}>
+          <Link href="/home" className="sidebar__brand" aria-label="Cueframe home" onClick={onCloseMobile}>
             <BrandMark writing={writing} />
             <span className="sidebar__brand-name">Cueframe</span>
           </Link>
