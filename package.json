@@ -52,5 +52,10 @@
     "tsx": "^4.23.15",
     "typescript": "5.9.3"
   },
-  "type": "module"
+  "type": "module",
+  "overrides": {
+    "jwks-rsa": {
+      "jose": "^4.15.9"
+    }
+  }
 }
