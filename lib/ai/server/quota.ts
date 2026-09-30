@@ -1,4 +1,5 @@
 import { FieldValue, getFirestore } from "firebase-admin/firestore";
+import { PILOT } from "../../pilot";
 import type { GenerationTelemetry } from "../schemas";
 import { adminApp, hasAdminCredentials } from "./auth";
 
@@ -17,7 +18,7 @@ import { adminApp, hasAdminCredentials } from "./auth";
 export const DEFAULT_LIMITS = {
   userDailyTokens: 400_000,
   globalDailyTokens: 2_000_000,
-  userDailyGenerations: 5,
+  userDailyGenerations: PILOT.dailyScripts,
 };
 export type Limits = typeof DEFAULT_LIMITS;
 

@@ -9,8 +9,8 @@ const context = await browser.newContext({ viewport: { width: 1680, height: 941 
 const page = await context.newPage();
 await page.goto(BASE, { waitUntil: "networkidle" });
 await page.evaluate(() => document.fonts.ready);
-// With reduced motion the reading line rests on its final line, so the card matches the finished hero.
-await page.locator(".hero__clip video").evaluate((video) => new Promise((resolve) => {
+// With reduced motion the hero is at rest, so the card matches the finished page.
+await page.locator(".hero__demo video").evaluate((video) => new Promise((resolve) => {
   if (video.readyState >= 2 || video.poster) resolve();
   else video.addEventListener("loadeddata", resolve, { once: true });
 }));
