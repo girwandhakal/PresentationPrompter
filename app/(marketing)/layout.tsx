@@ -15,8 +15,8 @@ export default function MarketingLayout({ children }: { children: React.ReactNod
       <div className={`mk ${serif.variable}`}>
         <a className="skip-link" href="#main">Skip to content</a>
         <p className="pilot-bar">
-          <Link href="/#pricing">
-            Free pilot now open, limited seats<span aria-hidden="true">*</span>
+          <Link href="/#access">
+            Pilot now open, limited seats<span aria-hidden="true">*</span>
             <span className="pilot-bar__go" aria-hidden="true">→</span>
           </Link>
         </p>
@@ -29,7 +29,7 @@ export default function MarketingLayout({ children }: { children: React.ReactNod
             <nav className="site-nav__links" aria-label="Page sections">
               <Link href="/#how">How it works</Link>
               <Link href="/#features">Features</Link>
-              <Link href="/#pricing">Pricing</Link>
+              <Link href="/#access">Access</Link>
               <Link href="/#faq">FAQ</Link>
             </nav>
             <div className="site-nav__actions">

@@ -12,7 +12,7 @@ import { Prompter } from "../components/landing/Prompter";
 
 export const metadata: Metadata = {
   title: { absolute: "Cueframe · Know what to say on every slide" },
-  description: "Turn the slides you already made into a script you can say out loud, then present from a teleprompter only you can see. Free during the pilot.",
+  description: "Turn the slides you already made into a script you can say out loud, then present from a teleprompter only you can see. Now open to a small pilot group.",
 };
 
 const PROBLEMS = [
@@ -59,8 +59,8 @@ const INCLUDED = [
   "Export as Markdown or plain text",
 ];
 
-const PRICING_FAQ = [
-  { q: "Is it really free?", a: "Yes. There's nothing to pay during the pilot, and no card to enter." },
+const ACCESS_FAQ = [
+  { q: "How do I get access?", a: "Sign in with Google. While there are seats left, your account is created and you go straight to your workspace." },
   { q: "What are the limits?", a: `Up to ${PILOT.dailyScripts} scripts per account per day, and ${PILOT.accounts} accounts in the pilot. Daily limits reset at midnight UTC.` },
   { q: "What if the pilot is full?", a: "Sign-in says so, and no new accounts are created. If you already have an account, you can always sign in." },
   { q: "What happens when it ends?", a: "Export any script as Markdown or plain text at any time, so your work isn't locked in." },
@@ -78,11 +78,11 @@ const FAQ = [
 const FAQ_SCHEMA = JSON.stringify({
   "@context": "https://schema.org",
   "@type": "FAQPage",
-  mainEntity: [...PRICING_FAQ, ...FAQ].map((item) => ({ "@type": "Question", name: item.q, acceptedAnswer: { "@type": "Answer", text: item.a } })),
+  mainEntity: [...ACCESS_FAQ, ...FAQ].map((item) => ({ "@type": "Question", name: item.q, acceptedAnswer: { "@type": "Answer", text: item.a } })),
 }).replace(/</g, "\\u003c");
 
 function Reassurance() {
-  return <p className="reassure">Free during the pilot <span aria-hidden="true">·</span> No card <span aria-hidden="true">·</span> Limited seats*</p>;
+  return <p className="reassure">Pilot access <span aria-hidden="true">·</span> Sign in with Google <span aria-hidden="true">·</span> Limited seats*</p>;
 }
 
 function Mark({ cell }: { cell: Cell }) {
@@ -262,30 +262,29 @@ export default function LandingPage() {
         </div>
       </section>
 
-      <section id="pricing" className="band tone-powder" aria-labelledby="pricing-title">
+      <section id="access" className="band tone-powder" aria-labelledby="access-title">
         <div className="mk-wrap">
           <header className="band__head">
-            <h2 id="pricing-title">Free while the pilot runs.</h2>
+            <h2 id="access-title">Open to a small pilot group.</h2>
           </header>
-          <div className="pricing">
-            <article className="plan" aria-labelledby="plan-title">
-              <div className="plan__head">
-                <h3 id="plan-title">Pilot</h3>
-                <span className="plan__tag">Limited seats*</span>
+          <div className="access">
+            <article className="access-card" aria-labelledby="access-card-title">
+              <div className="access-card__head">
+                <h3 id="access-card-title">Pilot access</h3>
+                <span className="access-card__tag">Limited seats*</span>
               </div>
-              <p className="plan__price"><span>$0</span> for a limited time</p>
-              <ul className="plan__list">
+              <ul className="access-card__list">
                 {INCLUDED.map((item) => <li key={item}><Check aria-hidden="true" />{item}</li>)}
               </ul>
-              <ul className="plan__limits">
+              <ul className="access-card__limits">
                 <li>Up to {PILOT.dailyScripts} scripts per day*</li>
                 <li>{PILOT.accounts} accounts in the pilot*</li>
               </ul>
               <LandingCta />
-              <p className="plan__terms">*{PILOT_TERMS}</p>
+              <p className="access-card__terms">*{PILOT_TERMS}</p>
             </article>
             <div className="mini-faq">
-              {PRICING_FAQ.map((item) => (
+              {ACCESS_FAQ.map((item) => (
                 <details key={item.q}>
                   <summary>{item.q}</summary>
                   <p>{item.a}</p>

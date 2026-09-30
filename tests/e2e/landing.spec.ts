@@ -21,14 +21,13 @@ test("the landing page explains the product and leads into the workspace", async
   await expect(page.getByRole("heading", { name: "Import your slides" })).toBeVisible();
 });
 
-test("the pilot offer states its limits beside the price", async ({ page }) => {
+test("pilot access states its limits", async ({ page }) => {
   await page.goto("/");
-  await page.getByRole("banner").getByRole("link", { name: "Pricing" }).click();
-  const plan = page.getByRole("article", { name: "Pilot" });
-  await expect(plan).toBeInViewport();
-  await expect(plan.getByText("$0", { exact: true })).toBeVisible();
-  await expect(plan.getByText(`Up to ${PILOT.dailyScripts} scripts per day*`)).toBeVisible();
-  await expect(plan.getByText(`*${PILOT_TERMS}`)).toBeVisible();
+  await page.getByRole("banner").getByRole("link", { name: "Access" }).click();
+  const access = page.getByRole("article", { name: "Pilot access" });
+  await expect(access).toBeInViewport();
+  await expect(access.getByText(`Up to ${PILOT.dailyScripts} scripts per day*`)).toBeVisible();
+  await expect(access.getByText(`*${PILOT_TERMS}`)).toBeVisible();
 
   await page.getByText("What are the limits?").click();
   await expect(page.getByText(`Up to ${PILOT.dailyScripts} scripts per account per day, and ${PILOT.accounts} accounts in the pilot.`)).toBeVisible();

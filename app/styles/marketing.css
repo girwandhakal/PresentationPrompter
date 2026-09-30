@@ -158,7 +158,7 @@ html:has(.mk), html:has(.mk) body { background: color-mix(in srgb, var(--pitch) 
 .tile__list { display: grid; margin-top: auto; }
 .tile__list li { display: flex; gap: var(--s-3); padding-block: var(--s-4); border-top: 1px solid var(--line); line-height: 1.5; }
 .tile__list li:last-child { padding-bottom: 0; }
-.tile__list svg, .plan__list svg { flex: none; width: 18px; height: 18px; margin-top: 2px; }
+.tile__list svg, .access-card__list svg { flex: none; width: 18px; height: 18px; margin-top: 2px; }
 @container (max-width: 900px) { .tile, .tile--wide { grid-column: 1 / -1; } }
 
 /* The live teleprompter: the script drifts up past the reading line; read lines dim above it. */
@@ -204,21 +204,19 @@ html:has(.mk), html:has(.mk) body { background: color-mix(in srgb, var(--pitch) 
   .compare td.compare__us::before { color: color-mix(in srgb, var(--powder) 72%, var(--pitch)); }
 }
 
-/* ── Pricing ───────────────────────────────────────────────────────────── */
+/* ── Access ────────────────────────────────────────────────────────────── */
 
-.pricing { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); gap: var(--s-8) clamp(32px, 5cqi, 72px); align-items: start; }
-.plan { display: grid; gap: var(--s-6); padding: clamp(24px, 3cqi, 36px); border: 1px solid var(--line-strong); border-radius: var(--r-lg); background: var(--surface); box-shadow: var(--shadow-2); }
-.plan__head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--s-3); }
-.plan h3 { font-family: var(--font-serif), Georgia, serif; font-size: 36px; font-weight: 400; letter-spacing: -0.01em; line-height: 1; }
-.plan__tag { padding: var(--s-1) var(--s-2); border: 1px solid var(--line-strong); border-radius: var(--r-xs); font-size: var(--t-sm); font-weight: 600; }
-.plan__price { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--s-3); color: var(--text-2); }
-.plan__price span { font-size: 64px; font-weight: 600; letter-spacing: -0.05em; line-height: 1; color: var(--text); }
-.plan__list { display: grid; gap: var(--s-3); }
-.plan__list li { display: flex; gap: var(--s-3); line-height: 1.5; }
-.plan__limits { display: grid; gap: var(--s-1); padding-top: var(--s-4); border-top: 1px solid var(--line); color: var(--text-2); }
-.plan .landing-cta, .plan .landing-cta .btn { justify-items: stretch; width: 100%; }
-.plan__terms { font-size: var(--t-sm); line-height: 1.6; color: var(--text-2); }
-@container (max-width: 860px) { .pricing { grid-template-columns: minmax(0, 1fr); } }
+.access { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); gap: var(--s-8) clamp(32px, 5cqi, 72px); align-items: start; }
+.access-card { display: grid; gap: var(--s-6); padding: clamp(24px, 3cqi, 36px); border: 1px solid var(--line-strong); border-radius: var(--r-lg); background: var(--surface); box-shadow: var(--shadow-2); }
+.access-card__head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--s-3); }
+.access-card h3 { font-family: var(--font-serif), Georgia, serif; font-size: 36px; font-weight: 400; letter-spacing: -0.01em; line-height: 1; }
+.access-card__tag { padding: var(--s-1) var(--s-2); border: 1px solid var(--line-strong); border-radius: var(--r-xs); font-size: var(--t-sm); font-weight: 600; }
+.access-card__list { display: grid; gap: var(--s-3); }
+.access-card__list li { display: flex; gap: var(--s-3); line-height: 1.5; }
+.access-card__limits { display: grid; gap: var(--s-1); padding-top: var(--s-4); border-top: 1px solid var(--line); color: var(--text-2); }
+.access-card .landing-cta, .access-card .landing-cta .btn { justify-items: stretch; width: 100%; }
+.access-card__terms { font-size: var(--t-sm); line-height: 1.6; color: var(--text-2); }
+@container (max-width: 860px) { .access { grid-template-columns: minmax(0, 1fr); } }
 
 /* ── Questions ─────────────────────────────────────────────────────────── */
 
@@ -267,7 +265,7 @@ html:has(.mk), html:has(.mk) body { background: color-mix(in srgb, var(--pitch) 
   .hero__works { animation-delay: 440ms; }
 
   @supports (animation-timeline: view()) {
-    .band__head, .closing__inner, .problems li, .steps li, .tile, .plan, .mini-faq, .faq__list, .compare, .stage-pair {
+    .band__head, .closing__inner, .problems li, .steps li, .tile, .access-card, .mini-faq, .faq__list, .compare, .stage-pair {
       animation: mk-rise linear backwards;
       animation-timing-function: var(--ease-out);
       animation-timeline: view();

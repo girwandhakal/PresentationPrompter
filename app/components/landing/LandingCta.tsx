@@ -55,7 +55,7 @@ export function LandingCta({ place = "main" }: { place?: Place }) {
   return (
     <div className="landing-cta">
       <Button variant="primary" size="lg" loading={pending} onClick={start} icon={<GoogleMark />}>
-        Join the free pilot
+        Get access
       </Button>
       {error && <p className="landing-cta__error" role="alert">{error}</p>}
     </div>
