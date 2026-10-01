@@ -136,6 +136,12 @@ export const WriteSlideInput = z.object({
 });
 export type WriteSlideInput = z.infer<typeof WriteSlideInput>;
 
+/**
+ * Slides per write call: keeps neighbors in one voice and pays for the instructions once per four.
+ * The orchestrator batches by it; quotas grant each draft's write calls by it.
+ */
+export const WRITE_BATCH = 4;
+
 export const WriteRequest = z.object({
   brief: BriefInput,
   context: ContextInput,
@@ -188,6 +194,10 @@ const RewriteSlide = z.object({
   nextTitle: text(300),
 });
 
+/** A slide's current script; about 5,000 words in all, beyond any one slide's spoken length. */
+const ScriptParagraphs = z.array(text(4000)).max(40)
+  .refine((paragraphs) => paragraphs.reduce((sum, paragraph) => sum + paragraph.length, 0) <= 30_000);
+
 export const RewriteRequest = z.discriminatedUnion("kind", [
   z.object({
     kind: z.literal("script"),
@@ -195,7 +205,7 @@ export const RewriteRequest = z.discriminatedUnion("kind", [
     brief: BriefInput,
     title: text(200),
     slide: RewriteSlide,
-    paragraphs: z.array(text(4000)).max(40),
+    paragraphs: ScriptParagraphs,
     targetWords: z.number().int().min(5).max(5000),
   }),
   z.object({
@@ -204,7 +214,7 @@ export const RewriteRequest = z.discriminatedUnion("kind", [
     brief: BriefInput,
     title: text(200),
     slide: RewriteSlide,
-    paragraphs: z.array(text(4000)).max(40),
+    paragraphs: ScriptParagraphs,
     selection: text(4000).min(1),
   }),
   z.object({
@@ -212,14 +222,14 @@ export const RewriteRequest = z.discriminatedUnion("kind", [
     brief: BriefInput,
     title: text(200),
     slide: RewriteSlide,
-    paragraphs: z.array(text(4000)).max(40),
+    paragraphs: ScriptParagraphs,
   }),
   z.object({
     kind: z.literal("questions"),
     brief: BriefInput,
     title: text(200),
     slide: RewriteSlide,
-    paragraphs: z.array(text(4000)).max(40),
+    paragraphs: ScriptParagraphs,
   }),
 ]);
 export type RewriteRequest = z.infer<typeof RewriteRequest>;

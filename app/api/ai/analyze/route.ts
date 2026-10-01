@@ -29,5 +29,5 @@ export function POST(request: Request) {
         };
       }),
     };
-  }, { maxBytes: 12 * 1024 * 1024 });
+  }, { maxBytes: 12 * 1024 * 1024, images: (input) => input.slides.flatMap((slide) => slide.image ? [slide.image] : []) });
 }

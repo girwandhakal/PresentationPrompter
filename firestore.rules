@@ -25,6 +25,7 @@ rules_version = '2';
 // Server-owned (Admin SDK only; clients never write):
 //   usage/{day} and usage/{day}/users/{uid} - AI allowances; owners may read their own
 //   config/{doc}, admission/{doc=**}        - limits and account slots; no client access
+//   credits/{uid}                           - write calls left in a draft; no client access
 // ===============================================================
 
 service cloud.firestore {
