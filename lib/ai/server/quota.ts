@@ -1,7 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { FieldValue, getFirestore } from "firebase-admin/firestore";
 import { PILOT } from "../../pilot";
-import { WRITE_BATCH, type GenerationTelemetry } from "../schemas";
+import { WRITE_BATCH } from "../limits";
+import type { GenerationTelemetry } from "../schemas";
 import { adminApp, hasAdminCredentials } from "./auth";
 
 /**

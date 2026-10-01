@@ -5,6 +5,7 @@ import { documentFromAi, documentToParagraphs, makeId } from "../domain/script";
 import type { Brief, Project, Slide, SlideAnalysis, SlideScript } from "../domain/types";
 import { authEnabled, firebase } from "../firebase/client";
 import { getBlob } from "../store/db";
+import { fitScriptParagraphs } from "./limits";
 import type { AiStatus, BriefInput, RewriteRequest, WrittenSlideOutput } from "./schemas";
 
 export class AiRequestError extends Error {
@@ -153,7 +154,7 @@ export function rewriteScript(project: Project, slide: Slide, action: ScriptActi
     brief: briefInput(project.brief),
     title: project.title.slice(0, 200),
     slide: slideRewriteContext(project, slide),
-    paragraphs: documentToParagraphs(slide.script.document).slice(0, 40).map((paragraph) => paragraph.slice(0, 4000)),
+    paragraphs: fitScriptParagraphs(documentToParagraphs(slide.script.document)),
     targetWords: Math.max(5, Math.min(5000, Math.round(targetWords))),
   }, signal);
 }
@@ -165,7 +166,7 @@ export function rewriteSelection(project: Project, slide: Slide, action: Selecti
     brief: briefInput(project.brief),
     title: project.title.slice(0, 200),
     slide: slideRewriteContext(project, slide),
-    paragraphs: documentToParagraphs(slide.script.document).slice(0, 40).map((paragraph) => paragraph.slice(0, 4000)),
+    paragraphs: fitScriptParagraphs(documentToParagraphs(slide.script.document)),
     selection: selection.slice(0, 4000),
   }, signal);
 }
@@ -176,7 +177,7 @@ export function regenerateSupport(project: Project, slide: Slide, signal?: Abort
     brief: briefInput(project.brief),
     title: project.title.slice(0, 200),
     slide: slideRewriteContext(project, slide),
-    paragraphs: documentToParagraphs(slide.script.document).slice(0, 40),
+    paragraphs: fitScriptParagraphs(documentToParagraphs(slide.script.document)),
   }, signal);
 }
 
@@ -186,7 +187,7 @@ export function generateQuestions(project: Project, slide: Slide, signal?: Abort
     brief: briefInput(project.brief),
     title: project.title.slice(0, 200),
     slide: slideRewriteContext(project, slide),
-    paragraphs: documentToParagraphs(slide.script.document).slice(0, 40),
+    paragraphs: fitScriptParagraphs(documentToParagraphs(slide.script.document)),
   }, signal);
 }
 

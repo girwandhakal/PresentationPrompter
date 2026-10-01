@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { admit, DEFAULT_LIMITS, quotaExempt, usedTokens, utcDay, worstCaseTokens, writeCallsFor } from "../../lib/ai/server/quota";
 import { maxOutputTokens, writeOutputLimit } from "../../lib/ai/server/openai";
-import { RewriteRequest, WRITE_BATCH, type WriteRequest } from "../../lib/ai/schemas";
+import { fitScriptParagraphs, SCRIPT_LIMITS, WRITE_BATCH } from "../../lib/ai/limits";
+import { RewriteRequest, type WriteRequest } from "../../lib/ai/schemas";
 
 const fresh = { tokens: 0, reserved: 0, generations: 0, running: 0, writeCredits: 0 };
 const idle = { tokens: 0, reserved: 0 };
@@ -81,7 +82,13 @@ test("a rewrite's script text is capped in total, not only per paragraph", () =>
   const slide = { title: "", text: "", notes: "", analysis: null, previousTitle: "", nextTitle: "" };
   const base = { kind: "support", brief, title: "", slide };
   assert.equal(RewriteRequest.safeParse({ ...base, paragraphs: Array(7).fill("word ".repeat(800)) }).success, true);
-  assert.equal(RewriteRequest.safeParse({ ...base, paragraphs: Array(40).fill("x".repeat(4000)) }).success, false);
+  const oversized = Array(40).fill("x".repeat(4000));
+  assert.equal(RewriteRequest.safeParse({ ...base, paragraphs: oversized }).success, false);
+  // The client trims a long script to fit, keeping its blank paragraphs and its start.
+  const fitted = fitScriptParagraphs(["", ...oversized]);
+  assert.equal(fitted[0], "");
+  assert.equal(fitted.reduce((sum, paragraph) => sum + paragraph.length, 0), SCRIPT_LIMITS.totalChars);
+  assert.equal(RewriteRequest.safeParse({ ...base, paragraphs: fitted }).success, true);
 });
 
 test("the exempt list matches verified emails exactly, ignoring case and spacing", () => {

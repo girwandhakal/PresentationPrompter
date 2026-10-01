@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { SCRIPT_LIMITS } from "./limits";
 
 /**
  * Contracts between the browser orchestrator and the AI gateway routes.
@@ -136,12 +137,6 @@ export const WriteSlideInput = z.object({
 });
 export type WriteSlideInput = z.infer<typeof WriteSlideInput>;
 
-/**
- * Slides per write call: keeps neighbors in one voice and pays for the instructions once per four.
- * The orchestrator batches by it; quotas grant each draft's write calls by it.
- */
-export const WRITE_BATCH = 4;
-
 export const WriteRequest = z.object({
   brief: BriefInput,
   context: ContextInput,
@@ -194,9 +189,8 @@ const RewriteSlide = z.object({
   nextTitle: text(300),
 });
 
-/** A slide's current script; about 5,000 words in all, beyond any one slide's spoken length. */
-const ScriptParagraphs = z.array(text(4000)).max(40)
-  .refine((paragraphs) => paragraphs.reduce((sum, paragraph) => sum + paragraph.length, 0) <= 30_000);
+const ScriptParagraphs = z.array(text(SCRIPT_LIMITS.paragraphChars)).max(SCRIPT_LIMITS.paragraphs)
+  .refine((paragraphs) => paragraphs.reduce((sum, paragraph) => sum + paragraph.length, 0) <= SCRIPT_LIMITS.totalChars);
 
 export const RewriteRequest = z.discriminatedUnion("kind", [
   z.object({

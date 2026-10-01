@@ -7,7 +7,8 @@ import type { DeckContext, Project, Slide, SlideAnalysis } from "../domain/types
 import { useProjects } from "../store/projects";
 import { aiFetch, AiRequestError, analysisInput, briefInput, contextInput, scriptFromWritten, slideImageForAi } from "./client";
 import { aiLockName } from "./lock";
-import { WRITE_BATCH, type WrittenSlideOutput, type GenerationTelemetry, type QualityIssue } from "./schemas";
+import { WRITE_BATCH } from "./limits";
+import type { WrittenSlideOutput, GenerationTelemetry, QualityIssue } from "./schemas";
 
 /**
  * Runs the AI pipeline for a project from the browser, one bounded request at a time:
