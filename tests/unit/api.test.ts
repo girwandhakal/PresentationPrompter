@@ -140,3 +140,35 @@ test("images must be image data URLs", async () => {
   const response = await analyze(post({ fileName: "deck.pdf", slideCount: 1, slides: [{ ...slides[0], image: "https://example.com/tracker.png" }] }));
   assert.equal(response.status, 400);
 });
+
+test("a production server won't spend an OpenAI key without sign-in and quotas", async () => {
+  delete process.env.AI_PROVIDER;
+  const saved = { NODE_ENV: process.env.NODE_ENV, AI_ALLOW_UNMETERED: process.env.AI_ALLOW_UNMETERED, FIREBASE_SERVICE_ACCOUNT: process.env.FIREBASE_SERVICE_ACCOUNT };
+  const env = process.env as Record<string, string | undefined>;
+  env.NODE_ENV = "production";
+  process.env.OPENAI_API_KEY = "sk-test-not-used";
+  delete process.env.AI_ALLOW_UNMETERED;
+  delete process.env.FIREBASE_SERVICE_ACCOUNT;
+  try {
+    // No Firebase project and no service account in the test environment: AI reports itself off.
+    assert.deepEqual(await body(await status()), { provider: "none", model: null });
+    const refused = await context(post({ fileName: "x", slides: [{ index: 1, title: "t", mainPoint: "m", kind: "content" }] }));
+    assert.equal(refused.status, 503);
+    assert.equal((await body(refused)).code, "ai_unavailable");
+
+    // The keyless demo costs nothing, so it still runs.
+    process.env.AI_PROVIDER = "demo";
+    assert.equal((await body(await status())).provider, "demo");
+    delete process.env.AI_PROVIDER;
+
+    // An explicit, documented override for private previews.
+    process.env.AI_ALLOW_UNMETERED = "1";
+    assert.equal((await body(await status())).provider, "openai");
+  } finally {
+    for (const [key, value] of Object.entries(saved)) {
+      if (value === undefined) delete env[key];
+      else env[key] = value;
+    }
+    delete process.env.OPENAI_API_KEY;
+  }
+});

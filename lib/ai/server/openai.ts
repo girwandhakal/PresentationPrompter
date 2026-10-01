@@ -5,6 +5,8 @@ import type { z } from "zod";
 import {
   AnalyzeOutput,
   type ModelCall,
+  type OutlineRequest,
+  type WriteRequest,
   ContextOutput,
   OutlineOutput,
   QuestionsOutput,
@@ -34,6 +36,11 @@ type Effort = "low" | "medium" | "high";
 
 const isReasoningModel = (name: string) => /^(gpt-5|o\d)/i.test(name);
 
+/** The max_output_tokens a call sends for its stage's output limit. Quota reservations assume the same ceiling. */
+export const maxOutputTokens = (outputLimit = 16000) => Math.min(48000, Math.max(4000, outputLimit));
+export const outlineOutputLimit = (request: OutlineRequest) => 4000 + request.slides.length * 240;
+export const writeOutputLimit = (request: WriteRequest) => 4000 + request.slides.reduce((sum, slide) => sum + slide.targetWords * 2, 0);
+
 /** One model for every stage; `writerModel` optionally gives script writing and rewrites a different one. */
 export function createOpenAiProvider({ apiKey, model, baseURL, writerModel = model }: { apiKey: string; model: string; baseURL?: string; writerModel?: string }): AiProvider {
   const client = new OpenAI({ apiKey, baseURL, timeout: 110_000, maxRetries: 0 });
@@ -45,7 +52,7 @@ export function createOpenAiProvider({ apiKey, model, baseURL, writerModel = mod
     name: string,
     instructions: string,
     content: ResponseInputContent[],
-    { effort = "low", verbosity = "medium", signal, use = model, outputLimit = 16000 }: { outputLimit?: number; effort?: Effort; verbosity?: "low" | "medium"; signal?: AbortSignal; use?: string } = {},
+    { effort = "low", verbosity = "medium", signal, use = model, outputLimit }: { outputLimit?: number; effort?: Effort; verbosity?: "low" | "medium"; signal?: AbortSignal; use?: string } = {},
   ): Promise<z.infer<T>> {
     const reasoningModel = isReasoningModel(use);
     const started = Date.now();
@@ -56,7 +63,7 @@ export function createOpenAiProvider({ apiKey, model, baseURL, writerModel = mod
       const response = await client.responses.parse({
         model: use,
         store: false,
-        max_output_tokens: Math.min(48000, Math.max(4000, outputLimit)),
+        max_output_tokens: maxOutputTokens(outputLimit),
         // Reasoning effort and verbosity exist only on reasoning models (gpt-5, o-series). Sending them to
         // gpt-4.x/4o is a 400, so non-reasoning models (which are also the fastest) just skip them.
         ...(reasoningModel ? { reasoning: { effort } } : {}),
@@ -88,10 +95,10 @@ export function createOpenAiProvider({ apiKey, model, baseURL, writerModel = mod
 
     context: (request, signal) => structured(ContextOutput, "deck_context", CONTEXT_INSTRUCTIONS, [input(contextText(request))], { effort: "low", verbosity: "low", signal }),
 
-    outline: (request, signal) => structured(OutlineOutput, "narrative_outline", OUTLINE_INSTRUCTIONS, [input(outlineText(request))], { effort: "low", signal, outputLimit: 4000 + request.slides.length * 240 }),
+    outline: (request, signal) => structured(OutlineOutput, "narrative_outline", OUTLINE_INSTRUCTIONS, [input(outlineText(request))], { effort: "low", signal, outputLimit: outlineOutputLimit(request) }),
 
     write: async (request, signal) => {
-      const output = await structured(WriteOutput, "slide_scripts", writeInstructions(request.brief), [input(writeText(request))], { use: writerModel, effort: "low", signal, outputLimit: 4000 + request.slides.reduce((sum, slide) => sum + slide.targetWords * 2, 0) });
+      const output = await structured(WriteOutput, "slide_scripts", writeInstructions(request.brief), [input(writeText(request))], { use: writerModel, effort: "low", signal, outputLimit: writeOutputLimit(request) });
       exactIds(request.slides, output.slides);
       return output;
     },

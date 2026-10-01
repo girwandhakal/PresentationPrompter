@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { SCRIPT_LIMITS } from "./limits";
 
 /**
  * Contracts between the browser orchestrator and the AI gateway routes.
@@ -188,6 +189,9 @@ const RewriteSlide = z.object({
   nextTitle: text(300),
 });
 
+const ScriptParagraphs = z.array(text(SCRIPT_LIMITS.paragraphChars)).max(SCRIPT_LIMITS.paragraphs)
+  .refine((paragraphs) => paragraphs.reduce((sum, paragraph) => sum + paragraph.length, 0) <= SCRIPT_LIMITS.totalChars);
+
 export const RewriteRequest = z.discriminatedUnion("kind", [
   z.object({
     kind: z.literal("script"),
@@ -195,7 +199,7 @@ export const RewriteRequest = z.discriminatedUnion("kind", [
     brief: BriefInput,
     title: text(200),
     slide: RewriteSlide,
-    paragraphs: z.array(text(4000)).max(40),
+    paragraphs: ScriptParagraphs,
     targetWords: z.number().int().min(5).max(5000),
   }),
   z.object({
@@ -204,7 +208,7 @@ export const RewriteRequest = z.discriminatedUnion("kind", [
     brief: BriefInput,
     title: text(200),
     slide: RewriteSlide,
-    paragraphs: z.array(text(4000)).max(40),
+    paragraphs: ScriptParagraphs,
     selection: text(4000).min(1),
   }),
   z.object({
@@ -212,14 +216,14 @@ export const RewriteRequest = z.discriminatedUnion("kind", [
     brief: BriefInput,
     title: text(200),
     slide: RewriteSlide,
-    paragraphs: z.array(text(4000)).max(40),
+    paragraphs: ScriptParagraphs,
   }),
   z.object({
     kind: z.literal("questions"),
     brief: BriefInput,
     title: text(200),
     slide: RewriteSlide,
-    paragraphs: z.array(text(4000)).max(40),
+    paragraphs: ScriptParagraphs,
   }),
 ]);
 export type RewriteRequest = z.infer<typeof RewriteRequest>;

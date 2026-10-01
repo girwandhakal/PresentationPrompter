@@ -1,5 +1,6 @@
 import { handleAi } from "@/lib/ai/server/http";
 import { AiOutputError, exactIds } from "@/lib/ai/server/integrity";
+import { writeOutputLimit } from "@/lib/ai/server/openai";
 import { draftNotes, slideSource } from "@/lib/ai/server/spoken-lint";
 import { WriteRequest } from "@/lib/ai/schemas";
 import { finalizeWrittenSlide } from "@/lib/ai/validate";
@@ -22,5 +23,5 @@ export function POST(request: Request) {
     if (slides.some(({ script }) => !script.paragraphs.some((paragraph) => paragraph.trim()))) throw new AiOutputError("The AI returned an empty script.");
     const evidence = input.slides.map((slide) => slideSource(slide, input.brief)).join("\n");
     return { slides, notes: slides.map(({ id, script }, index) => ({ id, issues: draftNotes({ ...input.slides[index], script }, evidence, input.brief) })) };
-  }, { maxBytes: 1024 * 1024 });
+  }, { maxBytes: 1024 * 1024, outputLimit: writeOutputLimit });
 }

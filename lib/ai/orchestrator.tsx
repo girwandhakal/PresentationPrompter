@@ -7,6 +7,7 @@ import type { DeckContext, Project, Slide, SlideAnalysis } from "../domain/types
 import { useProjects } from "../store/projects";
 import { aiFetch, AiRequestError, analysisInput, briefInput, contextInput, scriptFromWritten, slideImageForAi } from "./client";
 import { aiLockName } from "./lock";
+import { WRITE_BATCH } from "./limits";
 import type { WrittenSlideOutput, GenerationTelemetry, QualityIssue } from "./schemas";
 
 /**
@@ -21,8 +22,6 @@ import type { WrittenSlideOutput, GenerationTelemetry, QualityIssue } from "./sc
  */
 
 const ANALYZE_BATCH = 4;
-// Four slides per call keeps neighbors in one voice and pays for the instructions once per four.
-const WRITE_BATCH = 4;
 const CONCURRENCY = 3;
 
 type Orchestrator = {

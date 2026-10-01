@@ -2,7 +2,8 @@ import OpenAI from "openai";
 import type { z } from "zod";
 import { authenticate, serverAuthEnabled } from "./auth";
 import { AiOutputError } from "./integrity";
-import { QuotaError, quotaExempt, quotasEnabled, reserve, settle, usedTokens, type Reservation } from "./quota";
+import { maxOutputTokens } from "./openai";
+import { QuotaError, quotaExempt, quotasEnabled, reserve, settle, usedTokens, worstCaseTokens, type Reservation } from "./quota";
 import { getProvider, type AiProvider } from "./provider";
 
 const WINDOW_MS = 60_000;
@@ -40,28 +41,38 @@ async function readJson(request: Request, maxBytes: number) {
   const text = await request.text();
   if (text.length > maxBytes) return { tooLarge: true as const };
   try {
-    return { value: JSON.parse(text) as unknown };
+    return { value: JSON.parse(text) as unknown, bytes: Buffer.byteLength(text) };
   } catch {
     return { invalid: true as const };
   }
 }
 
+type RouteOptions<T> = {
+  maxBytes?: number;
+  /** The stage's output limit before clamping (see maxOutputTokens); defaults to the provider's. */
+  outputLimit?: (input: T) => number;
+  /** Image data URLs in the request, reserved at a flat allowance rather than by their size. */
+  images?: (input: T) => string[];
+  /** Write calls an admitted request unlocks for its draft (the outline). */
+  grantsWrites?: (input: T) => number;
+};
+
 /**
  * Shared shape for every AI route: provider check, sign-in check, rate limit, size limit, schema validation,
- * cancellation, and mapping of provider errors to calm, user-safe messages. Request and response
- * content is never logged.
+ * quota reservation, cancellation, and mapping of provider errors to calm, user-safe messages.
+ * Request and response content is never logged.
  */
 export async function handleAi<S extends z.ZodType>(
   request: Request,
   schema: S,
   run: (provider: AiProvider, input: z.infer<S>, signal: AbortSignal) => Promise<unknown>,
-  { maxBytes = 512 * 1024 }: { maxBytes?: number } = {},
+  { maxBytes = 512 * 1024, outputLimit, images, grantsWrites }: RouteOptions<z.infer<S>> = {},
 ) {
   const provider = getProvider();
-  if (!provider) return failure(503, "ai_unavailable", "AI isn't set up on this server yet. Add OPENAI_API_KEY to enable script writing.");
+  if (!provider) return failure(503, "ai_unavailable", "AI isn't set up on this server yet.");
   let uid: string | undefined;
   let email: string | null = null;
-  if (serverAuthEnabled) {
+  if (serverAuthEnabled()) {
     const caller = await authenticate(request);
     if ("error" in caller) return failure(caller.status, caller.code, caller.error);
     ({ uid, email } = caller);
@@ -76,9 +87,23 @@ export async function handleAi<S extends z.ZodType>(
 
   let reservation: Reservation | null = null;
   if (uid && quotasEnabled()) {
+    const input = parsed.data;
+    const attached = images?.(input) ?? [];
+    const estimate = worstCaseTokens({
+      textBytes: body.bytes - attached.reduce((sum, image) => sum + image.length, 0),
+      images: attached.length,
+      maxOutput: maxOutputTokens(outputLimit?.(input)),
+    });
     try {
-      reservation = await reserve(uid, new URL(request.url).pathname.split("/").pop() ?? "", quotaExempt(email));
+      reservation = await reserve(uid, {
+        stage: new URL(request.url).pathname.split("/").pop() ?? "",
+        estimate,
+        exempt: quotaExempt(email),
+        grantWrites: grantsWrites?.(input),
+      });
     } catch (error) {
+      // A busy account is retried by the client; a spent allowance is final until it resets.
+      if (error instanceof QuotaError && error.busy) return failure(429, "busy", error.message, { "retry-after": "10" });
       if (error instanceof QuotaError) return failure(429, "quota", error.message, { "x-quota-reset": error.resetAt });
       console.error("[ai] quota check failed", error instanceof Error ? error.name : typeof error);
       return failure(503, "quota_unavailable", "AI usage couldn't be checked right now. Try again in a moment.");

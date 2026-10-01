@@ -99,9 +99,12 @@ folder and is the source of truth for product requirements.
 | `OPENAI_WRITER_MODEL` | No | A different model for script writing and rewrites only (for example `gpt-5.4-2026-03-05`). Defaults to `OPENAI_MODEL`. A full-size model costs more and draws from the smaller complimentary pool. |
 | `OPENAI_BASE_URL` | No | Point at an OpenAI-compatible proxy or gateway. |
 | `AI_PROVIDER` | No | `demo` forces the keyless demo provider (development and tests). |
+| `AI_ALLOW_UNMETERED` | No | `1` lets a production build use `OPENAI_API_KEY` without sign-in and quotas. Only for a private preview; never on a public deployment. |
 
 With no key and no `AI_PROVIDER`, a production build shows a calm "AI isn't set up" state. People
-can still import, write scripts by hand, and present.
+can still import, write scripts by hand, and present. A production build also keeps AI off until
+sign-in (the Firebase variables) and quotas (`FIREBASE_SERVICE_ACCOUNT`) are both configured, so a
+missing setting can never leave the key open to unmetered use.
 
 **Sign-in and cloud sync — optional**
 
@@ -110,7 +113,7 @@ can still import, write scripts by hand, and present.
 | `NEXT_PUBLIC_FIREBASE_*` | For sign-in | Public Firebase web app config (six variables — see `.env.example`). Leave them all empty to run local-only, no account needed. |
 | `NEXT_PUBLIC_AUTH_MODE` | No | Set to `off` to skip sign-in even when Firebase is configured (this is how the e2e suite runs). |
 | `NEXT_PUBLIC_RECAPTCHA_SITE_KEY` / `NEXT_PUBLIC_APPCHECK_DEBUG_TOKEN` | No | Firebase App Check, once enforcement is turned on. |
-| `FIREBASE_SERVICE_ACCOUNT` | No | Server-side only. The AI routes verify sign-in without it; with it they also reject revoked sessions and disabled users. Never commit it. |
+| `FIREBASE_SERVICE_ACCOUNT` | For AI in production | Server-side only. Turns on the daily AI allowances and rejects revoked sessions and disabled users. A production build with `OPENAI_API_KEY` keeps AI off without it. Never commit it. |
 | `QUOTA_EXEMPT_EMAILS` | No | Server-side only. Comma-separated verified sign-in emails exempt from the daily AI allowances (usage is still recorded). Takes effect only with `FIREBASE_SERVICE_ACCOUNT` set. |
 | `NEXT_PUBLIC_SITE_URL` | No | Public origin for social-card links. |
 
@@ -204,8 +207,9 @@ The app is a standard Next.js build, intended for Vercel. A small, invite-gated 
 Firebase Authentication, Firestore, and Storage is the planned rollout — see [`CLAUDE.md`](CLAUDE.md)
 for what's implemented today versus still planned.
 
-1. Set `OPENAI_API_KEY` (and optionally `OPENAI_MODEL`) as sensitive environment variables. Add the
-   `NEXT_PUBLIC_FIREBASE_*` variables only if you want sign-in and cloud sync.
+1. Set `OPENAI_API_KEY` (and optionally `OPENAI_MODEL`) as sensitive environment variables. AI also
+   needs the `NEXT_PUBLIC_FIREBASE_*` variables (sign-in) and `FIREBASE_SERVICE_ACCOUNT` (quotas);
+   without them a production build keeps AI off.
 2. If sign-in is enabled, deploy `firestore.rules`, `storage.rules`, and the signup-gating function in
    [`functions/`](functions/) with the Firebase CLI.
 3. Run `npm run check`, then deploy; Vercel runs `next build` itself.

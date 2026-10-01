@@ -27,8 +27,10 @@ the workspace, and the AI routes verify the Firebase ID token (`proxy.ts` screen
 first). Local writes mirror to the account in Firestore/Storage (`lib/store/cloud.ts`,
 newest `updatedAt` wins; after the first listing a device reads only documents newer
 than its server-time `syncedAt` cursor, and unconfirmed writes retry from an IndexedDB
-outbox), AI calls draw on Firestore quotas (`lib/ai/server/quota.ts`),
-and a blocking function caps signups (`functions/`). Durable server jobs are still planned.
+outbox), AI calls draw on Firestore quotas (`lib/ai/server/quota.ts`: each call reserves its
+worst case, and write calls need credits from an admitted outline), a production build keeps a
+paid provider off without sign-in and quotas, and a blocking function caps signups
+(`functions/`). Durable server jobs are still planned.
 
 | Area | Implementation |
 | --- | --- |

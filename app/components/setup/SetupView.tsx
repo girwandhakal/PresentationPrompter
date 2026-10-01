@@ -295,7 +295,7 @@ export function SetupView({ project }: { project: Project }) {
               <Callout tone="error" title="The script wasn't finished">{failed}</Callout>
             )}
             {aiReady === false && (
-              <Callout tone="warn" title="AI isn't set up">This server doesn&apos;t have an AI key yet, so scripts can&apos;t be written. You can still write your own script in the editor.</Callout>
+              <Callout tone="warn" title="AI isn't set up">AI isn&apos;t turned on for this server yet, so scripts can&apos;t be written. You can still write your own script in the editor.</Callout>
             )}
 
             {scripted ? (

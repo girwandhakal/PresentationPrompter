@@ -1,5 +1,7 @@
 import { exactIds } from "@/lib/ai/server/integrity";
 import { handleAi } from "@/lib/ai/server/http";
+import { outlineOutputLimit } from "@/lib/ai/server/openai";
+import { writeCallsFor } from "@/lib/ai/server/quota";
 import { OutlineRequest } from "@/lib/ai/schemas";
 
 export const dynamic = "force-dynamic";
@@ -23,5 +25,5 @@ export function POST(request: Request) {
         };
       }),
     };
-  }, { maxBytes: 1024 * 1024 });
+  }, { maxBytes: 1024 * 1024, outputLimit: outlineOutputLimit, grantsWrites: (input) => writeCallsFor(input.slides.length) });
 }

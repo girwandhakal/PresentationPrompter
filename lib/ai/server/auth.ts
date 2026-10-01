@@ -9,10 +9,10 @@ import { getAuth } from "firebase-admin/auth";
  * suspension. The user ID comes only from the verified token, never from the request body.
  */
 
-const projectId = process.env.FIREBASE_PROJECT_ID ?? process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
+const firebaseProjectId = () => process.env.FIREBASE_PROJECT_ID ?? process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
 
 /** Mirrors the client switch: sign-in is required whenever Firebase is configured and not turned off. */
-export const serverAuthEnabled = process.env.NEXT_PUBLIC_AUTH_MODE !== "off" && Boolean(projectId);
+export const serverAuthEnabled = () => process.env.NEXT_PUBLIC_AUTH_MODE !== "off" && Boolean(firebaseProjectId());
 
 let app: App | null = null;
 let checkRevoked = false;
@@ -23,6 +23,7 @@ export const hasAdminCredentials = () => Boolean(process.env.FIREBASE_SERVICE_AC
 export function adminApp() {
   if (app) return app;
   const serviceAccount = process.env.FIREBASE_SERVICE_ACCOUNT;
+  const projectId = firebaseProjectId();
   checkRevoked = Boolean(serviceAccount);
   const existing = getApps()[0];
   if (existing) return (app = existing);
