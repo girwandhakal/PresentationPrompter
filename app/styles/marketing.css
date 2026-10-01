@@ -251,11 +251,22 @@ html:has(.mk), html:has(.mk) body { background: color-mix(in srgb, var(--pitch) 
 .legal ul { padding-left: var(--s-5); list-style: disc; }
 
 /* ── Motion ────────────────────────────────────────────────────────────── */
-/* The hero settles in once; later content rises as it scrolls into view. Scroll reveals are tied to
-   the scroll position, so they can never leave content hidden, and browsers without scroll-driven
-   animation simply show the page. Nothing moves under reduced motion except what the visitor plays. */
+/* The hero settles in once; everything after it moves with the scroll. Scroll reveals are tied to
+   the scroll position, so they can never leave content hidden, scrolling back plays them in
+   reverse, and browsers without scroll-driven animation simply show the page. Only first states
+   are declared, so each element ends exactly as laid out. Nothing moves under reduced motion
+   except what the visitor plays. */
 
 @keyframes mk-rise { from { opacity: 0; transform: translateY(18px); } }
+@keyframes mk-rise-far { from { opacity: 0; transform: translateY(40px); } }
+@keyframes mk-from-left { from { opacity: 0; transform: translateX(-36px); } }
+@keyframes mk-from-right { from { opacity: 0; transform: translateX(36px); } }
+@keyframes mk-unveil { from { clip-path: inset(0 0 100% 0); transform: translateY(0.35em); } }
+@keyframes mk-settle { from { transform: scale(0.9) translateY(32px); } }
+@keyframes mk-unzoom { from { transform: scale(1.14); } }
+@keyframes mk-grow { from { opacity: 0; transform: scale(0.94) translateY(24px); } }
+@keyframes mk-draw { from { opacity: 0; transform: translateX(-14px) scaleX(0.4); } }
+@keyframes mk-progress { from { transform: scaleX(0); } }
 
 @media (prefers-reduced-motion: no-preference) {
   .hero__title, .hero__lede, .hero__action, .hero__demo, .hero__works { animation: mk-rise 800ms var(--ease-out) backwards; }
@@ -265,13 +276,62 @@ html:has(.mk), html:has(.mk) body { background: color-mix(in srgb, var(--pitch) 
   .hero__works { animation-delay: 440ms; }
 
   @supports (animation-timeline: view()) {
-    .band__head, .closing__inner, .problems li, .steps li, .tile, .access-card, .mini-faq, .faq__list, .compare, .stage-pair {
-      animation: mk-rise linear backwards;
-      animation-timing-function: var(--ease-out);
+    /* Reading progress, as a hairline under the sticky header. */
+    .site-nav::after {
+      content: ""; position: absolute; left: 0; right: 0; bottom: -1px; height: 2px;
+      background: var(--powder); transform-origin: 0 50%;
+      animation: mk-progress linear both; animation-timeline: scroll(root);
+    }
+
+    .band__head, .closing__inner, .steps li, .tile, .access-card, .mini-faq details, .faq__list details, .tile__list li, .access-card__list li {
+      animation: mk-rise var(--ease-out) backwards;
       animation-timeline: view();
       animation-range: entry 0% entry 40%;
     }
+
+    /* Headlines rise out of their own line. */
+    .band__head h2, .closing h2 {
+      animation: mk-unveil var(--ease-out) backwards;
+      animation-timeline: view();
+      animation-range: entry 10% entry 60%;
+    }
+    .band__lede { animation: mk-rise var(--ease-out) backwards; animation-timeline: view(); animation-range: entry 20% entry 75%; }
+
+    /* The hero recording leans back into place as the page starts to move. */
+    .hero__demo > .frame {
+      transform-origin: 50% 0;
+      animation: mk-settle var(--ease-out) backwards;
+      animation-timeline: view();
+      animation-range: entry 0% cover 40%;
+    }
+
+    /* Each problem reads left to right: the old way, the arrow, then the better one. */
+    .problems__before { animation: mk-from-left var(--ease-out) backwards; animation-timeline: view(); animation-range: entry 10% entry 60%; }
+    .problems__arrow { animation: mk-draw var(--ease-out) backwards; animation-timeline: view(); animation-range: entry 30% entry 80%; }
+    .problems__after { animation: mk-from-right var(--ease-out) backwards; animation-timeline: view(); animation-range: entry 45% entry 95%; }
+
+    /* Screenshots and recordings start a little close and pull back to fit their frame. */
+    .steps__shot img, .tile__media img, .tile__media video {
+      animation: mk-unzoom linear backwards;
+      animation-timeline: view();
+      animation-range: entry 0% cover 50%;
+    }
     .steps li:nth-child(2), .tile:nth-child(2) { animation-range: entry 6% entry 46%; }
     .steps li:nth-child(3) { animation-range: entry 12% entry 52%; }
+
+    /* The two screens come in from either side and meet. */
+    .stage-pair__side--private { animation: mk-from-left var(--ease-out) backwards; animation-timeline: view(); animation-range: entry 0% entry 55%; }
+    .stage-pair__side:not(.stage-pair__side--private) { animation: mk-from-right var(--ease-out) backwards; animation-timeline: view(); animation-range: entry 10% entry 65%; }
+
+    /* The comparison fills in row by row. */
+    .compare thead tr, .compare tbody tr { animation: mk-rise var(--ease-out) backwards; animation-timeline: view(); animation-range: entry 0% entry 70%; }
+
+    .access-card { animation-name: mk-grow; }
+    .closing__inner { animation-name: mk-rise-far; animation-range: entry 0% cover 35%; }
+
+    /* Siblings that enter together arrive a beat apart. */
+    .tile__list li:nth-child(2), .access-card__list li:nth-child(2), .mini-faq details:nth-child(2), .faq__list details:nth-child(2) { animation-range: entry 6% entry 46%; }
+    .tile__list li:nth-child(3), .access-card__list li:nth-child(3), .mini-faq details:nth-child(3), .faq__list details:nth-child(3) { animation-range: entry 12% entry 52%; }
+    .tile__list li:nth-child(n + 4), .access-card__list li:nth-child(n + 4), .mini-faq details:nth-child(n + 4), .faq__list details:nth-child(n + 4) { animation-range: entry 18% entry 58%; }
   }
 }

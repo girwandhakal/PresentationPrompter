@@ -8,18 +8,19 @@
 // Everything on screen is the product running normally. The one substitution: the /api/ai/write
 // response keeps its structure but carries the hand-written paragraphs from script.mjs, because the
 // demo provider only rearranges slide text and paid model runs aren't authorized for this.
+// Chrome runs at twice the pixel density so the clips can zoom in on the pointer and stay sharp
+// (camera.mjs plans the zoom from the pointer track recorded beside the frames).
 // Outputs: public/landing/*.webp (stills and posters) and *.mp4 (H.264, no audio).
 import { chromium } from "@playwright/test";
-import { execFileSync } from "node:child_process";
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import sharp from "sharp";
+import { RAW, render } from "./render.mjs";
 import { SCRIPT } from "./script.mjs";
 
 const BASE = process.env.CAPTURE_URL ?? "http://localhost:3150";
 const ROOT = process.cwd();
 const DECK = path.join(ROOT, "outputs/landing/cooler-streets.pdf");
-const RAW = path.join(ROOT, "outputs/landing/raw");
 const OUT = path.join(ROOT, "public/landing");
 mkdirSync(OUT, { recursive: true });
 rmSync(RAW, { recursive: true, force: true });
@@ -27,25 +28,67 @@ mkdirSync(RAW, { recursive: true });
 
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-/** A visible pointer, since screencasts don't include the OS cursor. Hidden until the mouse first moves. */
+/**
+ * A visible pointer, since screencasts don't include the OS cursor. Hidden until the mouse first
+ * moves. It also reports the pointer, clicks, and the caret while typing, for the zoom.
+ */
 const CURSOR = () => {
+  const report = (type, x, y) => window.__captureTrack?.(type, x, y);
+  const caret = () => {
+    const field = document.activeElement;
+    if (field instanceof HTMLInputElement || field instanceof HTMLTextAreaElement) return field.getBoundingClientRect();
+    const selection = getSelection();
+    const range = selection?.rangeCount ? selection.getRangeAt(0) : null;
+    const rect = range?.getClientRects()[0] ?? range?.getBoundingClientRect();
+    return rect && (rect.width || rect.height) ? rect : field?.getBoundingClientRect();
+  };
   const install = () => {
     if (document.getElementById("capture-cursor")) return;
     const cursor = document.createElement("div");
     cursor.id = "capture-cursor";
     cursor.innerHTML = '<svg width="26" height="26" viewBox="0 0 26 26"><path d="M5 3l15 9.2-6.6 1.4 3.9 7.6-2.9 1.5-3.9-7.6L5 20z" fill="#070600" stroke="#fff" stroke-width="1.6" stroke-linejoin="round"/></svg>';
     Object.assign(cursor.style, { position: "fixed", left: "0", top: "0", zIndex: "2147483647", pointerEvents: "none", opacity: "0", transform: "translate(-100px,-100px)", transition: "opacity 200ms", filter: "drop-shadow(0 2px 3px rgb(0 0 0 / 0.25))" });
+    cursor.firstChild.style.transition = "transform 120ms";
     document.documentElement.appendChild(cursor);
     addEventListener("mousemove", (event) => {
       cursor.style.opacity = document.documentElement.dataset.captureStill ? "0" : "1";
       cursor.style.transform = `translate(${event.clientX - 5}px, ${event.clientY - 3}px)`;
+      report("move", event.clientX, event.clientY);
     }, { capture: true, passive: true });
-    addEventListener("mousedown", () => { cursor.firstChild.style.transform = "scale(0.86)"; }, true);
+    addEventListener("mousedown", (event) => {
+      cursor.firstChild.style.transform = "scale(0.86)";
+      report("click", event.clientX, event.clientY);
+    }, true);
     addEventListener("mouseup", () => { cursor.firstChild.style.transform = ""; }, true);
+    addEventListener("keydown", (event) => {
+      if (event.key.length !== 1 && event.key !== "Backspace") return;
+      requestAnimationFrame(() => {
+        const rect = caret();
+        if (rect) report("key", rect.left + rect.width / 2, rect.top + rect.height / 2);
+      });
+    }, true);
   };
   if (document.readyState === "loading") addEventListener("DOMContentLoaded", install);
   else install();
 };
+
+/** Pointer and action tracks per page, stamped with the same Node clock as the frames. */
+const tracks = new Map();
+const trackOf = (page) => {
+  if (!tracks.has(page)) tracks.set(page, []);
+  return tracks.get(page);
+};
+
+/** Frames the camera on something that isn't a click or a keystroke, such as a script being written. */
+async function focus(page, locator, { scale, lead, hold } = {}) {
+  const box = await locator.boundingBox();
+  trackOf(page).push({ t: Date.now() / 1000, type: "focus", x: box.x + box.width / 2, y: box.y + box.height / 2, scale, lead, hold });
+}
+
+/** Pulls the camera back out now, for example when a click moves to another page. */
+function release(page) {
+  trackOf(page).push({ t: Date.now() / 1000, type: "release" });
+}
 
 /** Records a page through the DevTools screencast; frames arrive only when something repaints. */
 async function record(page, name) {
@@ -60,55 +103,77 @@ async function record(page, name) {
     frames.push({ file, t: Date.now() / 1000 });
     cdp.send("Page.screencastFrameAck", { sessionId }).catch(() => {});
   });
-  await cdp.send("Page.startScreencast", { format: "jpeg", quality: 92 });
+  await cdp.send("Page.startScreencast", { format: "jpeg", quality: 92, maxWidth: 4000, maxHeight: 4000 });
   const start = Date.now() / 1000;
+  const cuts = [];
   return {
     start,
     frames,
+    /** Takes a still without the pause showing in the clip. */
+    async still(stillName) {
+      const pausedAt = Date.now() / 1000;
+      await still(page, stillName);
+      cuts.push([pausedAt, Date.now() / 1000]);
+    },
     async stop(options = {}) {
       const end = options.end ?? Date.now() / 1000;
       await cdp.send("Page.stopScreencast");
       await cdp.detach();
-      encode(name, frames, options.from ?? start, end, options);
+      await render(name, { ...options, frames, cuts, from: options.from ?? start, end, view: page.viewportSize(), events: trackOf(page) });
     },
   };
-}
-
-/** Turns timestamped frames into a constant-rate H.264 clip and a WebP poster. */
-function encode(name, frames, from, end, { speed = 1, width = 1440, poster = "last" } = {}) {
-  if (!frames.length) throw new Error(`No frames recorded for ${name}`);
-  const list = [];
-  const kept = frames.filter((frame, index) => frame.t >= from || frames[index + 1]?.t > from);
-  kept.forEach((frame, index) => {
-    const next = kept[index + 1]?.t ?? end;
-    // The first frame also covers any gap back to `from`, so clips recorded together stay aligned.
-    const duration = Math.max(0.001, next - (index === 0 ? from : frame.t));
-    list.push(`file '${frame.file.replace(/\\/g, "/")}'`, `duration ${duration.toFixed(4)}`);
-  });
-  list.push(`file '${kept.at(-1).file.replace(/\\/g, "/")}'`);
-  // The concat demuxer holds the final entry for an extra beat; -t trims the clip to the real length.
-  const listFile = path.join(RAW, `${name}.txt`);
-  writeFileSync(listFile, list.join("\n"));
-  const video = path.join(OUT, `${name}.mp4`);
-  const filters = [`setpts=PTS/${speed}`, "fps=30", `scale=${width}:-2:flags=lanczos`, "format=yuv420p"].join(",");
-  execFileSync("ffmpeg", ["-loglevel", "error", "-y", "-f", "concat", "-safe", "0", "-i", listFile, "-vf", filters, "-t", ((end - from) / speed).toFixed(3), "-c:v", "libx264", "-preset", "slow", "-crf", "25", "-tune", "animation", "-movflags", "+faststart", "-an", video]);
-  const posterFrame = poster === "first" ? kept[0].file : kept.at(-1).file;
-  return sharp(posterFrame).resize({ width }).webp({ quality: 78 }).toFile(path.join(OUT, `${name}-poster.webp`));
 }
 
 async function still(page, name, width = 2400) {
   await page.evaluate(() => { document.documentElement.dataset.captureStill = "1"; document.getElementById("capture-cursor")?.style.setProperty("opacity", "0"); });
   await wait(250);
   const buffer = await page.screenshot();
-  await page.evaluate(() => { delete document.documentElement.dataset.captureStill; });
+  await page.evaluate(() => {
+    delete document.documentElement.dataset.captureStill;
+    document.getElementById("capture-cursor")?.style.setProperty("opacity", "1");
+  });
   await sharp(buffer).resize({ width }).webp({ quality: 80 }).toFile(path.join(OUT, `${name}.webp`));
 }
 
+/** Where each page's pointer is, so glides start from it. */
+const pointers = new Map();
+const easeInOut = (p) => (p < 0.5 ? 4 * p * p * p : 1 - (-2 * p + 2) ** 3 / 2);
+
+/** Puts the pointer somewhere without a visible move. */
+async function place(page, x, y) {
+  await page.mouse.move(x, y);
+  pointers.set(page, [x, y]);
+}
+
+/**
+ * Moves the pointer the way a hand does: along a slight arc, easing out of the start and into the
+ * target, at about 60 steps a second, taking longer for longer distances.
+ */
+async function glide(page, x, y, { duration } = {}) {
+  const [x0, y0] = pointers.get(page) ?? [x, y];
+  const distance = Math.hypot(x - x0, y - y0);
+  const ms = duration ?? Math.min(950, 260 + distance * 0.55);
+  const steps = Math.max(2, Math.round(ms / 16));
+  const bend = Math.min(48, distance * 0.08);
+  const cx = (x0 + x) / 2 - ((y - y0) / (distance || 1)) * bend;
+  const cy = (y0 + y) / 2 + ((x - x0) / (distance || 1)) * bend;
+  const started = Date.now();
+  for (let step = 1; step <= steps; step++) {
+    const p = easeInOut(step / steps);
+    const px = (1 - p) ** 2 * x0 + 2 * (1 - p) * p * cx + p * p * x;
+    const py = (1 - p) ** 2 * y0 + 2 * (1 - p) * p * cy + p * p * y;
+    await page.mouse.move(px, py);
+    const delay = started + (ms * step) / steps - Date.now();
+    if (delay > 0) await wait(delay);
+  }
+  pointers.set(page, [x, y]);
+}
+
 /** Glides the visible pointer to an element and clicks it. */
-async function click(page, locator, { steps = 32, pause = 180 } = {}) {
+async function click(page, locator, { pause = 180 } = {}) {
   await locator.scrollIntoViewIfNeeded();
   const box = await locator.boundingBox();
-  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2, { steps });
+  await glide(page, box.x + box.width / 2, box.y + box.height / 2);
   await wait(pause);
   await page.mouse.down();
   await wait(70);
@@ -133,16 +198,20 @@ async function selectPhrase(page, editor, phrase) {
     return null;
   }, phrase);
   if (!rect) throw new Error(`Phrase not found: ${phrase}`);
-  await page.mouse.move(rect.x1, rect.y1, { steps: 24 });
+  await glide(page, rect.x1, rect.y1);
   await page.mouse.down();
-  await page.mouse.move(rect.x2, rect.y2, { steps: 30 });
+  await glide(page, rect.x2, rect.y2, { duration: 520 });
   await page.mouse.up();
 }
 
-const browser = await chromium.launch({ channel: process.env.PLAYWRIGHT_CHANNEL ?? "chrome" });
+// Twice the pixels: the screencast ignores deviceScaleFactor but honours the forced scale.
+const browser = await chromium.launch({ channel: process.env.PLAYWRIGHT_CHANNEL ?? "chrome", args: ["--force-device-scale-factor=2"] });
 const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 2, colorScheme: "light", reducedMotion: "no-preference" });
 // Time flows normally; the review rehearsal below jumps it forward.
 await context.clock.install();
+await context.exposeBinding("__captureTrack", ({ page }, type, x, y) => {
+  trackOf(page).push({ t: Date.now() / 1000, type, x, y });
+});
 await context.addInitScript(CURSOR);
 await context.addInitScript(() => {
   try { localStorage.setItem("cueframe:pref:theme", JSON.stringify("light")); } catch {}
@@ -170,13 +239,13 @@ page.setDefaultTimeout(30_000);
 await page.goto(`${BASE}/home`);
 await page.locator('nav[aria-label="Your presentations"][data-ready]').waitFor({ state: "attached" });
 await page.getByRole("heading", { name: "Import your slides" }).waitFor();
-await page.mouse.move(1100, 720);
+await place(page, 1100, 720);
 await wait(600);
 const hero = await record(page, "hero");
 await wait(700);
 const dropzone = page.locator("input[type=file]").first().locator("xpath=ancestor::*[self::label or self::div][1]");
 const dropBox = await dropzone.boundingBox();
-await page.mouse.move(dropBox.x + dropBox.width / 2, dropBox.y + dropBox.height / 2, { steps: 36 });
+await glide(page, dropBox.x + dropBox.width / 2, dropBox.y + dropBox.height / 2);
 await wait(350);
 await page.locator("input[type=file]").first().setInputFiles(DECK);
 await page.waitForURL(/\/p\/[a-z0-9]+\/setup$/);
@@ -194,18 +263,22 @@ await click(page, audienceField);
 await page.keyboard.press("Control+A");
 await page.keyboard.type("City council members and neighbors", { delay: 38 });
 await wait(500);
-await still(page, "setup");
+await hero.still("setup");
 await click(page, page.getByRole("button", { name: "Write my script" }));
+await wait(250);
+release(page);
 await page.waitForURL(new RegExp(`/p/${id}/edit`));
 const first = page.getByRole("textbox", { name: "Script for slide 1" });
 await first.waitFor();
 await page.getByText("Hello, everyone.").first().waitFor();
-await page.mouse.move(1180, 820, { steps: 20 });
+// Lean in on the finished script before moving on.
+await focus(page, first, { scale: 1.45, lead: 0.3, hold: 2.2 });
+await glide(page, 1180, 820);
 await wait(2600);
 await page.keyboard.press("Alt+ArrowDown");
 await page.getByRole("textbox", { name: "Script for slide 2" }).waitFor();
 await wait(2600);
-await hero.stop({ speed: 1.15 });
+await hero.stop({ speed: 1.15, fps: 60, crf: 27, zoom: { scale: 1.8 } });
 await still(page, "editor");
 
 // ── Editing: your words, your cues ──────────────────────────────────────────
@@ -220,19 +293,21 @@ await wait(500);
 await selectPhrase(page, second, "Our blocks hit ninety-five.");
 await page.keyboard.press("ArrowRight");
 await wait(500);
-await click(page, page.locator(".cue-button:visible").first(), { steps: 26 });
+await click(page, page.locator(".cue-button:visible").first());
 await wait(300);
 await page.keyboard.type("Point at the orange bar", { delay: 45 });
 await wait(600);
 // Proposals never overwrite on their own: preview one, then keep the original.
 await click(page, page.getByRole("button", { name: "Improve" }));
 await wait(400);
-await click(page, page.getByRole("menuitem", { name: "More conversational" }), { steps: 18 });
-await page.getByRole("region", { name: "Proposed change" }).waitFor();
+await click(page, page.getByRole("menuitem", { name: "More conversational" }));
+const proposal = page.getByRole("region", { name: "Proposed change" });
+await proposal.waitFor();
+await focus(page, proposal);
 await wait(1800);
 await click(page, page.getByRole("button", { name: "Discard" }));
 await wait(1400);
-await edit.stop();
+await edit.stop({ fps: 60, crf: 29, zoom: { scale: 1.6 } });
 await page.locator('.editor[data-save-state="saved"]').waitFor({ state: "attached" });
 
 // ── The stage: presenter and audience, recorded together ────────────────────
@@ -244,16 +319,16 @@ const audience = await popup;
 await audience.setViewportSize({ width: 1280, height: 720 });
 await audience.getByRole("img").first().waitFor();
 await page.getByLabel("Teleprompter").waitFor();
-await page.mouse.move(1200, 700);
+await place(page, 1200, 700);
 await wait(900);
 const stage = await record(page, "stage-presenter");
 const room = await record(audience, "stage-audience");
 await wait(500);
 const size = stage.frames[0] && await sharp(stage.frames[0].file).metadata();
-if (!size || size.width !== 1440) throw new Error(`Presenter frames are ${size?.width}x${size?.height}, expected 1440 wide`);
+if (!size || size.width !== 2880) throw new Error(`Presenter frames are ${size?.width}x${size?.height}, expected 2880 wide`);
 // Both clips start together, with the talk live and the slide already on the audience screen.
 const live = Date.now() / 1000;
-await page.mouse.move(1430, 890, { steps: 12 });
+await glide(page, 1430, 890);
 await wait(900);
 await page.keyboard.press("Space");
 await wait(6500);
@@ -291,7 +366,7 @@ for (const [index, seconds] of [62, 96, 71, 104, 88, 38].entries()) {
   if (index < 5) await page.keyboard.press("ArrowRight");
 }
 await endSession();
-await page.mouse.move(1430, 890);
+await place(page, 1430, 890);
 await wait(1200);
 await still(page, "review");
 
