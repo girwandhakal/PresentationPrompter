@@ -278,7 +278,7 @@ await wait(2600);
 await page.keyboard.press("Alt+ArrowDown");
 await page.getByRole("textbox", { name: "Script for slide 2" }).waitFor();
 await wait(2600);
-await hero.stop({ speed: 1.15, fps: 60, crf: 27, zoom: { scale: 1.8 } });
+await hero.stop({ speed: 2, fps: 60, crf: 27, zoom: { scale: 1.8 } });
 await still(page, "editor");
 
 // ── Editing: your words, your cues ──────────────────────────────────────────
